@@ -287,7 +287,6 @@ async def list_deal_activities(
                 duration_seconds=a.duration_seconds,
                 got_response=a.got_response,
                 response_at=a.response_at.isoformat() if a.response_at else None,
-                scheduled_at=a.scheduled_at.isoformat() if a.scheduled_at else None,
                 created_at=a.created_at.isoformat()
             )
             for a in activities
