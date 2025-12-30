@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
@@ -21,96 +21,19 @@ export const AuthProvider = ({ children }) => {
   const [currentWorkspace, setCurrentWorkspace] = useState(null);
   const [workspaces, setWorkspaces] = useState([]);
 
-  // Create API instance
-  const api = useMemo(() => {
-    const instance = axios.create({
-      baseURL: `${API_URL}/api`,
-    });
-    
-    // Add token to requests
-    instance.interceptors.request.use((config) => {
-      const currentToken = localStorage.getItem('crm_token');
-      if (currentToken) {
-        config.headers.Authorization = `Bearer ${currentToken}`;
-      }
-      return config;
-    });
-    
-    return instance;
-  }, []);
-
-  // Logout function - defined first
-  const logout = useCallback(() => {
-    setToken(null);
-    setUser(null);
-    setCurrentWorkspace(null);
-    setWorkspaces([]);
-    localStorage.removeItem('crm_token');
-    localStorage.removeItem('currentWorkspaceId');
-    localStorage.removeItem('currentTenantId');
-    localStorage.removeItem('crm_tenant');
-  }, []);
-
-  // Switch workspace function
-  const switchWorkspace = useCallback(async (workspaceId) => {
-    try {
-      const response = await api.post(`/workspaces/${workspaceId}/switch`);
-      const data = response.data;
-      
-      setCurrentWorkspace(prev => {
-        const ws = workspaces.find(w => w.id === workspaceId) || prev;
-        return ws ? { ...ws, tenant_id: data.tenant_id } : null;
-      });
-      setTenant(data.workspace_slug);
-      
-      localStorage.setItem('currentWorkspaceId', workspaceId);
-      localStorage.setItem('currentTenantId', data.tenant_id);
-      localStorage.setItem('crm_tenant', data.workspace_slug);
-      
-      return true;
-    } catch (error) {
-      console.error('Failed to switch workspace:', error);
-      return false;
+  // Create API instance with interceptor
+  const api = axios.create({
+    baseURL: `${API_URL}/api`,
+  });
+  
+  // Add token to requests
+  api.interceptors.request.use((config) => {
+    const currentToken = localStorage.getItem('crm_token');
+    if (currentToken) {
+      config.headers.Authorization = `Bearer ${currentToken}`;
     }
-  }, [api, workspaces]);
-
-  // Fetch workspaces function
-  const fetchWorkspaces = useCallback(async () => {
-    try {
-      const response = await api.get('/workspaces');
-      const ws = response.data.workspaces || [];
-      setWorkspaces(ws);
-      
-      // Check if we have a saved workspace
-      const savedWorkspaceId = localStorage.getItem('currentWorkspaceId');
-      const savedTenantId = localStorage.getItem('currentTenantId');
-      
-      if (savedWorkspaceId && savedTenantId) {
-        const found = ws.find(w => w.id === savedWorkspaceId);
-        if (found) {
-          setCurrentWorkspace({ ...found, tenant_id: savedTenantId });
-          setTenant(found.slug);
-          return;
-        }
-      }
-      
-      // If we have active workspaces, switch to the first one
-      const activeWs = ws.find(w => w.status === 'active');
-      if (activeWs) {
-        const switchResponse = await api.post(`/workspaces/${activeWs.id}/switch`);
-        const switchData = switchResponse.data;
-        
-        setCurrentWorkspace({ ...activeWs, tenant_id: switchData.tenant_id });
-        setTenant(switchData.workspace_slug);
-        
-        localStorage.setItem('currentWorkspaceId', activeWs.id);
-        localStorage.setItem('currentTenantId', switchData.tenant_id);
-        localStorage.setItem('crm_tenant', switchData.workspace_slug);
-      }
-    } catch (error) {
-      console.error('Failed to fetch workspaces:', error);
-    }
-  }, [api]);
+    return config;
+  });
 
   // Initialize auth on mount
   useEffect(() => {
@@ -120,18 +43,48 @@ export const AuthProvider = ({ children }) => {
         try {
           const response = await api.get('/auth/me');
           setUser(response.data);
-          await fetchWorkspaces();
+          
+          // Fetch and set workspaces
+          try {
+            const wsResponse = await api.get('/workspaces');
+            const ws = wsResponse.data.workspaces || [];
+            setWorkspaces(ws);
+            
+            const savedWorkspaceId = localStorage.getItem('currentWorkspaceId');
+            const savedTenantId = localStorage.getItem('currentTenantId');
+            
+            if (savedWorkspaceId && savedTenantId) {
+              const found = ws.find(w => w.id === savedWorkspaceId);
+              if (found) {
+                setCurrentWorkspace({ ...found, tenant_id: savedTenantId });
+                setTenant(found.slug);
+              }
+            } else if (ws.length > 0) {
+              const activeWs = ws.find(w => w.status === 'active');
+              if (activeWs) {
+                const switchRes = await api.post(`/workspaces/${activeWs.id}/switch`);
+                setCurrentWorkspace({ ...activeWs, tenant_id: switchRes.data.tenant_id });
+                setTenant(switchRes.data.workspace_slug);
+                localStorage.setItem('currentWorkspaceId', activeWs.id);
+                localStorage.setItem('currentTenantId', switchRes.data.tenant_id);
+                localStorage.setItem('crm_tenant', switchRes.data.workspace_slug);
+              }
+            }
+          } catch (wsError) {
+            console.error('Failed to fetch workspaces:', wsError);
+          }
         } catch (error) {
           console.error('Auth init error:', error);
-          logout();
+          setToken(null);
+          setUser(null);
+          localStorage.removeItem('crm_token');
         }
       }
       setLoading(false);
     };
     initAuth();
-  }, [api, fetchWorkspaces, logout]);
+  }, []);
 
-  // Login function
   const login = async (email, password) => {
     try {
       const response = await axios.post(
@@ -177,7 +130,49 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const value = useMemo(() => ({
+  const logout = () => {
+    setToken(null);
+    setUser(null);
+    setCurrentWorkspace(null);
+    setWorkspaces([]);
+    localStorage.removeItem('crm_token');
+    localStorage.removeItem('currentWorkspaceId');
+    localStorage.removeItem('currentTenantId');
+    localStorage.removeItem('crm_tenant');
+  };
+
+  const switchWorkspace = async (workspaceId) => {
+    try {
+      const response = await api.post(`/workspaces/${workspaceId}/switch`);
+      const data = response.data;
+      
+      const ws = workspaces.find(w => w.id === workspaceId);
+      if (ws) {
+        setCurrentWorkspace({ ...ws, tenant_id: data.tenant_id });
+      }
+      setTenant(data.workspace_slug);
+      
+      localStorage.setItem('currentWorkspaceId', workspaceId);
+      localStorage.setItem('currentTenantId', data.tenant_id);
+      localStorage.setItem('crm_tenant', data.workspace_slug);
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to switch workspace:', error);
+      return false;
+    }
+  };
+
+  const fetchWorkspaces = async () => {
+    try {
+      const response = await api.get('/workspaces');
+      setWorkspaces(response.data.workspaces || []);
+    } catch (error) {
+      console.error('Failed to fetch workspaces:', error);
+    }
+  };
+
+  const value = {
     user,
     token,
     tenant,
@@ -192,7 +187,7 @@ export const AuthProvider = ({ children }) => {
     api,
     isAdmin: user?.role === 'admin',
     isManager: user?.role === 'manager' || user?.role === 'admin',
-  }), [user, token, tenant, currentWorkspace, workspaces, switchWorkspace, fetchWorkspaces, logout, loading, api]);
+  };
 
   return (
     <AuthContext.Provider value={value}>
