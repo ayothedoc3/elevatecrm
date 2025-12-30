@@ -208,7 +208,6 @@ async def create_activity(
         duration_seconds=activity.duration_seconds,
         got_response=activity.got_response,
         response_at=activity.response_at.isoformat() if activity.response_at else None,
-        scheduled_at=activity.scheduled_at.isoformat() if activity.scheduled_at else None,
         created_at=activity.created_at.isoformat()
     )
 
