@@ -7,6 +7,9 @@ from app.models.pipeline import Pipeline, PipelineStage
 from app.models.deal import Deal, DealStatus, BlueprintComplianceStatus
 from app.models.workflow_blueprint import WorkflowBlueprint, BlueprintStage
 from app.models.timeline_event import TimelineEvent, TimelineEventType, VisibilityScope
+from app.models.conversation import Conversation, Message, MessageChannel, MessageDirection, MessageStatus
+from app.models.automation import Workflow, WorkflowRun, ScheduledJob, WorkflowStatus, TriggerType, ActionType, WorkflowRunStatus
+from app.models.forms import Form, FormSubmission, LandingPage, FieldType
 
 __all__ = [
     'Tenant',
@@ -25,4 +28,20 @@ __all__ = [
     'TimelineEvent',
     'TimelineEventType',
     'VisibilityScope',
+    'Conversation',
+    'Message',
+    'MessageChannel',
+    'MessageDirection',
+    'MessageStatus',
+    'Workflow',
+    'WorkflowRun',
+    'ScheduledJob',
+    'WorkflowStatus',
+    'TriggerType',
+    'ActionType',
+    'WorkflowRunStatus',
+    'Form',
+    'FormSubmission',
+    'LandingPage',
+    'FieldType',
 ]
