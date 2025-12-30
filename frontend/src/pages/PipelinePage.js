@@ -727,45 +727,11 @@ const PipelinePage = () => {
                   </TabsContent>
 
                   <TabsContent value="activity" className="p-6 space-y-4">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base">Outreach Activity</CardTitle>
-                        <CardDescription>Track touchpoints with this lead</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
-                                <Phone className="w-4 h-4 text-blue-500" />
-                              </div>
-                              <div>
-                                <p className="font-medium text-sm">Phone Call</p>
-                                <p className="text-xs text-muted-foreground">Outbound • No answer</p>
-                              </div>
-                            </div>
-                            <span className="text-xs text-muted-foreground">2 days ago</span>
-                          </div>
-                          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-                                <Mail className="w-4 h-4 text-green-500" />
-                              </div>
-                              <div>
-                                <p className="font-medium text-sm">Email Sent</p>
-                                <p className="text-xs text-muted-foreground">Follow-up email</p>
-                              </div>
-                            </div>
-                            <span className="text-xs text-muted-foreground">3 days ago</span>
-                          </div>
-                        </div>
-                        
-                        <Button variant="outline" className="w-full mt-4">
-                          <Plus className="w-4 h-4 mr-2" />
-                          Log Activity
-                        </Button>
-                      </CardContent>
-                    </Card>
+                    <ActivityPanel 
+                      dealId={selectedDeal.id} 
+                      api={api} 
+                      onUpdate={() => fetchKanbanData(selectedPipeline)}
+                    />
                   </TabsContent>
                 </ScrollArea>
               </Tabs>
