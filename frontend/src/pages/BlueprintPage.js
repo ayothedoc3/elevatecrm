@@ -3,9 +3,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { Progress } from '../components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Skeleton } from '../components/ui/skeleton';
 import { ScrollArea } from '../components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
   Accordion,
   AccordionContent,
@@ -13,46 +13,37 @@ import {
   AccordionTrigger,
 } from '../components/ui/accordion';
 import {
-  CheckCircle2, Circle, AlertTriangle, Lock, Unlock,
-  FileText, Send, User, ClipboardCheck, Folder, ShieldCheck,
-  Calculator, ThumbsUp, FileSignature, Building, DollarSign, Star
+  CheckCircle2, Circle, AlertTriangle, FileText, Send, User, 
+  Calculator, Target, Flame, Building, DollarSign, Star,
+  ArrowRight, ChevronRight, Settings, Plus
 } from 'lucide-react';
-
-const iconMap = {
-  'file-text': FileText,
-  'send': Send,
-  'check-circle': CheckCircle2,
-  'user': User,
-  'clipboard': ClipboardCheck,
-  'clipboard-check': ClipboardCheck,
-  'folder': Folder,
-  'shield-check': ShieldCheck,
-  'calculator': Calculator,
-  'thumbs-up': ThumbsUp,
-  'file-signature': FileSignature,
-  'building-bank': Building,
-  'file-check': FileText,
-  'star': Star,
-  'dollar-sign': DollarSign,
-  'circle': Circle
-};
 
 const BlueprintPage = () => {
   const { api } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [blueprints, setBlueprints] = useState([]);
-  const [selectedBlueprint, setSelectedBlueprint] = useState(null);
+  const [crmBlueprints, setCrmBlueprints] = useState([]);
+  const [workflowBlueprints, setWorkflowBlueprints] = useState([]);
+  const [selectedCrmBlueprint, setSelectedCrmBlueprint] = useState(null);
 
   useEffect(() => {
-    fetchBlueprints();
+    fetchData();
   }, []);
 
-  const fetchBlueprints = async () => {
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      const response = await api.get('/blueprints');
-      setBlueprints(response.data.blueprints);
-      if (response.data.blueprints.length > 0) {
-        setSelectedBlueprint(response.data.blueprints[0]);
+      const [crmRes, workflowRes] = await Promise.all([
+        api.get('/workspaces/blueprints'),
+        api.get('/blueprints').catch(() => ({ data: { blueprints: [] } }))
+      ]);
+      
+      setCrmBlueprints(crmRes.data.blueprints || []);
+      setWorkflowBlueprints(workflowRes.data.blueprints || []);
+      
+      // Auto-select first CRM blueprint
+      if (crmRes.data.blueprints?.length > 0) {
+        const defaultBp = crmRes.data.blueprints.find(bp => bp.is_default) || crmRes.data.blueprints[0];
+        await fetchBlueprintDetails(defaultBp.slug);
       }
     } catch (error) {
       console.error('Error fetching blueprints:', error);
@@ -61,249 +52,342 @@ const BlueprintPage = () => {
     }
   };
 
+  const fetchBlueprintDetails = async (slug) => {
+    try {
+      const response = await api.get(`/workspaces/blueprints/${slug}`);
+      setSelectedCrmBlueprint(response.data);
+    } catch (error) {
+      console.error('Error fetching blueprint details:', error);
+    }
+  };
+
+  const getBlueprintIcon = (icon) => {
+    switch (icon) {
+      case 'flame': return <Flame className="w-6 h-6" />;
+      case 'building': return <Building className="w-6 h-6" />;
+      case 'calculator': return <Calculator className="w-6 h-6" />;
+      case 'target': return <Target className="w-6 h-6" />;
+      default: return <Star className="w-6 h-6" />;
+    }
+  };
+
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map(i => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <Skeleton className="h-24 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Workflow Blueprints</h1>
-        <p className="text-muted-foreground">Manage your workflow processes and requirements</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">CRM Blueprints</h1>
+          <p className="text-muted-foreground">Templates for creating new CRM workspaces</p>
+        </div>
+        <Button>
+          <Plus className="w-4 h-4 mr-2" />
+          Create Blueprint
+        </Button>
       </div>
 
-      {/* Blueprint Selection */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Blueprint List */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-lg">Blueprints</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {blueprints.map(bp => (
-              <Button
-                key={bp.id}
-                variant={selectedBlueprint?.id === bp.id ? 'default' : 'ghost'}
-                className="w-full justify-start"
-                onClick={() => setSelectedBlueprint(bp)}
-              >
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-                {bp.name}
-              </Button>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Blueprint Details */}
-        {selectedBlueprint && (
-          <Card className="lg:col-span-3">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>{selectedBlueprint.name}</CardTitle>
-                  <CardDescription>
-                    {selectedBlueprint.description || 'No description'}
-                  </CardDescription>
+      {/* CRM Blueprints Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {crmBlueprints.map(blueprint => (
+          <Card 
+            key={blueprint.id}
+            className={`cursor-pointer transition-all hover:shadow-md ${
+              selectedCrmBlueprint?.slug === blueprint.slug ? 'ring-2 ring-primary' : ''
+            }`}
+            onClick={() => fetchBlueprintDetails(blueprint.slug)}
+          >
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <div 
+                  className="p-3 rounded-lg"
+                  style={{ backgroundColor: `${blueprint.color}20` }}
+                >
+                  <div style={{ color: blueprint.color }}>
+                    {getBlueprintIcon(blueprint.icon)}
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  {selectedBlueprint.is_default && (
-                    <Badge>Default</Badge>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-semibold">{blueprint.name}</h3>
+                    {blueprint.is_default && (
+                      <Badge variant="secondary" className="text-xs">Default</Badge>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground line-clamp-2">
+                    {blueprint.description}
+                  </p>
+                  {blueprint.is_system && (
+                    <Badge variant="outline" className="mt-2 text-xs">System</Badge>
                   )}
-                  <Badge variant="outline">v{selectedBlueprint.version}</Badge>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="stages">
-                <TabsList className="mb-4">
-                  <TabsTrigger value="stages">Stages ({selectedBlueprint.stages.length})</TabsTrigger>
-                  <TabsTrigger value="settings">Settings</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="stages">
-                  <div className="space-y-4">
-                    {/* Progress Bar */}
-                    <div className="flex items-center gap-2 p-4 rounded-lg bg-muted/50">
-                      {selectedBlueprint.stages.map((stage, idx) => (
-                        <React.Fragment key={stage.id}>
-                          <div 
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium text-white"
-                            style={{ backgroundColor: stage.color }}
-                          >
-                            {idx + 1}
-                          </div>
-                          {idx < selectedBlueprint.stages.length - 1 && (
-                            <div className="flex-1 h-1 bg-muted rounded" style={{ backgroundColor: `${stage.color}40` }} />
-                          )}
-                        </React.Fragment>
-                      ))}
-                    </div>
-
-                    {/* Stage List */}
-                    <Accordion type="single" collapsible className="space-y-2">
-                      {selectedBlueprint.stages.map((stage, idx) => {
-                        const IconComponent = iconMap[stage.icon] || Circle;
-                        return (
-                          <AccordionItem key={stage.id} value={stage.id} className="border rounded-lg px-4">
-                            <AccordionTrigger className="hover:no-underline">
-                              <div className="flex items-center gap-4">
-                                <div 
-                                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                                  style={{ backgroundColor: `${stage.color}20` }}
-                                >
-                                  <IconComponent className="w-5 h-5" style={{ color: stage.color }} />
-                                </div>
-                                <div className="text-left">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium">Stage {stage.stage_order}: {stage.name}</span>
-                                    {stage.is_milestone && (
-                                      <Badge variant="outline" className="text-xs">Milestone</Badge>
-                                    )}
-                                    {stage.is_start_stage && (
-                                      <Badge className="bg-green-500/20 text-green-400 text-xs">Start</Badge>
-                                    )}
-                                    {stage.is_end_stage && (
-                                      <Badge className="bg-blue-500/20 text-blue-400 text-xs">End</Badge>
-                                    )}
-                                  </div>
-                                  <p className="text-sm text-muted-foreground">{stage.description || 'No description'}</p>
-                                </div>
-                              </div>
-                            </AccordionTrigger>
-                            <AccordionContent>
-                              <div className="grid grid-cols-2 gap-4 pt-4">
-                                {/* Required Properties */}
-                                <div className="space-y-2">
-                                  <h4 className="text-sm font-medium flex items-center gap-2">
-                                    <Lock className="w-4 h-4" />
-                                    Required Properties
-                                  </h4>
-                                  {stage.required_properties.length > 0 ? (
-                                    <div className="flex flex-wrap gap-2">
-                                      {stage.required_properties.map(prop => (
-                                        <Badge key={prop} variant="secondary">{prop}</Badge>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <p className="text-sm text-muted-foreground">None required</p>
-                                  )}
-                                </div>
-
-                                {/* Required Actions */}
-                                <div className="space-y-2">
-                                  <h4 className="text-sm font-medium flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4" />
-                                    Required Actions
-                                  </h4>
-                                  {stage.required_actions.length > 0 ? (
-                                    <div className="flex flex-wrap gap-2">
-                                      {stage.required_actions.map(action => (
-                                        <Badge key={action} variant="outline">{action}</Badge>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <p className="text-sm text-muted-foreground">None required</p>
-                                  )}
-                                </div>
-
-                                {/* Entry Automations */}
-                                {stage.entry_automations.length > 0 && (
-                                  <div className="col-span-2 space-y-2">
-                                    <h4 className="text-sm font-medium flex items-center gap-2">
-                                      <Send className="w-4 h-4" />
-                                      Entry Automations
-                                    </h4>
-                                    <div className="space-y-1">
-                                      {stage.entry_automations.map((auto, i) => (
-                                        <div key={i} className="text-sm p-2 rounded bg-muted/50">
-                                          <span className="font-medium">{auto.type}</span>
-                                          {auto.template && <span className="text-muted-foreground"> - Template: {auto.template}</span>}
-                                          {auto.doc_type && <span className="text-muted-foreground"> - Document: {auto.doc_type}</span>}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </AccordionContent>
-                          </AccordionItem>
-                        );
-                      })}
-                    </Accordion>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="settings">
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              {selectedBlueprint.allow_skip_stages ? (
-                                <Unlock className="w-5 h-5 text-amber-500" />
-                              ) : (
-                                <Lock className="w-5 h-5 text-green-500" />
-                              )}
-                              <span>Skip Stages</span>
-                            </div>
-                            <Badge variant={selectedBlueprint.allow_skip_stages ? 'destructive' : 'default'}>
-                              {selectedBlueprint.allow_skip_stages ? 'Allowed' : 'Blocked'}
-                            </Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <ShieldCheck className="w-5 h-5 text-blue-500" />
-                              <span>Admin Override</span>
-                            </div>
-                            <Badge variant={selectedBlueprint.allow_admin_override ? 'default' : 'secondary'}>
-                              {selectedBlueprint.allow_admin_override ? 'Enabled' : 'Disabled'}
-                            </Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <FileText className="w-5 h-5 text-violet-500" />
-                              <span>Override Reason</span>
-                            </div>
-                            <Badge variant={selectedBlueprint.require_override_reason ? 'default' : 'secondary'}>
-                              {selectedBlueprint.require_override_reason ? 'Required' : 'Optional'}
-                            </Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                              <span>Status</span>
-                            </div>
-                            <Badge variant={selectedBlueprint.is_active ? 'default' : 'secondary'}>
-                              {selectedBlueprint.is_active ? 'Active' : 'Inactive'}
-                            </Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
             </CardContent>
           </Card>
-        )}
+        ))}
       </div>
+
+      {/* Selected Blueprint Details */}
+      {selectedCrmBlueprint && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div 
+                  className="p-3 rounded-lg"
+                  style={{ backgroundColor: `${selectedCrmBlueprint.color}20` }}
+                >
+                  <div style={{ color: selectedCrmBlueprint.color }}>
+                    {getBlueprintIcon(selectedCrmBlueprint.icon)}
+                  </div>
+                </div>
+                <div>
+                  <CardTitle>{selectedCrmBlueprint.name}</CardTitle>
+                  <CardDescription>{selectedCrmBlueprint.description}</CardDescription>
+                </div>
+              </div>
+              <Button variant="outline">
+                <Settings className="w-4 h-4 mr-2" />
+                Edit Blueprint
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="pipelines">
+              <TabsList>
+                <TabsTrigger value="pipelines">Pipelines</TabsTrigger>
+                <TabsTrigger value="calculations">Calculations</TabsTrigger>
+                <TabsTrigger value="rules">Transition Rules</TabsTrigger>
+                <TabsTrigger value="automations">Automations</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="pipelines" className="mt-4">
+                <div className="space-y-4">
+                  {selectedCrmBlueprint.config?.pipelines?.map((pipeline, pIdx) => (
+                    <Card key={pIdx} className="bg-muted/30">
+                      <CardHeader className="py-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Target className="w-5 h-5 text-primary" />
+                            <CardTitle className="text-base">{pipeline.name}</CardTitle>
+                            {pipeline.is_default && (
+                              <Badge variant="secondary" className="text-xs">Default</Badge>
+                            )}
+                          </div>
+                          <span className="text-sm text-muted-foreground">
+                            {pipeline.stages?.length || 0} stages
+                          </span>
+                        </div>
+                        <CardDescription>{pipeline.description}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="py-0 pb-4">
+                        <div className="flex flex-wrap gap-2">
+                          {pipeline.stages?.map((stage, sIdx) => (
+                            <div 
+                              key={sIdx}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm"
+                              style={{ 
+                                backgroundColor: `${stage.color}20`,
+                                color: stage.color 
+                              }}
+                            >
+                              <div 
+                                className="w-2 h-2 rounded-full"
+                                style={{ backgroundColor: stage.color }}
+                              />
+                              {stage.name}
+                              <span className="text-xs opacity-70">({stage.probability}%)</span>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="calculations" className="mt-4">
+                <div className="space-y-4">
+                  {selectedCrmBlueprint.config?.calculations?.length > 0 ? (
+                    selectedCrmBlueprint.config.calculations.map((calc, cIdx) => (
+                      <Card key={cIdx} className="bg-muted/30">
+                        <CardHeader className="py-4">
+                          <div className="flex items-center gap-2">
+                            <Calculator className="w-5 h-5 text-blue-500" />
+                            <CardTitle className="text-base">{calc.name}</CardTitle>
+                          </div>
+                          <CardDescription>{calc.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="py-0 pb-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm font-medium mb-2">Inputs</p>
+                              <div className="space-y-1">
+                                {calc.inputs?.map((inp, iIdx) => (
+                                  <div key={iIdx} className="flex items-center gap-2 text-sm">
+                                    <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                                    <span>{inp.label}</span>
+                                    {inp.required && <span className="text-red-500">*</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium mb-2">Outputs</p>
+                              <div className="space-y-1">
+                                {calc.outputs?.map((out, oIdx) => (
+                                  <div key={oIdx} className="flex items-center gap-2 text-sm">
+                                    <ArrowRight className="w-3 h-3 text-green-500" />
+                                    <span>{out.label}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Calculator className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>No calculations defined</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="rules" className="mt-4">
+                <div className="space-y-4">
+                  {selectedCrmBlueprint.config?.transition_rules?.length > 0 ? (
+                    selectedCrmBlueprint.config.transition_rules.map((rule, rIdx) => (
+                      <Card key={rIdx} className="bg-muted/30">
+                        <CardContent className="py-4">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-amber-500/20">
+                              <AlertTriangle className="w-4 h-4 text-amber-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">
+                                {rule.from_stage || 'Any'} → {rule.to_stage || 'Any'}
+                              </p>
+                              <p className="text-sm text-muted-foreground">{rule.error_message}</p>
+                              <Badge variant="outline" className="mt-2 text-xs">
+                                {rule.rule_type}
+                              </Badge>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <AlertTriangle className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>No transition rules defined</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="automations" className="mt-4">
+                <div className="space-y-4">
+                  {selectedCrmBlueprint.config?.automations?.length > 0 ? (
+                    selectedCrmBlueprint.config.automations.map((auto, aIdx) => (
+                      <Card key={aIdx} className="bg-muted/30">
+                        <CardContent className="py-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 rounded-lg bg-violet-500/20">
+                                <Send className="w-4 h-4 text-violet-500" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm">{auto.name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  Trigger: {auto.trigger?.type}
+                                </p>
+                                <div className="flex gap-2 mt-2">
+                                  {auto.actions?.map((action, actIdx) => (
+                                    <Badge key={actIdx} variant="secondary" className="text-xs">
+                                      {action.type}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                            <Badge variant={auto.is_active ? 'default' : 'secondary'}>
+                              {auto.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Send className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>No automations defined</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Legacy Workflow Blueprints */}
+      {workflowBlueprints.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold mb-4">Workflow Blueprints</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {workflowBlueprints.map(bp => (
+              <Card key={bp.id}>
+                <CardHeader>
+                  <CardTitle className="text-base">{bp.name}</CardTitle>
+                  <CardDescription>{bp.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {bp.stages?.slice(0, 5).map((stage, idx) => (
+                      <div key={stage.id} className="flex items-center gap-2 text-sm">
+                        <div 
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: stage.color || '#6B7280' }}
+                        />
+                        <span>{stage.name}</span>
+                        {stage.is_milestone && (
+                          <Badge variant="outline" className="text-xs">Milestone</Badge>
+                        )}
+                      </div>
+                    ))}
+                    {bp.stages?.length > 5 && (
+                      <p className="text-xs text-muted-foreground">
+                        +{bp.stages.length - 5} more stages
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
