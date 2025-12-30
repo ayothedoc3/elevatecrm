@@ -1,53 +1,258 @@
-import { useEffect } from "react";
-import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import React, { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { Toaster } from './components/ui/sonner';
+import { Button } from './components/ui/button';
+import { Avatar, AvatarFallback } from './components/ui/avatar';
+import { Badge } from './components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './components/ui/tooltip';
+import {
+  LayoutDashboard, Users, Target, GitBranch, MessageSquare,
+  FileText, Settings, LogOut, ChevronLeft, ChevronRight,
+  Building2, Bell, Search, Menu
+} from 'lucide-react';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/DashboardPage';
+import ContactsPage from './pages/ContactsPage';
+import PipelinePage from './pages/PipelinePage';
+import BlueprintPage from './pages/BlueprintPage';
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
+const navItems = [
+  { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { path: '/contacts', icon: Users, label: 'Contacts' },
+  { path: '/pipeline', icon: Target, label: 'Pipeline' },
+  { path: '/blueprints', icon: GitBranch, label: 'Blueprints' },
+];
 
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
+const Sidebar = ({ collapsed, setCollapsed }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
+    <div 
+      className={`h-screen bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 ${
+        collapsed ? 'w-[70px]' : 'w-[240px]'
+      }`}
+    >
+      {/* Logo */}
+      <div className="p-4 border-b border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-violet-600 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Building2 className="w-5 h-5 text-white" />
+          </div>
+          {!collapsed && (
+            <div>
+              <h1 className="font-bold text-white">CRM OS</h1>
+              <p className="text-xs text-slate-500">Enterprise CRM</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 p-3 space-y-1">
+        <TooltipProvider>
+          {navItems.map(item => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Tooltip key={item.path} delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={isActive ? 'secondary' : 'ghost'}
+                    className={`w-full justify-start gap-3 ${
+                      isActive 
+                        ? 'bg-slate-800 text-white' 
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                    } ${collapsed ? 'px-3' : ''}`}
+                    onClick={() => navigate(item.path)}
+                  >
+                    <item.icon className="w-5 h-5 flex-shrink-0" />
+                    {!collapsed && <span>{item.label}</span>}
+                  </Button>
+                </TooltipTrigger>
+                {collapsed && (
+                  <TooltipContent side="right">
+                    {item.label}
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            );
+          })}
+        </TooltipProvider>
+      </nav>
+
+      {/* Collapse Button */}
+      <div className="p-3 border-t border-slate-800">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full text-slate-400 hover:text-white"
+          onClick={() => setCollapsed(!collapsed)}
         >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
+          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          {!collapsed && <span className="ml-2">Collapse</span>}
+        </Button>
+      </div>
+
+      {/* User */}
+      <div className="p-3 border-t border-slate-800">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="w-full justify-start gap-3 text-slate-400 hover:text-white">
+              <Avatar className="w-8 h-8">
+                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-violet-600 text-white text-xs">
+                  {user?.first_name?.[0]}{user?.last_name?.[0]}
+                </AvatarFallback>
+              </Avatar>
+              {!collapsed && (
+                <div className="text-left flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{user?.first_name} {user?.last_name}</p>
+                  <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                </div>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>
+              <div>
+                <p>{user?.first_name} {user?.last_name}</p>
+                <p className="text-xs text-muted-foreground font-normal">{user?.email}</p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>
+              <Badge variant="outline" className="mr-2">{user?.role}</Badge>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={logout} className="text-red-500">
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
+  );
+};
+
+const TopBar = () => {
+  const { user } = useAuth();
+  
+  return (
+    <div className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 flex items-center justify-between">
+      <div className="flex items-center gap-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input 
+            type="text" 
+            placeholder="Search..." 
+            className="w-64 h-9 pl-10 pr-4 rounded-lg bg-muted/50 border border-transparent focus:border-primary focus:outline-none text-sm"
+          />
+        </div>
+      </div>
+      
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" className="relative">
+          <Bell className="w-5 h-5" />
+          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+        </Button>
+        
+        <div className="text-right">
+          <p className="text-sm font-medium">{user?.first_name} {user?.last_name}</p>
+          <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MainLayout = ({ children }) => {
+  const [collapsed, setCollapsed] = useState(false);
+  
+  return (
+    <div className="flex h-screen bg-background">
+      <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <TopBar />
+        <main className="flex-1 overflow-auto p-6">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+};
+
+const ProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  return <MainLayout>{children}</MainLayout>;
+};
+
+const AppRoutes = () => {
+  const { user, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <Routes>
+      <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+      <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+      <Route path="/contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
+      <Route path="/pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
+      <Route path="/blueprints" element={<ProtectedRoute><BlueprintPage /></ProtectedRoute>} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
   );
 };
 
 function App() {
   return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </div>
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+        <Toaster />
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 
