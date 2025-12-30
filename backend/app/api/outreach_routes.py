@@ -73,7 +73,6 @@ class ActivityResponse(BaseModel):
     duration_seconds: Optional[int]
     got_response: bool
     response_at: Optional[str]
-    scheduled_at: Optional[str]
     created_at: str
 
 
