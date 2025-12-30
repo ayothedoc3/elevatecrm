@@ -177,7 +177,7 @@ async def create_activity(
     await create_timeline_event(
         db, 
         user.tenant_id, 
-        TimelineEventType.ACTIVITY,
+        TimelineEventType.CALL_LOG,
         f"{activity_labels.get(data.activity_type.value, 'Activity')}: {data.subject or data.activity_type.value}",
         actor_id=user.id,
         actor_name=user.full_name,
