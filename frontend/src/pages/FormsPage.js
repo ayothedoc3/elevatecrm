@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 import { Textarea } from '../components/ui/textarea';
 import { Switch } from '../components/ui/switch';
+import { ScrollArea } from '../components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -21,12 +22,18 @@ import {
   DialogTitle,
   DialogFooter,
 } from '../components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '../components/ui/sheet';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
   FileText, Plus, Trash2, Edit, ExternalLink, Copy, Eye,
   GripVertical, Type, Mail, Phone, Hash, Calendar, CheckSquare,
-  List, AlignLeft, Upload
+  List, AlignLeft, Upload, X, ChevronRight, Settings, BarChart3
 } from 'lucide-react';
 
 const fieldTypes = [
@@ -48,6 +55,455 @@ const mappingOptions = [
   { value: 'phone', label: 'Phone' },
   { value: 'company_name', label: 'Company' },
 ];
+
+// Form Card Component - Clickable
+const FormCard = ({ form, onSelect, onDelete, onCopyUrl, tenant }) => {
+  const getFormUrl = () => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/api/public/forms/${tenant}/${form.slug}`;
+  };
+
+  return (
+    <Card 
+      className="cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all group"
+      onClick={() => onSelect(form)}
+    >
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${form.is_active ? 'bg-green-500/20' : 'bg-slate-500/20'}`}>
+              <FileText className={`w-5 h-5 ${form.is_active ? 'text-green-500' : 'text-slate-500'}`} />
+            </div>
+            <div>
+              <CardTitle className="text-base">{form.name}</CardTitle>
+              <CardDescription className="text-xs">{form.description || 'No description'}</CardDescription>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {form.is_active ? (
+              <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Active</Badge>
+            ) : (
+              <Badge variant="secondary">Inactive</Badge>
+            )}
+            <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+              <span className="text-muted-foreground">Fields</span>
+              <span className="font-semibold">{form.fields?.length || 0}</span>
+            </div>
+            <div className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+              <span className="text-muted-foreground">Submissions</span>
+              <span className="font-semibold">{form.submission_count || 0}</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2 text-xs">
+            <code className="bg-muted px-2 py-1 rounded flex-1 truncate text-muted-foreground">
+              /{form.slug}
+            </code>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={(e) => { e.stopPropagation(); onCopyUrl(getFormUrl()); }}
+              className="h-7 w-7 p-0"
+            >
+              <Copy className="w-3 h-3" />
+            </Button>
+          </div>
+          
+          <div className="flex items-center gap-2 pt-2 border-t" onClick={e => e.stopPropagation()}>
+            <div className="flex-1 flex items-center gap-1 text-xs text-muted-foreground">
+              {form.create_contact && <Badge variant="outline" className="text-xs">+Contact</Badge>}
+              {form.create_deal && <Badge variant="outline" className="text-xs">+Deal</Badge>}
+            </div>
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onDelete(form.id)}>
+              <Trash2 className="w-3 h-3 text-red-500" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Form Detail Sheet - Shows when card is clicked
+const FormDetailSheet = ({ form, open, onClose, onSave, pipelines }) => {
+  const [editedForm, setEditedForm] = useState(form);
+  const [activeTab, setActiveTab] = useState('preview');
+
+  useEffect(() => {
+    if (form) {
+      setEditedForm(form);
+    }
+  }, [form]);
+
+  if (!form) return null;
+
+  const addField = (type) => {
+    const field = {
+      id: `field_${Date.now()}`,
+      type,
+      label: `New ${fieldTypes.find(f => f.value === type)?.label} Field`,
+      placeholder: '',
+      required: false,
+      mapping: ''
+    };
+    setEditedForm({
+      ...editedForm,
+      fields: [...(editedForm.fields || []), field]
+    });
+  };
+
+  const updateField = (index, updates) => {
+    const fields = [...(editedForm.fields || [])];
+    fields[index] = { ...fields[index], ...updates };
+    setEditedForm({ ...editedForm, fields });
+  };
+
+  const removeField = (index) => {
+    const fields = (editedForm.fields || []).filter((_, i) => i !== index);
+    setEditedForm({ ...editedForm, fields });
+  };
+
+  const handleSave = () => {
+    onSave(editedForm);
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={onClose}>
+      <SheetContent className="w-full sm:max-w-2xl p-0 flex flex-col">
+        <SheetHeader className="p-6 border-b">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${editedForm.is_active ? 'bg-green-500/20' : 'bg-slate-500/20'}`}>
+                <FileText className={`w-5 h-5 ${editedForm.is_active ? 'text-green-500' : 'text-slate-500'}`} />
+              </div>
+              <div>
+                <SheetTitle>{editedForm.name}</SheetTitle>
+                <p className="text-sm text-muted-foreground">/{editedForm.slug}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {editedForm.is_active ? (
+                <Badge className="bg-green-500/20 text-green-400">Active</Badge>
+              ) : (
+                <Badge variant="secondary">Inactive</Badge>
+              )}
+            </div>
+          </div>
+        </SheetHeader>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+          <TabsList className="mx-6 mt-4">
+            <TabsTrigger value="preview">Preview</TabsTrigger>
+            <TabsTrigger value="fields">Fields ({editedForm.fields?.length || 0})</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+          </TabsList>
+
+          <ScrollArea className="flex-1 p-6">
+            <TabsContent value="preview" className="mt-0 space-y-4">
+              {/* Form Preview */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Form Preview</CardTitle>
+                  <CardDescription>This is how your form will appear</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {(editedForm.fields || []).length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                      <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>No fields added yet</p>
+                      <p className="text-sm">Go to Fields tab to add form fields</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {(editedForm.fields || []).map((field, index) => {
+                        const FieldIcon = fieldTypes.find(f => f.value === field.type)?.icon || Type;
+                        return (
+                          <div key={field.id || index} className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <FieldIcon className="w-3 h-3" />
+                              {field.label}
+                              {field.required && <span className="text-red-500">*</span>}
+                            </Label>
+                            {field.type === 'textarea' ? (
+                              <Textarea placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}...`} disabled />
+                            ) : field.type === 'select' ? (
+                              <Select disabled>
+                                <SelectTrigger>
+                                  <SelectValue placeholder={field.placeholder || 'Select an option...'} />
+                                </SelectTrigger>
+                              </Select>
+                            ) : field.type === 'checkbox' ? (
+                              <div className="flex items-center gap-2">
+                                <input type="checkbox" disabled className="w-4 h-4" />
+                                <span className="text-sm text-muted-foreground">{field.placeholder || 'I agree'}</span>
+                              </div>
+                            ) : (
+                              <Input 
+                                type={field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+                                placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}...`} 
+                                disabled 
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                      <Button className="w-full" disabled>{editedForm.submit_button_text || 'Submit'}</Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Stats Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4" />
+                    Statistics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-muted/50 rounded-lg text-center">
+                      <p className="text-3xl font-bold">{editedForm.submission_count || 0}</p>
+                      <p className="text-sm text-muted-foreground">Total Submissions</p>
+                    </div>
+                    <div className="p-4 bg-muted/50 rounded-lg text-center">
+                      <p className="text-3xl font-bold">{editedForm.fields?.length || 0}</p>
+                      <p className="text-sm text-muted-foreground">Form Fields</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="fields" className="mt-0 space-y-4">
+              <div className="flex items-center justify-between">
+                <Label>Form Fields</Label>
+                <Select onValueChange={addField}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Add field..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fieldTypes.map(field => (
+                      <SelectItem key={field.value} value={field.value}>
+                        <div className="flex items-center gap-2">
+                          <field.icon className="w-4 h-4" />
+                          {field.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {(editedForm.fields || []).length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                  <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p>No fields added yet</p>
+                  <p className="text-sm">Add fields using the dropdown above</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {(editedForm.fields || []).map((field, index) => {
+                    const fieldType = fieldTypes.find(f => f.value === field.type);
+                    const FieldIcon = fieldType?.icon || Type;
+                    return (
+                      <Card key={field.id || index}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="pt-2 cursor-grab text-muted-foreground">
+                              <GripVertical className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 space-y-3">
+                              <div className="flex items-center gap-2">
+                                <FieldIcon className="w-4 h-4 text-muted-foreground" />
+                                <Input
+                                  value={field.label}
+                                  onChange={(e) => updateField(index, { label: e.target.value })}
+                                  className="font-medium"
+                                  placeholder="Field label"
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <Label className="text-xs">Placeholder</Label>
+                                  <Input
+                                    value={field.placeholder || ''}
+                                    onChange={(e) => updateField(index, { placeholder: e.target.value })}
+                                    placeholder="Placeholder text..."
+                                    className="text-sm"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Map to CRM Field</Label>
+                                  <Select
+                                    value={field.mapping || ''}
+                                    onValueChange={(value) => updateField(index, { mapping: value })}
+                                  >
+                                    <SelectTrigger className="text-sm">
+                                      <SelectValue placeholder="Select mapping..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {mappingOptions.map(opt => (
+                                        <SelectItem key={opt.value} value={opt.value}>
+                                          {opt.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={field.required}
+                                  onCheckedChange={(checked) => updateField(index, { required: checked })}
+                                />
+                                <Label className="text-sm">Required</Label>
+                              </div>
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={() => removeField(index)}>
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="settings" className="mt-0 space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Basic Settings</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Form Name</Label>
+                    <Input
+                      value={editedForm.name}
+                      onChange={(e) => setEditedForm({ ...editedForm, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Textarea
+                      value={editedForm.description || ''}
+                      onChange={(e) => setEditedForm({ ...editedForm, description: e.target.value })}
+                      rows={2}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Submit Button Text</Label>
+                    <Input
+                      value={editedForm.submit_button_text || 'Submit'}
+                      onChange={(e) => setEditedForm({ ...editedForm, submit_button_text: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Success Message</Label>
+                    <Textarea
+                      value={editedForm.success_message || ''}
+                      onChange={(e) => setEditedForm({ ...editedForm, success_message: e.target.value })}
+                      rows={2}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">CRM Integration</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Create Contact</Label>
+                      <p className="text-sm text-muted-foreground">Auto-create contact on submission</p>
+                    </div>
+                    <Switch
+                      checked={editedForm.create_contact}
+                      onCheckedChange={(checked) => setEditedForm({ ...editedForm, create_contact: checked })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Create Deal</Label>
+                      <p className="text-sm text-muted-foreground">Auto-create deal on submission</p>
+                    </div>
+                    <Switch
+                      checked={editedForm.create_deal}
+                      onCheckedChange={(checked) => setEditedForm({ ...editedForm, create_deal: checked })}
+                    />
+                  </div>
+                  {editedForm.create_deal && (
+                    <div className="space-y-2">
+                      <Label>Assign to Pipeline</Label>
+                      <Select
+                        value={editedForm.assign_pipeline_id || ''}
+                        onValueChange={(value) => setEditedForm({ ...editedForm, assign_pipeline_id: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select pipeline..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {pipelines.map(p => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Visibility</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Active</Label>
+                      <p className="text-sm text-muted-foreground">Form accepts submissions</p>
+                    </div>
+                    <Switch
+                      checked={editedForm.is_active}
+                      onCheckedChange={(checked) => setEditedForm({ ...editedForm, is_active: checked })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Public</Label>
+                      <p className="text-sm text-muted-foreground">Form can be embedded externally</p>
+                    </div>
+                    <Switch
+                      checked={editedForm.is_public}
+                      onCheckedChange={(checked) => setEditedForm({ ...editedForm, is_public: checked })}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </ScrollArea>
+        </Tabs>
+
+        <div className="p-4 border-t flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button className="flex-1" onClick={handleSave}>Save Changes</Button>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+};
 
 const FormsPage = () => {
   const { api, tenant } = useAuth();
@@ -117,14 +573,36 @@ const FormsPage = () => {
     }
   };
 
+  const handleUpdateForm = async (updatedForm) => {
+    try {
+      // Note: Would need to implement PUT endpoint for forms
+      // For now, close the sheet
+      setSelectedForm(null);
+      fetchData();
+    } catch (error) {
+      console.error('Error updating form:', error);
+    }
+  };
+
   const handleDeleteForm = async (formId) => {
     if (!window.confirm('Are you sure you want to delete this form?')) return;
     try {
       await api.delete(`/forms/${formId}`);
       fetchData();
+      if (selectedForm?.id === formId) {
+        setSelectedForm(null);
+      }
     } catch (error) {
       console.error('Error deleting form:', error);
     }
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  const generateSlug = (name) => {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
   };
 
   const addField = (type) => {
@@ -153,30 +631,26 @@ const FormsPage = () => {
     setNewForm({ ...newForm, fields });
   };
 
-  const generateSlug = (name) => {
-    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-  };
-
-  const getFormUrl = (form) => {
-    const baseUrl = window.location.origin;
-    return `${baseUrl}/api/public/forms/${tenant}/${form.slug}`;
-  };
-
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-  };
-
   if (loading) {
     return (
       <div className="space-y-4">
-        {[1, 2, 3].map(i => (
-          <Card key={i}>
-            <CardContent className="p-6">
-              <Skeleton className="h-6 w-48 mb-2" />
-              <Skeleton className="h-4 w-64" />
-            </CardContent>
-          </Card>
-        ))}
+        <div className="flex items-center justify-between">
+          <div>
+            <Skeleton className="h-8 w-32 mb-2" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map(i => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <Skeleton className="h-6 w-48 mb-2" />
+                <Skeleton className="h-4 w-64" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
@@ -195,6 +669,60 @@ const FormsPage = () => {
         </Button>
       </div>
 
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Forms</p>
+                <p className="text-2xl font-bold">{forms.length}</p>
+              </div>
+              <FileText className="w-6 h-6 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Active</p>
+                <p className="text-2xl font-bold text-green-500">
+                  {forms.filter(f => f.is_active).length}
+                </p>
+              </div>
+              <CheckSquare className="w-6 h-6 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Submissions</p>
+                <p className="text-2xl font-bold">
+                  {forms.reduce((sum, f) => sum + (f.submission_count || 0), 0)}
+                </p>
+              </div>
+              <BarChart3 className="w-6 h-6 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Public Forms</p>
+                <p className="text-2xl font-bold">
+                  {forms.filter(f => f.is_public).length}
+                </p>
+              </div>
+              <ExternalLink className="w-6 h-6 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Forms List */}
       {forms.length === 0 ? (
         <Card>
@@ -211,58 +739,26 @@ const FormsPage = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {forms.map(form => (
-            <Card key={form.id} className="hover:border-primary/50 transition-colors">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{form.name}</CardTitle>
-                    <CardDescription>{form.description || 'No description'}</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {form.is_active ? (
-                      <Badge className="bg-green-500/20 text-green-400">Active</Badge>
-                    ) : (
-                      <Badge variant="secondary">Inactive</Badge>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Fields</span>
-                    <span className="font-medium">{form.fields?.length || 0}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Submissions</span>
-                    <span className="font-medium">{form.submission_count}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <code className="bg-muted px-2 py-1 rounded flex-1 truncate">
-                      /{form.slug}
-                    </code>
-                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard(getFormUrl(form))}>
-                      <Copy className="w-3 h-3" />
-                    </Button>
-                  </div>
-                  <div className="flex gap-2 pt-2 border-t">
-                    <Button variant="outline" size="sm" className="flex-1">
-                      <Edit className="w-3 h-3 mr-1" />
-                      Edit
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Eye className="w-3 h-3" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDeleteForm(form.id)}>
-                      <Trash2 className="w-3 h-3 text-red-500" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <FormCard
+              key={form.id}
+              form={form}
+              onSelect={setSelectedForm}
+              onDelete={handleDeleteForm}
+              onCopyUrl={copyToClipboard}
+              tenant={tenant}
+            />
           ))}
         </div>
       )}
+
+      {/* Form Detail Sheet */}
+      <FormDetailSheet
+        form={selectedForm}
+        open={!!selectedForm}
+        onClose={() => setSelectedForm(null)}
+        onSave={handleUpdateForm}
+        pipelines={pipelines}
+      />
 
       {/* Create Form Modal */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
