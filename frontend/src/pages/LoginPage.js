@@ -5,7 +5,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Alert, AlertDescription } from '../components/ui/alert';
-import { Loader2, Building2 } from 'lucide-react';
+import { Loader2, Flame } from 'lucide-react';
 
 const LoginPage = () => {
   const { login, tenant, setTenant } = useAuth();
@@ -28,16 +28,16 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-violet-500/5 opacity-50"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-red-500/5 opacity-50"></div>
       
       <Card className="w-full max-w-md mx-4 shadow-2xl border-slate-700 bg-slate-800/50 backdrop-blur">
         <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-violet-600 rounded-2xl flex items-center justify-center shadow-lg">
-            <Building2 className="w-8 h-8 text-white" />
+          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <Flame className="w-8 h-8 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold text-white">CRM OS</CardTitle>
+          <CardTitle className="text-2xl font-bold text-white">Elevate CRM</CardTitle>
           <CardDescription className="text-slate-400">
-            Enterprise CRM Platform
+            Multi-CRM Platform
           </CardDescription>
         </CardHeader>
         <CardContent>
