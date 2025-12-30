@@ -140,8 +140,8 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="CRM OS",
-    description="Enterprise CRM Platform with Workflow Automation",
+    title="Elevate CRM",
+    description="Multi-CRM Platform with Workflow Automation and Calculation Engine",
     version="1.0.0",
     lifespan=lifespan
 )
