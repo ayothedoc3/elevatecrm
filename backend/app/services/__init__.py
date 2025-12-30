@@ -9,6 +9,8 @@ from app.services.audit_service import (
     create_audit_log,
     create_timeline_event
 )
+from app.services.messaging_service import messaging_service
+from app.services.automation_engine import automation_engine
 
 __all__ = [
     'validate_stage_move',
@@ -18,4 +20,6 @@ __all__ = [
     'get_deal_with_blueprint',
     'create_audit_log',
     'create_timeline_event',
+    'messaging_service',
+    'automation_engine',
 ]
