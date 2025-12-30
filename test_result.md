@@ -201,11 +201,14 @@ frontend:
     file: "/app/frontend/src/pages/PipelinePage.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Deal cards clickable, opens sheet with tabs for Details, Calculator, Activity"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Deal detail sheets working perfectly - clicking deal cards opens modal with proper tabs (Details, Calculator, Activity), Calculator tab displays 'No calculation defined for this workspace' which is expected behavior, Back/Next buttons are present and functional, sheet closes properly. All UI interactions work correctly."
 
   - task: "Contacts page with clickable cards"
     implemented: true
