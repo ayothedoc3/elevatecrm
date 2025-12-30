@@ -57,7 +57,6 @@ class CreateActivityRequest(BaseModel):
     notes: Optional[str] = None
     duration_seconds: Optional[int] = None
     got_response: bool = False
-    scheduled_at: Optional[datetime] = None
 
 
 class ActivityResponse(BaseModel):
