@@ -133,18 +133,20 @@ const FormCard = ({ form, onSelect, onDelete, onCopyUrl, tenant }) => {
 
 // Form Detail Sheet - Shows when card is clicked
 const FormDetailSheet = ({ form, open, onClose, onSave, pipelines }) => {
-  const [editedForm, setEditedForm] = useState(null);
+  const [editedForm, setEditedForm] = useState(form);
   const [activeTab, setActiveTab] = useState('preview');
 
-  // Use a key to reset state when form changes
-  const formData = editedForm || form;
-
-  // Initialize editedForm when form prop changes (only when opening)
-  if (form && (!editedForm || editedForm.id !== form.id)) {
+  // Reset editedForm when a new form is selected
+  const currentFormId = form?.id;
+  const editedFormId = editedForm?.id;
+  
+  if (currentFormId && currentFormId !== editedFormId) {
     setEditedForm(form);
   }
 
-  if (!formData) return null;
+  // Early return if no form data
+  const formData = editedForm || form;
+  if (!open || !formData) return null;
 
   const addField = (type) => {
     const field = {
