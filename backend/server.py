@@ -1372,42 +1372,21 @@ async def get_kanban_board(
 # Include router
 app.include_router(api_router)
 
-# Import and include new API routers
-from app.api import inbox_router, workflows_router, forms_router
-
-# Update router dependencies to use get_current_user
-from app.api.inbox import router as inbox_r
-from app.api.workflows import router as workflows_r
-from app.api.forms import router as forms_r
-
-# Override the placeholder dependency with real one
-inbox_r.dependencies = []
-workflows_r.dependencies = []
-forms_r.dependencies = []
-
-# Re-define routes with proper auth
-for route in inbox_r.routes:
-    if hasattr(route, 'dependant'):
-        for idx, dep in enumerate(route.dependant.dependencies):
-            if dep.call.__name__ == 'get_current_user_dep':
-                route.dependant.dependencies[idx].call = get_current_user
-
-for route in workflows_r.routes:
-    if hasattr(route, 'dependant'):
-        for idx, dep in enumerate(route.dependant.dependencies):
-            if dep.call.__name__ == 'get_current_user_dep':
-                route.dependant.dependencies[idx].call = get_current_user
-
-for route in forms_r.routes:
-    if hasattr(route, 'dependant'):
-        for idx, dep in enumerate(route.dependant.dependencies):
-            if dep.call.__name__ == 'get_current_user_dep':
-                route.dependant.dependencies[idx].call = get_current_user
-
-# Include new routers under /api prefix
-api_router.include_router(inbox_r)
-api_router.include_router(workflows_r)
-api_router.include_router(forms_r)
+# ==================== NEW FEATURE IMPORTS ====================
+from app.models import (
+    Conversation, Message, MessageChannel, MessageDirection, MessageStatus,
+    Workflow, WorkflowRun, ScheduledJob, WorkflowStatus, TriggerType, ActionType, WorkflowRunStatus,
+    Form, FormSubmission, LandingPage, FieldType
+)
+from app.schemas import (
+    MessageCreate, MessageResponse, ConversationResponse, ConversationListResponse, InboxStats,
+    WorkflowCreate, WorkflowUpdate, WorkflowResponse, WorkflowListResponse,
+    WorkflowRunResponse, WorkflowRunListResponse, TriggerWorkflowRequest,
+    FormCreate, FormUpdate, FormResponse, FormListResponse,
+    PublicFormResponse, FormSubmissionCreate, FormSubmissionResponse, FormSubmissionListResponse,
+    LandingPageCreate, LandingPageUpdate, LandingPageResponse, LandingPageListResponse
+)
+from app.services import messaging_service, automation_engine
 
 
 # ==================== SEED DATA ====================
