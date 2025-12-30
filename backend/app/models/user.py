@@ -34,6 +34,7 @@ class User(Base):
     audit_logs = relationship('AuditLog', back_populates='actor', foreign_keys='AuditLog.actor_id')
     owned_deals = relationship('Deal', back_populates='owner', foreign_keys='Deal.owner_id')
     owned_contacts = relationship('Contact', back_populates='owner', foreign_keys='Contact.owner_id')
+    workspace_memberships = relationship('WorkspaceUser', back_populates='user', cascade='all, delete-orphan')
     
     @property
     def full_name(self):
