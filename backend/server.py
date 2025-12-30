@@ -125,17 +125,23 @@ def require_role(allowed_roles: List[UserRole]):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Create tables and seed data
-    logger.info("Starting up CRM OS...")
+    logger.info("Starting up Elevate CRM...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     
     # Seed demo data
     await seed_demo_data()
     
-    logger.info("CRM OS started successfully!")
+    # Seed system blueprints
+    from app.services.provisioning_service import seed_system_blueprints
+    from app.core.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        await seed_system_blueprints(db)
+    
+    logger.info("Elevate CRM started successfully!")
     yield
     # Shutdown
-    logger.info("Shutting down CRM OS...")
+    logger.info("Shutting down Elevate CRM...")
 
 
 # Create FastAPI app
