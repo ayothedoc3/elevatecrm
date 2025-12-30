@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
 import { Skeleton } from '../components/ui/skeleton';
 import { ScrollArea } from '../components/ui/scroll-area';
+import { Progress } from '../components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -13,32 +18,55 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '../components/ui/dialog';
-import { Progress } from '../components/ui/progress';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '../components/ui/sheet';
 import {
-  DollarSign, User, Clock, CheckCircle2, AlertTriangle,
-  ChevronRight, GripVertical, MoreHorizontal, Plus, RefreshCw
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
+import {
+  DollarSign, User, Clock, CheckCircle2, AlertTriangle, X,
+  ChevronRight, ChevronLeft, GripVertical, MoreHorizontal, Plus, RefreshCw,
+  Calculator, Phone, Mail, MessageSquare, Calendar, FileText, 
+  TrendingUp, Package, Loader2, AlertCircle, ArrowRight
 } from 'lucide-react';
 
 const PipelinePage = () => {
-  const { api } = useAuth();
+  const { api, currentWorkspace } = useAuth();
   const [loading, setLoading] = useState(true);
   const [pipelines, setPipelines] = useState([]);
   const [selectedPipeline, setSelectedPipeline] = useState(null);
   const [kanbanData, setKanbanData] = useState(null);
   const [selectedDeal, setSelectedDeal] = useState(null);
-  const [dealProgress, setDealProgress] = useState(null);
-  const [showDealModal, setShowDealModal] = useState(false);
+  const [showDealSheet, setShowDealSheet] = useState(false);
   const [movingDeal, setMovingDeal] = useState(null);
+  const [draggedDeal, setDraggedDeal] = useState(null);
+  const [dragOverColumn, setDragOverColumn] = useState(null);
+  
+  // Stage transition state
+  const [showTransitionDialog, setShowTransitionDialog] = useState(false);
+  const [pendingTransition, setPendingTransition] = useState(null);
+  const [transitionError, setTransitionError] = useState(null);
+  const [overrideReason, setOverrideReason] = useState('');
+
+  // Calculation state
+  const [calculationData, setCalculationData] = useState(null);
+  const [calcInputs, setCalcInputs] = useState({});
+  const [calcSaving, setCalcSaving] = useState(false);
 
   useEffect(() => {
     fetchPipelines();
-  }, []);
+  }, [currentWorkspace]);
 
   useEffect(() => {
     if (selectedPipeline) {
@@ -70,37 +98,184 @@ const PipelinePage = () => {
     }
   };
 
-  const fetchDealProgress = async (dealId) => {
+  const fetchDealCalculation = async (dealId) => {
     try {
-      const response = await api.get(`/deals/${dealId}/blueprint-progress`);
-      setDealProgress(response.data);
+      const response = await api.get(`/calculations/deal/${dealId}`);
+      setCalculationData(response.data);
+      if (response.data.result) {
+        setCalcInputs(response.data.result.inputs || {});
+      }
     } catch (error) {
-      console.error('Error fetching deal progress:', error);
+      console.error('Error fetching calculation:', error);
+      setCalculationData(null);
     }
   };
 
   const handleDealClick = async (deal) => {
     setSelectedDeal(deal);
-    setShowDealModal(true);
-    await fetchDealProgress(deal.id);
+    setShowDealSheet(true);
+    await fetchDealCalculation(deal.id);
   };
 
-  const handleMoveStage = async (dealId, targetStageId) => {
+  const closeDealSheet = () => {
+    setShowDealSheet(false);
+    setSelectedDeal(null);
+    setCalculationData(null);
+    setCalcInputs({});
+  };
+
+  // Drag and Drop handlers
+  const handleDragStart = (e, deal, columnId) => {
+    setDraggedDeal({ ...deal, sourceColumnId: columnId });
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', deal.id);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedDeal(null);
+    setDragOverColumn(null);
+  };
+
+  const handleDragOver = (e, columnId) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverColumn(columnId);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverColumn(null);
+  };
+
+  const handleDrop = async (e, targetColumnId) => {
+    e.preventDefault();
+    setDragOverColumn(null);
+    
+    if (!draggedDeal || draggedDeal.sourceColumnId === targetColumnId) {
+      setDraggedDeal(null);
+      return;
+    }
+
+    // Check if we need to validate the transition
+    await attemptStageMove(draggedDeal.id, targetColumnId, draggedDeal.sourceColumnId);
+    setDraggedDeal(null);
+  };
+
+  const attemptStageMove = async (dealId, targetStageId, sourceStageId) => {
     setMovingDeal(dealId);
+    setTransitionError(null);
+    
     try {
+      // First check if calculation is required
+      const checkResponse = await api.get(`/calculations/deal/${dealId}/check`);
+      const check = checkResponse.data;
+      
+      // Find target column to check if it requires calculation
+      const targetColumn = kanbanData?.columns.find(c => c.id === targetStageId);
+      const requiresCalc = targetColumn?.name?.toLowerCase().includes('demo') || 
+                          targetColumn?.name?.toLowerCase().includes('scheduled');
+      
+      if (requiresCalc && !check.is_complete) {
+        // Show transition dialog with error
+        setPendingTransition({ dealId, targetStageId, sourceStageId });
+        setTransitionError({
+          type: 'calculation_required',
+          message: check.error_message || 'Calculation must be complete before this stage',
+          missingFields: check.missing_fields || []
+        });
+        setShowTransitionDialog(true);
+        setMovingDeal(null);
+        return;
+      }
+      
+      // Proceed with move
       await api.post(`/deals/${dealId}/move-stage`, {
         stage_id: targetStageId
       });
-      // Refresh kanban
       await fetchKanbanData(selectedPipeline);
+      
     } catch (error) {
+      const errorDetail = error.response?.data?.detail;
+      if (errorDetail) {
+        setPendingTransition({ dealId, targetStageId, sourceStageId });
+        setTransitionError({
+          type: 'rule_violation',
+          message: errorDetail
+        });
+        setShowTransitionDialog(true);
+      }
       console.error('Error moving deal:', error);
     } finally {
       setMovingDeal(null);
     }
   };
 
+  const handleMoveWithOverride = async () => {
+    if (!pendingTransition || !overrideReason.trim()) return;
+    
+    setMovingDeal(pendingTransition.dealId);
+    try {
+      await api.post(`/deals/${pendingTransition.dealId}/move-stage`, {
+        stage_id: pendingTransition.targetStageId,
+        override: true,
+        override_reason: overrideReason
+      });
+      await fetchKanbanData(selectedPipeline);
+      setShowTransitionDialog(false);
+      setPendingTransition(null);
+      setOverrideReason('');
+      setTransitionError(null);
+    } catch (error) {
+      console.error('Error with override:', error);
+    } finally {
+      setMovingDeal(null);
+    }
+  };
+
+  // Calculation handlers
+  const handleCalcInputChange = (name, value) => {
+    setCalcInputs(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleMultiSelectChange = (name, value) => {
+    const current = calcInputs[name] || [];
+    if (current.includes(value)) {
+      setCalcInputs(prev => ({ ...prev, [name]: current.filter(v => v !== value) }));
+    } else {
+      setCalcInputs(prev => ({ ...prev, [name]: [...current, value] }));
+    }
+  };
+
+  const saveCalculation = async () => {
+    if (!selectedDeal) return;
+    
+    setCalcSaving(true);
+    try {
+      const response = await api.put(`/calculations/deal/${selectedDeal.id}`, {
+        inputs: calcInputs
+      });
+      
+      setCalculationData(prev => ({
+        ...prev,
+        result: {
+          ...response.data,
+          inputs: response.data.inputs,
+          outputs: response.data.outputs
+        }
+      }));
+      
+      // Refresh kanban if stage changed
+      if (response.data.stage_returned) {
+        await fetchKanbanData(selectedPipeline);
+      }
+    } catch (error) {
+      console.error('Error saving calculation:', error);
+    } finally {
+      setCalcSaving(false);
+    }
+  };
+
   const formatCurrency = (value) => {
+    if (value === undefined || value === null) return '-';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -117,17 +292,21 @@ const PipelinePage = () => {
       case 'missing_requirements':
         return <Badge className="bg-red-500/20 text-red-400 border-red-500/30"><AlertTriangle className="w-3 h-3 mr-1" />Missing</Badge>;
       default:
-        return <Badge variant="outline">N/A</Badge>;
+        return null;
     }
   };
 
   if (loading && !kanbanData) {
     return (
       <div className="space-y-4">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-[280px]" />
+          <Skeleton className="h-10 w-24" />
+        </div>
         <div className="flex gap-4">
           {[1, 2, 3, 4, 5].map(i => (
             <div key={i} className="flex-1 min-w-[280px]">
-              <Skeleton className="h-8 w-32 mb-4" />
+              <Skeleton className="h-16 w-full mb-2" />
               <Skeleton className="h-32 w-full mb-2" />
               <Skeleton className="h-32 w-full" />
             </div>
@@ -175,7 +354,12 @@ const PipelinePage = () => {
           {kanbanData?.columns.map((column, colIndex) => (
             <div 
               key={column.id} 
-              className="flex-shrink-0 w-[320px]"
+              className={`flex-shrink-0 w-[320px] ${
+                dragOverColumn === column.id ? 'ring-2 ring-primary ring-offset-2' : ''
+              }`}
+              onDragOver={(e) => handleDragOver(e, column.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, column.id)}
             >
               {/* Column Header */}
               <div 
@@ -207,24 +391,29 @@ const PipelinePage = () => {
 
               {/* Column Content */}
               <div 
-                className="p-2 space-y-2 min-h-[400px] rounded-b-lg border border-t-0 bg-muted/30"
+                className={`p-2 space-y-2 min-h-[400px] rounded-b-lg border border-t-0 transition-colors ${
+                  dragOverColumn === column.id ? 'bg-primary/10' : 'bg-muted/30'
+                }`}
                 style={{ borderColor: `${column.color}40` }}
               >
                 {column.deals.map(deal => (
                   <Card 
                     key={deal.id}
-                    className={`cursor-pointer hover:shadow-md transition-all border-l-4 ${
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, deal, column.id)}
+                    onDragEnd={handleDragEnd}
+                    className={`cursor-grab active:cursor-grabbing hover:shadow-md transition-all border-l-4 ${
                       movingDeal === deal.id ? 'opacity-50' : ''
-                    }`}
+                    } ${draggedDeal?.id === deal.id ? 'opacity-50 rotate-2' : ''}`}
                     style={{ borderLeftColor: column.color }}
                     onClick={() => handleDealClick(deal)}
                   >
                     <CardContent className="p-3 space-y-2">
                       <div className="flex items-start justify-between">
-                        <p className="font-medium text-sm leading-tight">{deal.name}</p>
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <GripVertical className="w-4 h-4 text-muted-foreground" />
+                          <p className="font-medium text-sm leading-tight">{deal.name}</p>
+                        </div>
                       </div>
                       
                       <div className="flex items-center justify-between">
@@ -242,19 +431,17 @@ const PipelinePage = () => {
                       )}
                       
                       {/* Quick Move Buttons */}
-                      <div className="flex gap-1 pt-2 border-t">
+                      <div className="flex gap-1 pt-2 border-t" onClick={e => e.stopPropagation()}>
                         {colIndex > 0 && (
                           <Button 
                             variant="ghost" 
                             size="sm" 
                             className="flex-1 h-7 text-xs"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleMoveStage(deal.id, kanbanData.columns[colIndex - 1].id);
-                            }}
+                            onClick={() => attemptStageMove(deal.id, kanbanData.columns[colIndex - 1].id, column.id)}
                             disabled={movingDeal === deal.id}
                           >
-                            ← Back
+                            <ChevronLeft className="w-3 h-3 mr-1" />
+                            Back
                           </Button>
                         )}
                         {colIndex < kanbanData.columns.length - 1 && (
@@ -262,13 +449,11 @@ const PipelinePage = () => {
                             variant="ghost" 
                             size="sm" 
                             className="flex-1 h-7 text-xs"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleMoveStage(deal.id, kanbanData.columns[colIndex + 1].id);
-                            }}
+                            onClick={() => attemptStageMove(deal.id, kanbanData.columns[colIndex + 1].id, column.id)}
                             disabled={movingDeal === deal.id}
                           >
-                            Next →
+                            Next
+                            <ChevronRight className="w-3 h-3 ml-1" />
                           </Button>
                         )}
                       </div>
@@ -277,8 +462,8 @@ const PipelinePage = () => {
                 ))}
                 
                 {column.deals.length === 0 && (
-                  <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">
-                    No deals in this stage
+                  <div className="h-32 flex items-center justify-center text-muted-foreground text-sm">
+                    Drop deals here
                   </div>
                 )}
               </div>
@@ -287,78 +472,382 @@ const PipelinePage = () => {
         </div>
       </ScrollArea>
 
-      {/* Deal Detail Modal */}
-      <Dialog open={showDealModal} onOpenChange={setShowDealModal}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{selectedDeal?.name}</DialogTitle>
-            <DialogDescription>
-              {selectedDeal?.contact_name || 'No contact assigned'}
-            </DialogDescription>
-          </DialogHeader>
-          
+      {/* Deal Detail Sheet */}
+      <Sheet open={showDealSheet} onOpenChange={setShowDealSheet}>
+        <SheetContent className="w-full sm:max-w-2xl p-0 flex flex-col">
           {selectedDeal && (
-            <div className="space-y-6">
-              {/* Deal Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Deal Value</p>
-                  <p className="text-2xl font-bold">{formatCurrency(selectedDeal.amount)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Status</p>
-                  <div className="flex items-center gap-2 mt-1">
+            <>
+              <SheetHeader className="p-6 border-b">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <SheetTitle className="text-xl">{selectedDeal.name}</SheetTitle>
+                    <SheetDescription className="flex items-center gap-2 mt-1">
+                      <User className="w-4 h-4" />
+                      {selectedDeal.contact_name || 'No contact'}
+                    </SheetDescription>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-primary">{formatCurrency(selectedDeal.amount)}</p>
                     {getComplianceBadge(selectedDeal.blueprint_compliance)}
                   </div>
                 </div>
-              </div>
+              </SheetHeader>
 
-              {/* Blueprint Progress */}
-              {dealProgress?.has_blueprint && dealProgress.progress && (
-                <div className="space-y-4 p-4 rounded-lg bg-muted/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{dealProgress.blueprint_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Stage {dealProgress.progress.current_stage} of {dealProgress.progress.total_stages}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold">{dealProgress.progress.progress_percentage}%</p>
-                      <p className="text-xs text-muted-foreground">Complete</p>
-                    </div>
-                  </div>
-                  
-                  <Progress value={dealProgress.progress.progress_percentage} className="h-2" />
-                  
-                  {/* Stage List */}
-                  <div className="grid grid-cols-3 gap-2 mt-4">
-                    {dealProgress.progress.stages.map((stage, idx) => (
-                      <div 
-                        key={stage.id}
-                        className={`p-2 rounded text-xs flex items-center gap-2 ${
-                          stage.is_current 
-                            ? 'bg-primary/20 border border-primary' 
-                            : stage.is_completed 
-                              ? 'bg-green-500/20' 
-                              : 'bg-muted'
-                        }`}
-                      >
-                        <div 
-                          className="w-2 h-2 rounded-full flex-shrink-0" 
-                          style={{ backgroundColor: stage.color }}
-                        />
-                        <span className="truncate">{stage.name}</span>
-                        {stage.is_completed && <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />}
+              <Tabs defaultValue="details" className="flex-1 flex flex-col">
+                <TabsList className="mx-6 mt-4">
+                  <TabsTrigger value="details">Details</TabsTrigger>
+                  <TabsTrigger value="calculation">
+                    <Calculator className="w-4 h-4 mr-1" />
+                    Calculator
+                  </TabsTrigger>
+                  <TabsTrigger value="activity">Activity</TabsTrigger>
+                </TabsList>
+
+                <ScrollArea className="flex-1">
+                  <TabsContent value="details" className="p-6 space-y-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Deal Information</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Stage</Label>
+                            <p className="font-medium">{selectedDeal.stage_name || 'Unknown'}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Value</Label>
+                            <p className="font-medium">{formatCurrency(selectedDeal.amount)}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Contact</Label>
+                            <p className="font-medium">{selectedDeal.contact_name || '-'}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Status</Label>
+                            <p className="font-medium capitalize">{selectedDeal.status}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Quick Actions */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Quick Actions</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-4 gap-2">
+                          <Button variant="outline" size="sm" className="h-16 flex-col gap-1">
+                            <Phone className="w-4 h-4" />
+                            <span className="text-xs">Call</span>
+                          </Button>
+                          <Button variant="outline" size="sm" className="h-16 flex-col gap-1">
+                            <Mail className="w-4 h-4" />
+                            <span className="text-xs">Email</span>
+                          </Button>
+                          <Button variant="outline" size="sm" className="h-16 flex-col gap-1">
+                            <MessageSquare className="w-4 h-4" />
+                            <span className="text-xs">SMS</span>
+                          </Button>
+                          <Button variant="outline" size="sm" className="h-16 flex-col gap-1">
+                            <Calendar className="w-4 h-4" />
+                            <span className="text-xs">Schedule</span>
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="calculation" className="p-6 space-y-4">
+                    {calculationData?.definition ? (
+                      <>
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <Calculator className="w-4 h-4" />
+                              {calculationData.definition.name}
+                            </CardTitle>
+                            <CardDescription>
+                              {calculationData.definition.description}
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            {calculationData.definition.inputs?.map(field => (
+                              <div key={field.name} className="space-y-2">
+                                <Label className="flex items-center gap-1">
+                                  {field.label}
+                                  {field.required && <span className="text-red-500">*</span>}
+                                </Label>
+                                
+                                {field.type === 'integer' || field.type === 'number' ? (
+                                  <Input
+                                    type="number"
+                                    value={calcInputs[field.name] || ''}
+                                    onChange={(e) => handleCalcInputChange(field.name, parseInt(e.target.value) || '')}
+                                    placeholder={field.placeholder}
+                                    min={field.min}
+                                    max={field.max}
+                                  />
+                                ) : field.type === 'currency' ? (
+                                  <div className="relative">
+                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                    <Input
+                                      type="number"
+                                      value={calcInputs[field.name] || ''}
+                                      onChange={(e) => handleCalcInputChange(field.name, parseFloat(e.target.value) || '')}
+                                      placeholder={field.placeholder}
+                                      className="pl-9"
+                                      step="0.01"
+                                    />
+                                  </div>
+                                ) : field.type === 'select' ? (
+                                  <Select 
+                                    value={calcInputs[field.name] || ''} 
+                                    onValueChange={(v) => handleCalcInputChange(field.name, v)}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder={field.placeholder || 'Select...'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {field.options?.map(opt => (
+                                        <SelectItem key={opt.value} value={opt.value}>
+                                          {opt.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : field.type === 'multi_select' ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {field.options?.map(opt => (
+                                      <Button
+                                        key={opt.value}
+                                        type="button"
+                                        variant={(calcInputs[field.name] || []).includes(opt.value) ? 'default' : 'outline'}
+                                        size="sm"
+                                        onClick={() => handleMultiSelectChange(field.name, opt.value)}
+                                      >
+                                        {opt.label}
+                                        {(calcInputs[field.name] || []).includes(opt.value) && (
+                                          <CheckCircle2 className="w-3 h-3 ml-1" />
+                                        )}
+                                      </Button>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <Input
+                                    value={calcInputs[field.name] || ''}
+                                    onChange={(e) => handleCalcInputChange(field.name, e.target.value)}
+                                    placeholder={field.placeholder}
+                                  />
+                                )}
+                                
+                                {field.help_text && (
+                                  <p className="text-xs text-muted-foreground">{field.help_text}</p>
+                                )}
+                              </div>
+                            ))}
+                            
+                            <Button 
+                              onClick={saveCalculation} 
+                              disabled={calcSaving}
+                              className="w-full"
+                            >
+                              {calcSaving ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Calculating...
+                                </>
+                              ) : (
+                                <>
+                                  <Calculator className="w-4 h-4 mr-2" />
+                                  Calculate & Save
+                                </>
+                              )}
+                            </Button>
+                          </CardContent>
+                        </Card>
+
+                        {/* Calculation Results */}
+                        {calculationData.result?.outputs && Object.keys(calculationData.result.outputs).length > 0 && (
+                          <Card className="bg-green-500/5 border-green-500/20">
+                            <CardHeader>
+                              <CardTitle className="text-base flex items-center gap-2 text-green-600">
+                                <TrendingUp className="w-4 h-4" />
+                                Calculated Results
+                                {calculationData.result.is_complete && (
+                                  <Badge className="bg-green-500/20 text-green-400">Complete</Badge>
+                                )}
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="p-3 bg-background rounded-lg">
+                                  <p className="text-xs text-muted-foreground">Monthly Oil Spend</p>
+                                  <p className="text-xl font-bold">
+                                    {formatCurrency(calculationData.result.outputs.monthly_oil_spend)}
+                                  </p>
+                                </div>
+                                <div className="p-3 bg-background rounded-lg">
+                                  <p className="text-xs text-muted-foreground">Yearly Oil Spend</p>
+                                  <p className="text-xl font-bold">
+                                    {formatCurrency(calculationData.result.outputs.yearly_oil_spend)}
+                                  </p>
+                                </div>
+                                <div className="col-span-2 p-3 bg-green-500/10 rounded-lg">
+                                  <p className="text-xs text-green-600">Estimated Annual Savings</p>
+                                  <p className="text-2xl font-bold text-green-600">
+                                    {formatCurrency(calculationData.result.outputs.estimated_savings_low)} - {formatCurrency(calculationData.result.outputs.estimated_savings_high)}
+                                  </p>
+                                </div>
+                                <div className="p-3 bg-background rounded-lg">
+                                  <p className="text-xs text-muted-foreground">Devices Needed</p>
+                                  <p className="text-xl font-bold flex items-center gap-1">
+                                    <Package className="w-4 h-4" />
+                                    {calculationData.result.outputs.recommended_device_quantity}
+                                  </p>
+                                </div>
+                                <div className="p-3 bg-background rounded-lg">
+                                  <p className="text-xs text-muted-foreground">Device Size</p>
+                                  <p className="text-xl font-bold">
+                                    {calculationData.result.outputs.recommended_device_size}
+                                  </p>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Calculator className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                        <p>No calculation defined for this workspace</p>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="activity" className="p-6 space-y-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Outreach Activity</CardTitle>
+                        <CardDescription>Track touchpoints with this lead</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                <Phone className="w-4 h-4 text-blue-500" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm">Phone Call</p>
+                                <p className="text-xs text-muted-foreground">Outbound • No answer</p>
+                              </div>
+                            </div>
+                            <span className="text-xs text-muted-foreground">2 days ago</span>
+                          </div>
+                          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                                <Mail className="w-4 h-4 text-green-500" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm">Email Sent</p>
+                                <p className="text-xs text-muted-foreground">Follow-up email</p>
+                              </div>
+                            </div>
+                            <span className="text-xs text-muted-foreground">3 days ago</span>
+                          </div>
+                        </div>
+                        
+                        <Button variant="outline" className="w-full mt-4">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Log Activity
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </ScrollArea>
+              </Tabs>
+
+              <div className="p-4 border-t">
+                <Button variant="outline" className="w-full" onClick={closeDealSheet}>
+                  Close
+                </Button>
+              </div>
+            </>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
+
+      {/* Stage Transition Dialog */}
+      <AlertDialog open={showTransitionDialog} onOpenChange={setShowTransitionDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-amber-500" />
+              Stage Move Blocked
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>{transitionError?.message}</p>
+                
+                {transitionError?.missingFields?.length > 0 && (
+                  <div className="p-3 bg-amber-500/10 rounded-lg">
+                    <p className="text-sm font-medium text-amber-600 mb-2">Missing information:</p>
+                    <ul className="text-sm space-y-1">
+                      {transitionError.missingFields.map((field, i) => (
+                        <li key={i} className="flex items-center gap-2">
+                          <X className="w-3 h-3 text-red-500" />
+                          {field}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {transitionError?.type === 'calculation_required' && (
+                  <p className="text-sm">
+                    Open the deal and complete the ROI Calculator before moving to this stage.
+                  </p>
+                )}
+                
+                <div className="pt-2 border-t">
+                  <Label>Admin Override (requires reason)</Label>
+                  <Textarea
+                    placeholder="Enter reason for override..."
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                    className="mt-2"
+                    rows={2}
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowTransitionDialog(false);
+              setPendingTransition(null);
+              setOverrideReason('');
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleMoveWithOverride}
+              disabled={!overrideReason.trim() || movingDeal}
+              className="bg-amber-500 hover:bg-amber-600"
+            >
+              {movingDeal ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 mr-2" />
+              )}
+              Override & Move
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
