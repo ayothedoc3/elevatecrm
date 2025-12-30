@@ -1485,12 +1485,12 @@ async def seed_demo_data():
             db.add(sales_rep)
             await db.flush()
             
-            # Create NLA Tax Filing Pipeline
+            # Create Frylow Sales Pipeline
             pipeline = Pipeline(
                 id=str(uuid.uuid4()),
                 tenant_id=tenant.id,
-                name="NLA Tax Filing Pipeline",
-                description="15-step tax filing workflow for New Level Accounting",
+                name="Frylow Sales Pipeline",
+                description="Sales pipeline for Frylow oil savings solutions",
                 is_default=True,
                 display_order=0
             )
@@ -1532,12 +1532,12 @@ async def seed_demo_data():
                 pipeline_stages.append(stage)
             await db.flush()
             
-            # Create NLA Workflow Blueprint
+            # Create Frylow Sales Workflow Blueprint
             blueprint = WorkflowBlueprint(
                 id=str(uuid.uuid4()),
                 tenant_id=tenant.id,
-                name="NLA Tax Filing Workflow",
-                description="15-step tax filing workflow with required actions and automations",
+                name="Frylow Sales Workflow",
+                description="Sales workflow with required actions and automations for Frylow",
                 is_default=True,
                 allow_skip_stages=False,
                 allow_admin_override=True,
