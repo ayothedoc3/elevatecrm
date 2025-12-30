@@ -152,8 +152,7 @@ async def create_activity(
         subject=data.subject,
         notes=data.notes,
         duration_seconds=data.duration_seconds,
-        got_response=data.got_response,
-        scheduled_at=data.scheduled_at
+        got_response=data.got_response
     )
     
     if data.got_response:
