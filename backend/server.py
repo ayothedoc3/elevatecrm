@@ -1403,6 +1403,12 @@ setup_routes(
     messaging_service, automation_engine, User
 )
 
+# Setup workspace and calculation routes (Multi-CRM architecture)
+from app.api.workspace_routes import router as workspace_router
+from app.api.calculation_routes import router as calculation_router
+api_router.include_router(workspace_router)
+api_router.include_router(calculation_router)
+
 # Include router AFTER all routes are added
 app.include_router(api_router)
 
