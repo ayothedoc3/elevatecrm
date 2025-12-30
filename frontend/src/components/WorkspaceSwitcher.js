@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,47 +10,27 @@ import {
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { 
-  ChevronDown, Building2, Plus, Check, Settings, Loader2 
+  ChevronDown, Building2, Plus, Check, Loader2, Flame 
 } from 'lucide-react';
 import AddCRMModal from './AddCRMModal';
 
 const WorkspaceSwitcher = () => {
-  const [workspaces, setWorkspaces] = useState([]);
-  const [currentWorkspace, setCurrentWorkspace] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { workspaces, currentWorkspace, switchWorkspace, fetchWorkspaces, api } = useAuth();
+  const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-
-  const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
+  const [localWorkspaces, setLocalWorkspaces] = useState([]);
 
   useEffect(() => {
-    fetchWorkspaces();
+    loadWorkspaces();
   }, []);
 
-  const fetchWorkspaces = async () => {
+  const loadWorkspaces = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const response = await fetch(`${backendUrl}/api/workspaces`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setWorkspaces(data.workspaces);
-        
-        // Find current workspace from localStorage or use first
-        const savedId = localStorage.getItem('currentWorkspaceId');
-        const current = savedId 
-          ? data.workspaces.find(w => w.id === savedId) 
-          : data.workspaces[0];
-        
-        if (current) {
-          setCurrentWorkspace(current);
-        }
-      }
+      const response = await api.get('/workspaces');
+      setLocalWorkspaces(response.data.workspaces || []);
     } catch (err) {
-      console.error('Failed to fetch workspaces:', err);
+      console.error('Failed to load workspaces:', err);
     } finally {
       setLoading(false);
     }
@@ -57,43 +38,26 @@ const WorkspaceSwitcher = () => {
 
   const handleSwitch = async (workspace) => {
     if (workspace.id === currentWorkspace?.id) return;
+    if (workspace.status !== 'active') return;
     
-    try {
-      const response = await fetch(`${backendUrl}/api/workspaces/${workspace.id}/switch`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem('currentWorkspaceId', workspace.id);
-        localStorage.setItem('currentTenantId', data.tenant_id);
-        window.location.reload();
-      }
-    } catch (err) {
-      console.error('Failed to switch workspace:', err);
+    setLoading(true);
+    const success = await switchWorkspace(workspace.id);
+    if (success) {
+      window.location.reload();
     }
+    setLoading(false);
   };
 
   const handleWorkspaceCreated = (workspaceId) => {
     setShowAddModal(false);
-    localStorage.setItem('currentWorkspaceId', workspaceId);
+    // Reload to switch to new workspace
     window.location.reload();
   };
 
-  if (loading) {
-    return (
-      <Button variant="outline" disabled className="min-w-[180px]">
-        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-        Loading...
-      </Button>
-    );
-  }
+  const displayWorkspaces = localWorkspaces.length > 0 ? localWorkspaces : workspaces;
 
   // If no workspaces exist, show "Add CRM" button
-  if (workspaces.length === 0) {
+  if (!loading && displayWorkspaces.length === 0) {
     return (
       <>
         <Button 
@@ -117,27 +81,35 @@ const WorkspaceSwitcher = () => {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="min-w-[180px] justify-between">
+          <Button variant="outline" className="min-w-[200px] justify-between" disabled={loading}>
             <div className="flex items-center gap-2">
-              <Building2 className="w-4 h-4" />
-              <span className="truncate max-w-[120px]">
-                {currentWorkspace?.name || 'Select CRM'}
+              <Flame className="w-4 h-4 text-orange-500" />
+              <span className="truncate max-w-[140px]">
+                {loading ? 'Loading...' : (currentWorkspace?.name || 'Select CRM')}
               </span>
             </div>
             <ChevronDown className="w-4 h-4 ml-2 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[250px]">
-          {workspaces.map(workspace => (
+        <DropdownMenuContent align="start" className="w-[280px]">
+          {displayWorkspaces.map(workspace => (
             <DropdownMenuItem
               key={workspace.id}
               onClick={() => handleSwitch(workspace)}
-              className="cursor-pointer"
+              className={`cursor-pointer ${workspace.status !== 'active' ? 'opacity-50' : ''}`}
+              disabled={workspace.status !== 'active'}
             >
               <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4" />
-                  <span className="truncate">{workspace.name}</span>
+                  <Flame className="w-4 h-4 text-orange-500" />
+                  <div>
+                    <span className="truncate">{workspace.name}</span>
+                    {workspace.status !== 'active' && (
+                      <Badge variant="outline" className="ml-2 text-xs">
+                        {workspace.status}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 {workspace.id === currentWorkspace?.id && (
                   <Check className="w-4 h-4 text-primary" />
