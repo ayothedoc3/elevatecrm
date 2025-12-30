@@ -275,8 +275,8 @@ class StageTransitionRule(Base):
     
     # From stage (null = any stage)
     from_stage_id = Column(String(36), ForeignKey('pipeline_stages.id', ondelete='CASCADE'), nullable=True)
-    # To stage
-    to_stage_id = Column(String(36), ForeignKey('pipeline_stages.id', ondelete='CASCADE'), nullable=False)
+    # To stage (null = any stage for global rules like calculation_change_return)
+    to_stage_id = Column(String(36), ForeignKey('pipeline_stages.id', ondelete='CASCADE'), nullable=True)
     
     # Rule type
     rule_type = Column(String(50), nullable=False)  # 'require_calculation', 'require_property', 'require_action', 'require_touchpoints', 'custom'
