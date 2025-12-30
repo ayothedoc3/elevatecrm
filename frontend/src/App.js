@@ -59,13 +59,13 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       {/* Logo */}
       <div className="p-4 border-b border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-violet-600 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Building2 className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Flame className="w-5 h-5 text-white" />
           </div>
           {!collapsed && (
             <div>
-              <h1 className="font-bold text-white">CRM OS</h1>
-              <p className="text-xs text-slate-500">Enterprise CRM</p>
+              <h1 className="font-bold text-white">Elevate CRM</h1>
+              <p className="text-xs text-slate-500">Multi-CRM Platform</p>
             </div>
           )}
         </div>
