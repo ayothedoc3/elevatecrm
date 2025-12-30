@@ -101,10 +101,10 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
-user_problem_statement: "Build CRM OS platform with Inbox, Workflows, and Forms pages. User requested: 1) Inbox with simple list view 2) Workflows with visual drag-and-drop builder 3) Forms with JSON-based field editor. Cards should be clickable and reveal more information."
+user_problem_statement: "Build Elevate CRM multi-CRM platform. Key features: 1) Multi-CRM workspace architecture 2) Drag-and-drop Kanban pipeline view 3) Clickable cards with detail sheets 4) Workspace switching 5) ROI Calculator integration"
 
 backend:
-  - task: "Authentication API (Login)"
+  - task: "Authentication API (Login with tenant_slug)"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -114,108 +114,145 @@ backend:
     status_history:
       - working: true
         agent: "main"
-        comment: "Login tested with curl, returns JWT token correctly"
+        comment: "Login tested with curl using tenant_slug=demo, returns JWT token correctly"
 
-  - task: "Inbox API endpoints"
+  - task: "Pipeline Kanban API"
     implemented: true
     working: true
-    file: "/app/backend/app/api/extended_routes.py"
+    file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Endpoints exist, need frontend testing"
+        comment: "GET /api/pipelines/{id}/kanban returns columns with deals"
 
-  - task: "Workflows API endpoints"
+  - task: "Deal Stage Move API"
     implemented: true
     working: true
-    file: "/app/backend/app/api/extended_routes.py"
+    file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "CRUD endpoints exist for workflows"
+        comment: "POST /api/deals/{id}/move-stage for drag-drop functionality"
 
-  - task: "Forms API endpoints"
+  - task: "Workspace API endpoints"
     implemented: true
     working: true
-    file: "/app/backend/app/api/extended_routes.py"
+    file: "/app/backend/app/api/workspace_routes.py"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "CRUD endpoints exist for forms"
+        comment: "Workspace CRUD and switching endpoints exist"
+
+  - task: "Contacts API"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "CRUD endpoints for contacts"
 
 frontend:
-  - task: "App routing for new pages"
+  - task: "Dashboard page"
     implemented: true
     working: true
-    file: "/app/frontend/src/App.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "main"
-        comment: "Routes added for /inbox, /workflows, /forms"
-
-  - task: "Inbox page (simple list view)"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/pages/InboxPage.js"
+    file: "/app/frontend/src/pages/DashboardPage.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Screenshot shows page loading with stats cards and conversation list"
+        comment: "Screenshot shows dashboard with stats, deals list, and pipeline overview"
 
-  - task: "Workflows page (visual drag-and-drop builder)"
+  - task: "Pipeline page with drag-and-drop Kanban"
     implemented: true
     working: true
-    file: "/app/frontend/src/pages/WorkflowsPage.js"
+    file: "/app/frontend/src/pages/PipelinePage.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Screenshot shows visual builder with trigger selection and add action dialog"
+        comment: "Screenshot shows Kanban board with deal cards, drag handlers visible"
 
-  - task: "Forms page (JSON-based field editor)"
+  - task: "Deal detail sheet with Calculator"
     implemented: true
     working: true
-    file: "/app/frontend/src/pages/FormsPage.js"
+    file: "/app/frontend/src/pages/PipelinePage.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Screenshot shows create form modal with tabbed interface"
+        comment: "Deal cards clickable, opens sheet with tabs for Details, Calculator, Activity"
+
+  - task: "Contacts page with clickable cards"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/ContactsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Table rows clickable, opens detail sheet with tabs"
+
+  - task: "Workspace Switcher"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/WorkspaceSwitcher.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Component exists but not tested - no multiple workspaces in demo data yet"
+
+  - task: "Add CRM Modal"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/AddCRMModal.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Component exists for creating new workspaces from blueprints"
 
 metadata:
   created_by: "main_agent"
-  version: "1.0"
-  test_sequence: 1
+  version: "2.0"
+  test_sequence: 2
   run_ui: true
 
 test_plan:
   current_focus:
-    - "Inbox page functionality"
-    - "Workflows visual builder"
-    - "Forms creation and detail view"
+    - "Dashboard page functionality"
+    - "Pipeline Kanban drag-and-drop"
+    - "Deal detail sheet with Calculator tab"
+    - "Contacts page clickable rows and detail sheet"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Implemented frontend for Inbox, Workflows (with visual builder), and Forms pages. All routes are working. PostgreSQL was not running in this forked environment - installed and configured it. Please test: 1) Navigate to each page 2) Create a workflow using the visual builder 3) Create a form with fields 4) Test clickable cards functionality"
+    message: "Forked from previous job - PostgreSQL was re-installed and configured. Database seeded with demo data. Please test: 1) Login with admin@demo.com/admin123 (workspace: demo) 2) Dashboard shows deals and stats 3) Pipeline page Kanban drag-drop works 4) Click a deal card to open detail sheet 5) Contacts page - click a row to open detail sheet. All core CRM functionality should be working."
