@@ -818,4 +818,304 @@ const PipelinePage = () => {
   );
 };
 
+// Activity Panel Component
+const ActivityPanel = ({ dealId, api, onUpdate }) => {
+  const [activities, setActivities] = React.useState([]);
+  const [summary, setSummary] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [showLogModal, setShowLogModal] = React.useState(false);
+  const [logging, setLogging] = React.useState(false);
+  const [newActivity, setNewActivity] = React.useState({
+    activity_type: 'call',
+    direction: 'outbound',
+    status: 'completed',
+    subject: '',
+    notes: '',
+    got_response: false
+  });
+
+  React.useEffect(() => {
+    if (dealId) {
+      fetchActivities();
+      fetchSummary();
+    }
+  }, [dealId]);
+
+  const fetchActivities = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get(`/outreach/deal/${dealId}`);
+      setActivities(response.data.activities || []);
+    } catch (error) {
+      console.error('Error fetching activities:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchSummary = async () => {
+    try {
+      const response = await api.get(`/outreach/deal/${dealId}/summary`);
+      setSummary(response.data);
+    } catch (error) {
+      console.error('Error fetching summary:', error);
+    }
+  };
+
+  const handleLogActivity = async () => {
+    setLogging(true);
+    try {
+      await api.post('/outreach', {
+        deal_id: dealId,
+        ...newActivity
+      });
+      setShowLogModal(false);
+      setNewActivity({
+        activity_type: 'call',
+        direction: 'outbound',
+        status: 'completed',
+        subject: '',
+        notes: '',
+        got_response: false
+      });
+      await fetchActivities();
+      await fetchSummary();
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      console.error('Error logging activity:', error);
+    } finally {
+      setLogging(false);
+    }
+  };
+
+  const getActivityIcon = (type) => {
+    const icons = {
+      call: <Phone className="w-4 h-4 text-blue-500" />,
+      email: <Mail className="w-4 h-4 text-green-500" />,
+      sms: <MessageSquare className="w-4 h-4 text-purple-500" />,
+      meeting: <Calendar className="w-4 h-4 text-orange-500" />,
+      demo: <TrendingUp className="w-4 h-4 text-cyan-500" />,
+      note: <FileText className="w-4 h-4 text-gray-500" />
+    };
+    return icons[type] || <Clock className="w-4 h-4 text-gray-500" />;
+  };
+
+  const getActivityBgColor = (type) => {
+    const colors = {
+      call: 'bg-blue-500/20',
+      email: 'bg-green-500/20',
+      sms: 'bg-purple-500/20',
+      meeting: 'bg-orange-500/20',
+      demo: 'bg-cyan-500/20',
+      note: 'bg-gray-500/20'
+    };
+    return colors[type] || 'bg-gray-500/20';
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  return (
+    <>
+      {/* Summary Card */}
+      {summary && (
+        <Card className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Touchpoints</p>
+                <p className="text-2xl font-bold">{summary.total_touchpoints}</p>
+              </div>
+              <div className="grid grid-cols-4 gap-4 text-center">
+                <div>
+                  <p className="text-lg font-semibold">{summary.calls}</p>
+                  <p className="text-xs text-muted-foreground">Calls</p>
+                </div>
+                <div>
+                  <p className="text-lg font-semibold">{summary.emails}</p>
+                  <p className="text-xs text-muted-foreground">Emails</p>
+                </div>
+                <div>
+                  <p className="text-lg font-semibold">{summary.sms}</p>
+                  <p className="text-xs text-muted-foreground">SMS</p>
+                </div>
+                <div>
+                  <p className="text-lg font-semibold text-green-500">{summary.responses}</p>
+                  <p className="text-xs text-muted-foreground">Replies</p>
+                </div>
+              </div>
+            </div>
+            {summary.days_since_last_contact !== null && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Last contact: {summary.days_since_last_contact === 0 ? 'Today' : `${summary.days_since_last_contact} days ago`}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Activity List */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Activity Timeline</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          ) : activities.length > 0 ? (
+            <div className="space-y-2">
+              {activities.map(activity => (
+                <div key={activity.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full ${getActivityBgColor(activity.activity_type)} flex items-center justify-center`}>
+                      {getActivityIcon(activity.activity_type)}
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm capitalize">
+                        {activity.activity_type} {activity.got_response && <Badge variant="outline" className="ml-1 text-xs">Got Reply</Badge>}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {activity.direction} • {activity.status}
+                        {activity.subject && ` • ${activity.subject}`}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{formatDate(activity.created_at)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6 text-muted-foreground">
+              <Phone className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No activities logged yet</p>
+            </div>
+          )}
+          
+          <Button variant="outline" className="w-full mt-4" onClick={() => setShowLogModal(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Log Activity
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Log Activity Dialog */}
+      <AlertDialog open={showLogModal} onOpenChange={setShowLogModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Log Outreach Activity</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 pt-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Type</Label>
+                    <Select 
+                      value={newActivity.activity_type} 
+                      onValueChange={(v) => setNewActivity({...newActivity, activity_type: v})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="call">📞 Call</SelectItem>
+                        <SelectItem value="email">📧 Email</SelectItem>
+                        <SelectItem value="sms">💬 SMS</SelectItem>
+                        <SelectItem value="meeting">🤝 Meeting</SelectItem>
+                        <SelectItem value="demo">📺 Demo</SelectItem>
+                        <SelectItem value="note">📝 Note</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Direction</Label>
+                    <Select 
+                      value={newActivity.direction} 
+                      onValueChange={(v) => setNewActivity({...newActivity, direction: v})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="outbound">Outbound</SelectItem>
+                        <SelectItem value="inbound">Inbound</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Result</Label>
+                  <Select 
+                    value={newActivity.status} 
+                    onValueChange={(v) => setNewActivity({...newActivity, status: v})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="no_answer">No Answer</SelectItem>
+                      <SelectItem value="voicemail">Left Voicemail</SelectItem>
+                      <SelectItem value="bounced">Bounced</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Subject (optional)</Label>
+                  <Input
+                    value={newActivity.subject}
+                    onChange={(e) => setNewActivity({...newActivity, subject: e.target.value})}
+                    placeholder="Brief description..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Notes (optional)</Label>
+                  <Textarea
+                    value={newActivity.notes}
+                    onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})}
+                    placeholder="Additional details..."
+                    rows={2}
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="got_response"
+                    checked={newActivity.got_response}
+                    onChange={(e) => setNewActivity({...newActivity, got_response: e.target.checked})}
+                    className="rounded border-gray-300"
+                  />
+                  <Label htmlFor="got_response" className="text-sm font-normal">Got a response from contact</Label>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLogActivity} disabled={logging}>
+              {logging ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+              Log Activity
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+};
+
 export default PipelinePage;
