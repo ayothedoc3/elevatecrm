@@ -137,7 +137,7 @@ const FormDetailSheet = ({ form, open, onClose, onSave, pipelines }) => {
   const [activeTab, setActiveTab] = useState('preview');
 
   // Use a key to reset state when form changes
-  const formData = form || editedForm;
+  const formData = editedForm || form;
 
   // Initialize editedForm when form prop changes (only when opening)
   if (form && (!editedForm || editedForm.id !== form.id)) {
