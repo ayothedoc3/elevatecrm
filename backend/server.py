@@ -1372,7 +1372,7 @@ async def get_kanban_board(
 # Include router
 app.include_router(api_router)
 
-# ==================== NEW FEATURE IMPORTS ====================
+# ==================== NEW FEATURE IMPORTS & ROUTES ====================
 from app.models import (
     Conversation, Message, MessageChannel, MessageDirection, MessageStatus,
     Workflow, WorkflowRun, ScheduledJob, WorkflowStatus, TriggerType, ActionType, WorkflowRunStatus,
@@ -1387,6 +1387,24 @@ from app.schemas import (
     LandingPageCreate, LandingPageUpdate, LandingPageResponse, LandingPageListResponse
 )
 from app.services import messaging_service, automation_engine
+
+# Setup extended routes
+from app.api.extended_routes import setup_routes
+setup_routes(
+    api_router, get_db, get_current_user,
+    Contact, Pipeline, PipelineStage, Deal, DealStatus, BlueprintComplianceStatus,
+    TimelineEvent, TimelineEventType, VisibilityScope, Tenant,
+    Conversation, Message, MessageChannel, MessageDirection, MessageStatus,
+    Workflow, WorkflowRun, WorkflowStatus, TriggerType, WorkflowRunStatus,
+    Form, FormSubmission, LandingPage,
+    MessageCreate, MessageResponse, ConversationResponse, ConversationListResponse, InboxStats,
+    WorkflowCreate, WorkflowUpdate, WorkflowResponse, WorkflowListResponse,
+    WorkflowRunResponse, WorkflowRunListResponse, TriggerWorkflowRequest,
+    FormCreate, FormUpdate, FormResponse, FormListResponse,
+    PublicFormResponse, FormSubmissionCreate, FormSubmissionResponse, FormSubmissionListResponse,
+    LandingPageCreate, LandingPageUpdate, LandingPageResponse, LandingPageListResponse,
+    messaging_service, automation_engine, User
+)
 
 
 # ==================== SEED DATA ====================
