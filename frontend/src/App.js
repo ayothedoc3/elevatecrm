@@ -163,6 +163,9 @@ const TopBar = () => {
   return (
     <div className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 flex items-center justify-between">
       <div className="flex items-center gap-4">
+        {/* Workspace Switcher */}
+        <WorkspaceSwitcher />
+        
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input 
