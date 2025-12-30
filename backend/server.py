@@ -1369,9 +1369,6 @@ async def get_kanban_board(
     }
 
 
-# Include router
-app.include_router(api_router)
-
 # ==================== NEW FEATURE IMPORTS & ROUTES ====================
 from app.models import (
     Conversation, Message, MessageChannel, MessageDirection, MessageStatus,
@@ -1388,7 +1385,7 @@ from app.schemas import (
 )
 from app.services import messaging_service, automation_engine
 
-# Setup extended routes
+# Setup extended routes BEFORE including the router
 from app.api.extended_routes import setup_routes
 setup_routes(
     api_router, get_db, get_current_user,
@@ -1405,6 +1402,9 @@ setup_routes(
     LandingPageCreate, LandingPageUpdate, LandingPageResponse, LandingPageListResponse,
     messaging_service, automation_engine, User
 )
+
+# Include router AFTER all routes are added
+app.include_router(api_router)
 
 
 # ==================== SEED DATA ====================
