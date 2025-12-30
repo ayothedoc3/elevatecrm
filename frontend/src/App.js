@@ -245,6 +245,9 @@ const AppRoutes = () => {
       <Route path="/contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
       <Route path="/pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
       <Route path="/blueprints" element={<ProtectedRoute><BlueprintPage /></ProtectedRoute>} />
+      <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
+      <Route path="/workflows" element={<ProtectedRoute><WorkflowsPage /></ProtectedRoute>} />
+      <Route path="/forms" element={<ProtectedRoute><FormsPage /></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
