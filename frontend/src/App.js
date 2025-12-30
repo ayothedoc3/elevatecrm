@@ -30,11 +30,17 @@ import DashboardPage from './pages/DashboardPage';
 import ContactsPage from './pages/ContactsPage';
 import PipelinePage from './pages/PipelinePage';
 import BlueprintPage from './pages/BlueprintPage';
+import InboxPage from './pages/InboxPage';
+import WorkflowsPage from './pages/WorkflowsPage';
+import FormsPage from './pages/FormsPage';
 
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/contacts', icon: Users, label: 'Contacts' },
   { path: '/pipeline', icon: Target, label: 'Pipeline' },
+  { path: '/inbox', icon: MessageSquare, label: 'Inbox' },
+  { path: '/workflows', icon: GitBranch, label: 'Workflows' },
+  { path: '/forms', icon: FileText, label: 'Forms' },
   { path: '/blueprints', icon: GitBranch, label: 'Blueprints' },
 ];
 
