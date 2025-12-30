@@ -365,10 +365,30 @@ async def switch_workspace(workspace_id: str, db: AsyncSession = Depends(get_db)
 
 # ==================== BACKGROUND TASK ====================
 
-async def run_provisioning_task(job_id: str, db: AsyncSession):
+async def run_provisioning_task(job_id: str, _db: AsyncSession):
     """Background task to run workspace provisioning"""
+    import asyncio
     from app.core.database import AsyncSessionLocal
     
+    # Small delay to ensure the initial commit is done
+    await asyncio.sleep(0.5)
+    
     async with AsyncSessionLocal() as session:
-        service = ProvisioningService(session)
-        await service.run_provisioning(job_id)
+        try:
+            service = ProvisioningService(session)
+            await service.run_provisioning(job_id)
+        except Exception as e:
+            import logging
+            logging.error(f"Provisioning task failed: {e}")
+            # Update job status to failed
+            try:
+                from sqlalchemy import select, update
+                from app.models import ProvisioningJob, ProvisioningStatus
+                await session.execute(
+                    update(ProvisioningJob)
+                    .where(ProvisioningJob.id == job_id)
+                    .values(status=ProvisioningStatus.FAILED, error_message=str(e))
+                )
+                await session.commit()
+            except:
+                pass
