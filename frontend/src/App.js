@@ -22,7 +22,7 @@ import {
 import {
   LayoutDashboard, Users, Target, GitBranch, MessageSquare,
   FileText, Settings, LogOut, ChevronLeft, ChevronRight,
-  Building2, Bell, Search, Menu
+  Flame, Bell, Search, Menu, Plus
 } from 'lucide-react';
 
 import LoginPage from './pages/LoginPage';
@@ -33,6 +33,7 @@ import BlueprintPage from './pages/BlueprintPage';
 import InboxPage from './pages/InboxPage';
 import WorkflowsPage from './pages/WorkflowsPage';
 import FormsPage from './pages/FormsPage';
+import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
