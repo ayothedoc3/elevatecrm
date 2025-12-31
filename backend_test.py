@@ -564,46 +564,50 @@ class AILandingPageBuilderTester:
             return False
     
     def run_all_tests(self):
-        """Run all Phase 1 Affiliate System tests"""
-        print("🚀 Starting Phase 1 Affiliate System API Tests")
+        """Run all AI Landing Page Builder tests"""
+        print("🚀 Starting AI Landing Page Builder API Tests")
         print("=" * 70)
-        print("Testing: Marketing Materials + Affiliate Portal + Attribution Engine")
+        print("Testing: Landing Pages CRUD + AI Generation + Publishing + Versions + Public Access")
         print("=" * 70)
         
         # Authentication is required for all tests
         if not self.authenticate_admin():
-            print("❌ Admin authentication failed. Cannot proceed with admin tests.")
-            return False
-        
-        if not self.authenticate_affiliate():
-            print("❌ Affiliate authentication failed. Cannot proceed with affiliate tests.")
+            print("❌ Admin authentication failed. Cannot proceed with tests.")
             return False
         
         # Test basic health
         self.test_health_check()
         
-        print("\n📋 MARKETING MATERIALS API TESTS")
+        print("\n📋 LANDING PAGES CRUD API TESTS")
         print("-" * 50)
-        self.test_materials_create_url()
-        self.test_materials_list()
-        self.test_materials_categories()
+        self.test_landing_pages_list()
+        self.test_landing_page_create_manual()
+        self.test_landing_page_get_specific()
+        self.test_landing_page_update()
         
-        print("\n🏢 AFFILIATE PORTAL API TESTS")
+        print("\n🤖 AI GENERATION API TESTS")
         print("-" * 50)
-        self.test_affiliate_portal_register()
-        self.test_affiliate_portal_me()
-        self.test_affiliate_portal_dashboard()
-        self.test_affiliate_portal_links()
-        self.test_affiliate_portal_create_link()
-        self.test_affiliate_portal_programs()
-        self.test_affiliate_portal_commissions()
-        self.test_affiliate_portal_materials()
+        self.test_ai_generate_landing_page()
+        self.test_save_generated_page()
         
-        print("\n🔗 ATTRIBUTION ENGINE TESTS")
+        print("\n📤 PUBLISHING API TESTS")
         print("-" * 50)
-        self.test_attribution_engine_redirect()
-        self.test_attribution_click_count_increment()
-        self.test_affiliate_events_collection()
+        self.test_publish_page()
+        self.test_unpublish_page()
+        
+        print("\n📚 VERSION MANAGEMENT TESTS")
+        print("-" * 50)
+        self.test_list_page_versions()
+        self.test_rollback_version()
+        
+        print("\n🌐 PUBLIC PAGE ACCESS TESTS")
+        print("-" * 50)
+        self.test_public_page_access()
+        self.test_analytics_increment()
+        
+        print("\n🗑️ CLEANUP TESTS")
+        print("-" * 50)
+        self.test_landing_page_delete()
         
         # Summary
         print("\n" + "=" * 70)
@@ -631,7 +635,7 @@ class AILandingPageBuilderTester:
 
 def main():
     """Main test runner"""
-    tester = Phase1AffiliateSystemTester()
+    tester = AILandingPageBuilderTester()
     success = tester.run_all_tests()
     
     # Exit with appropriate code
