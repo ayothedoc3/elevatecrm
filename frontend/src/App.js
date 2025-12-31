@@ -35,12 +35,14 @@ import InboxPage from './pages/InboxPage';
 import WorkflowsPage from './pages/WorkflowsPage';
 import FormsPage from './pages/FormsPage';
 import CustomObjectsPage from './pages/CustomObjectsPage';
+import ActivityPage from './pages/ActivityPage';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/contacts', icon: Users, label: 'Contacts' },
   { path: '/pipeline', icon: Target, label: 'Pipeline' },
+  { path: '/activity', icon: GitBranch, label: 'Activity' },
   { path: '/inbox', icon: MessageSquare, label: 'Inbox' },
   { path: '/workflows', icon: GitBranch, label: 'Workflows' },
   { path: '/forms', icon: FileText, label: 'Forms' },
