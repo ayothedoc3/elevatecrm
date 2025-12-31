@@ -199,11 +199,12 @@ class SettingsModuleTester:
             
             if response.status_code == 200:
                 data = response.json()
-                if data.get("success"):
+                # Check if the response contains the updated AI config
+                if data.get("default_provider") == update_data["default_provider"] and data.get("default_model") == update_data["default_model"]:
                     self.log_test("PUT /settings/ai", True, "AI configuration updated successfully")
                     return True
                 else:
-                    self.log_test("PUT /settings/ai", False, "AI config update failed")
+                    self.log_test("PUT /settings/ai", False, "Updated AI config not reflected in response")
                     return False
             else:
                 self.log_test("PUT /settings/ai", False, f"Status: {response.status_code}", response.text)
