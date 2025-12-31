@@ -164,6 +164,18 @@ backend:
         agent: "main"
         comment: "CRUD endpoints for contacts"
 
+  - task: "Affiliate System Backend API"
+    implemented: true
+    working: true
+    file: "/app/backend/app/api/affiliate_routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Full affiliate API implemented: GET/POST affiliates, GET/POST programs, GET commissions, GET analytics/dashboard. Fixed route ordering to prevent /{affiliate_id} from catching specific routes like /programs. Seeded 2 demo programs and 3 demo affiliates."
+
 frontend:
   - task: "Dashboard page"
     implemented: true
