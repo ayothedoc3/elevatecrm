@@ -13,7 +13,8 @@ from app.models.forms import Form, FormSubmission, LandingPage, FieldType
 from app.models.workspace import (
     CRMBlueprint, CRMWorkspace, WorkspaceUser, ProvisioningJob,
     CalculationDefinition, CalculationResult, StageTransitionRule, OutreachActivity,
-    WorkspaceStatus, ProvisioningStatus, WorkspaceRole
+    WorkspaceStatus, ProvisioningStatus, WorkspaceRole,
+    CustomObjectDefinition, CustomObjectField, CustomObjectRecord
 )
 
 __all__ = [
@@ -61,4 +62,8 @@ __all__ = [
     'WorkspaceStatus',
     'ProvisioningStatus',
     'WorkspaceRole',
+    # Custom Objects
+    'CustomObjectDefinition',
+    'CustomObjectField',
+    'CustomObjectRecord',
 ]
