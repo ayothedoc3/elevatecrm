@@ -1286,4 +1286,10 @@ async def approve_affiliate(
     if result.modified_count == 0:
         raise HTTPException(status_code=400, detail="Affiliate not found or already approved")
     
+    # Trigger workflow
+    try:
+        await trigger_affiliate_approved(user["tenant_id"], affiliate_id)
+    except Exception as e:
+        pass  # Don't fail the request if workflow trigger fails
+    
     return {"success": True, "status": "active"}
