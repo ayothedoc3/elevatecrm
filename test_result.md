@@ -505,11 +505,7 @@ metadata:
   run_ui: true
 
 test_plan:
-  current_focus:
-    - "Settings Module - Workspace Settings API"
-    - "Settings Module - AI Config API"
-    - "Settings Module - Integrations API"
-    - "Settings Module - Frontend UI"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
