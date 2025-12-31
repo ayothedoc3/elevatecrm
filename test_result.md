@@ -355,10 +355,14 @@ metadata:
   run_ui: true
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Affiliate System Admin Dashboard"
+    - "Affiliate Programs CRUD"
+    - "Add Affiliate Flow"
+    - "Approve Affiliate Flow"
   stuck_tasks: []
   test_all: false
-  test_priority: "completed"
+  test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
@@ -371,3 +375,5 @@ agent_communication:
     message: "✅ NEW FEATURES TESTING COMPLETED: Successfully tested all 3 new features requested by main agent. 1) Activity Timeline page: Fully functional with header, 4 stats cards (Total Activities, Calls Today, Emails Today, Stage Changes), search input, Log Activity button with complete dialog form. Minor issue: Filter dropdown not found but search works. 2) Reports & Analytics page: Complete dashboard with time range selector (Last 30 days default), 4 tabs (Overview, Pipeline, Outreach, Conversion), all KPI cards working (Pipeline Value, Deals Won, Total Contacts, Conversion Rate), Deal Status Distribution chart, Activity Summary section. 3) NLA Accounting CRM Blueprint: Successfully found in Add CRM modal alongside Frylow Sales CRM (marked as Default) and Blank CRM. Calculator icon displayed correctly for NLA, selection and Continue workflow functional. All features ready for production."
   - agent: "testing"
     message: "🔥 MONGODB MIGRATION VERIFICATION COMPLETE: Successfully tested Elevate CRM after MongoDB migration. ✅ LOGIN FLOW: Working perfectly with demo workspace (admin@demo.com/admin123). ✅ DASHBOARD: All stats cards displaying correct data - 5 Total Contacts, 5 Active Deals, $33,200 Pipeline Value, 0 Deals Won. Recent Deals section shows 5 deals with proper formatting. Sales Workflow panel displays Frylow Sales Pipeline with stages. ✅ CONTACTS: Table accessible with contact data intact. ✅ PIPELINE: Frylow Sales Pipeline with Kanban board and deal cards working. ✅ ACTIVITY: Timeline page accessible. ✅ REPORTS: Analytics dashboard accessible. ✅ OBJECTS: Custom objects page with Create Object functionality working. 🎯 CRITICAL FINDING: MongoDB migration successful - NO DATA LOSS detected. All critical flows working as expected. Minor note: Session timeout occurs but doesn't affect core functionality."
+  - agent: "main"
+    message: "AFFILIATE SYSTEM SCAFFOLDING COMPLETE: 1) Added 'Affiliates' navigation link to sidebar 2) Fixed route ordering in affiliate_routes.py - moved /{affiliate_id} routes to end to avoid path conflicts with /programs, /links, etc. 3) Seeded 2 affiliate programs (Frylow Partner Program - Demo First 10%, Frylow Direct Sales - Direct Checkout $50 flat) 4) Verified all API endpoints working: GET /affiliates (3 affiliates), GET /affiliates/programs (2 programs), GET /affiliates/commissions, GET /affiliates/analytics/dashboard. Please test: Affiliates page navigation, Programs tab display, Add Affiliate dialog, New Program dialog, Approve affiliate button for pending affiliates."
