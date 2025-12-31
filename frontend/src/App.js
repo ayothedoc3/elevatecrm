@@ -89,9 +89,9 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         <TooltipProvider>
-          {navItems.map(item => {
+          {navItems.filter(item => !item.bottom).map(item => {
             const isActive = location.pathname === item.path;
             return (
               <Tooltip key={item.path} delayDuration={0}>
@@ -119,6 +119,38 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
           })}
         </TooltipProvider>
       </nav>
+
+      {/* Settings at bottom */}
+      <div className={`p-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+        <TooltipProvider>
+          {navItems.filter(item => item.bottom).map(item => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Tooltip key={item.path} delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={isActive ? 'secondary' : 'ghost'}
+                    className={`w-full justify-start gap-3 ${
+                      isActive 
+                        ? isDark ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-900'
+                        : isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800/50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                    } ${collapsed ? 'px-3' : ''}`}
+                    onClick={() => navigate(item.path)}
+                  >
+                    <item.icon className="w-5 h-5 flex-shrink-0" />
+                    {!collapsed && <span>{item.label}</span>}
+                  </Button>
+                </TooltipTrigger>
+                {collapsed && (
+                  <TooltipContent side="right">
+                    {item.label}
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            );
+          })}
+        </TooltipProvider>
+      </div>
 
       {/* Collapse Button */}
       <div className={`p-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
