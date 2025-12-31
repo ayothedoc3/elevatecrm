@@ -132,11 +132,12 @@ class SettingsModuleTester:
             
             if response.status_code == 200:
                 data = response.json()
-                if data.get("success"):
+                # Check if the response contains the updated settings
+                if data.get("name") == update_data["name"] and data.get("currency") == update_data["currency"]:
                     self.log_test("PUT /settings/workspace", True, "Workspace settings updated successfully")
                     return True
                 else:
-                    self.log_test("PUT /settings/workspace", False, "Update failed")
+                    self.log_test("PUT /settings/workspace", False, "Updated data not reflected in response")
                     return False
             else:
                 self.log_test("PUT /settings/workspace", False, f"Status: {response.status_code}", response.text)
