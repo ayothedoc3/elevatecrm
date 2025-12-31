@@ -445,7 +445,10 @@ async def create_program(
     }
     
     await db.affiliate_programs.insert_one(program)
-    return program
+    
+    # Return clean response without MongoDB _id
+    program_response = {k: v for k, v in program.items() if k != "_id"}
+    return program_response
 
 
 @router.get("/programs/{program_id}")
