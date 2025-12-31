@@ -552,9 +552,25 @@ async def create_link(
     
     # Build the full URL
     base_url = data.landing_page_url or f"/ref/{referral_code}"
-    link["full_url"] = f"{base_url}?ref={referral_code}&utm_source={link['utm_source']}&utm_medium={link['utm_medium']}&utm_campaign={link['utm_campaign']}"
+    full_url = f"{base_url}?ref={referral_code}&utm_source={link['utm_source']}&utm_medium={link['utm_medium']}&utm_campaign={link['utm_campaign']}"
     
-    return link
+    # Return clean response without MongoDB _id
+    return {
+        "id": link["id"],
+        "tenant_id": link["tenant_id"],
+        "affiliate_id": link["affiliate_id"],
+        "program_id": link["program_id"],
+        "referral_code": link["referral_code"],
+        "landing_page_url": link["landing_page_url"],
+        "utm_source": link["utm_source"],
+        "utm_medium": link["utm_medium"],
+        "utm_campaign": link["utm_campaign"],
+        "click_count": link["click_count"],
+        "conversion_count": link["conversion_count"],
+        "is_active": link["is_active"],
+        "created_at": link["created_at"],
+        "full_url": full_url
+    }
 
 
 @router.get("/links")
