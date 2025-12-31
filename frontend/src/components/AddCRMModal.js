@@ -16,7 +16,7 @@ import { Switch } from '../components/ui/switch';
 import { Badge } from '../components/ui/badge';
 import { 
   Plus, Flame, Square, Check, Loader2, 
-  ChevronRight, Building2, Briefcase 
+  ChevronRight, Building2, Briefcase, Calculator 
 } from 'lucide-react';
 
 const AddCRMModal = ({ open, onClose, onSuccess }) => {
