@@ -101,6 +101,17 @@ async def create_indexes():
     await db.crm_blueprints.create_index("slug", unique=True)
     await db.workspaces.create_index("tenant_id")
     
+    # Settings module indexes
+    await db.workspace_settings.create_index("workspace_id", unique=True)
+    await db.workspace_integrations.create_index([("workspace_id", 1), ("provider_type", 1)], unique=True)
+    await db.workspace_integrations.create_index("workspace_id")
+    await db.ai_usage_configs.create_index("workspace_id", unique=True)
+    await db.ai_usage_logs.create_index([("workspace_id", 1), ("timestamp", -1)])
+    await db.ai_usage_logs.create_index([("workspace_id", 1), ("feature_type", 1)])
+    await db.settings_audit_logs.create_index([("workspace_id", 1), ("timestamp", -1)])
+    await db.settings_audit_logs.create_index([("workspace_id", 1), ("action", 1)])
+    await db.affiliate_settings.create_index("workspace_id", unique=True)
+    
     logger.info("Database indexes created")
 
 
