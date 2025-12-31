@@ -1621,6 +1621,10 @@ api_router.include_router(materials_router)
 from app.api.affiliate_portal_routes import router as portal_router
 api_router.include_router(portal_router)
 
+# Import and include landing pages routes
+from app.api.landing_pages_routes import router as landing_pages_router
+api_router.include_router(landing_pages_router)
+
 app.include_router(api_router)
 
 
