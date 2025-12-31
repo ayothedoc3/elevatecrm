@@ -23,7 +23,7 @@ import {
 import {
   LayoutDashboard, Users, Target, GitBranch, MessageSquare,
   FileText, Settings, LogOut, ChevronLeft, ChevronRight,
-  Flame, Bell, Search, Menu, Plus, Sun, Moon, Box, BarChart3, Activity
+  Flame, Bell, Search, Menu, Plus, Sun, Moon, Box, BarChart3, Activity, UserPlus
 } from 'lucide-react';
 
 import LoginPage from './pages/LoginPage';
@@ -45,6 +45,7 @@ const navItems = [
   { path: '/pipeline', icon: Target, label: 'Pipeline' },
   { path: '/activity', icon: Activity, label: 'Activity' },
   { path: '/reports', icon: BarChart3, label: 'Reports' },
+  { path: '/affiliates', icon: UserPlus, label: 'Affiliates' },
   { path: '/inbox', icon: MessageSquare, label: 'Inbox' },
   { path: '/workflows', icon: GitBranch, label: 'Workflows' },
   { path: '/forms', icon: FileText, label: 'Forms' },
