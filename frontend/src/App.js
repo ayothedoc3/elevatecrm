@@ -23,7 +23,7 @@ import {
 import {
   LayoutDashboard, Users, Target, GitBranch, MessageSquare,
   FileText, Settings, LogOut, ChevronLeft, ChevronRight,
-  Flame, Bell, Search, Menu, Plus, Sun, Moon, Box
+  Flame, Bell, Search, Menu, Plus, Sun, Moon, Box, BarChart3, Activity
 } from 'lucide-react';
 
 import LoginPage from './pages/LoginPage';
