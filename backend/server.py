@@ -1402,10 +1402,119 @@ async def seed_demo_data():
     }
     await db.workflow_blueprints.insert_one(blueprint)
     
+    # ==================== SEED AFFILIATE DATA ====================
+    
+    # Create Frylow Affiliate Program (Demo-First Journey)
+    frylow_program = {
+        "id": str(uuid.uuid4()),
+        "tenant_id": tenant_id,
+        "name": "Frylow Partner Program",
+        "description": "Earn 10% commission on every Frylow sale you refer",
+        "product_type": "service",
+        "journey_type": "demo_first",
+        "attribution_type": "deal",
+        "attribution_model": "first_touch",
+        "attribution_window_days": 30,
+        "commission_type": "percentage",
+        "commission_value": 10,
+        "min_payout_threshold": 100,
+        "cookie_duration_days": 30,
+        "pipeline_scope": pipeline_id,
+        "qualifying_stage_id": stage_ids[12],  # Won stage
+        "auto_approve": False,
+        "is_active": True,
+        "total_commissions_earned": 0,
+        "total_commissions_paid": 0,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.affiliate_programs.insert_one(frylow_program)
+    
+    # Create Direct Checkout Program (for products)
+    direct_program = {
+        "id": str(uuid.uuid4()),
+        "tenant_id": tenant_id,
+        "name": "Frylow Direct Sales",
+        "description": "Flat $50 commission per direct sale",
+        "product_type": "product",
+        "journey_type": "direct_checkout",
+        "attribution_type": "payment",
+        "attribution_model": "last_touch",
+        "attribution_window_days": 7,
+        "commission_type": "flat",
+        "commission_value": 50,
+        "min_payout_threshold": 50,
+        "cookie_duration_days": 7,
+        "pipeline_scope": None,
+        "qualifying_stage_id": None,
+        "auto_approve": True,
+        "is_active": True,
+        "total_commissions_earned": 0,
+        "total_commissions_paid": 0,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.affiliate_programs.insert_one(direct_program)
+    
+    # Create sample affiliates
+    affiliates_data = [
+        ("John Partner", "john.partner@email.com", "Partner Marketing Inc", "active"),
+        ("Sarah Referrer", "sarah@referrals.com", "Referral Pro", "active"),
+        ("Mike Affiliate", "mike@affiliate.net", None, "pending")
+    ]
+    
+    for name, email, company, status in affiliates_data:
+        affiliate_id = str(uuid.uuid4())
+        affiliate = {
+            "id": affiliate_id,
+            "tenant_id": tenant_id,
+            "name": name,
+            "email": email,
+            "phone": None,
+            "company": company,
+            "website": None,
+            "status": status,
+            "payout_method": "manual",
+            "payout_details": "{}",
+            "notes": None,
+            "total_earnings": 0,
+            "total_paid": 0,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.affiliates.insert_one(affiliate)
+        
+        # Create affiliate link for active affiliates
+        if status == "active":
+            import hashlib
+            import secrets
+            ref_code = hashlib.sha256(f"{affiliate_id}{secrets.token_hex(4)}".encode()).hexdigest()[:8].upper()
+            
+            link = {
+                "id": str(uuid.uuid4()),
+                "tenant_id": tenant_id,
+                "affiliate_id": affiliate_id,
+                "program_id": frylow_program["id"],
+                "referral_code": ref_code,
+                "landing_page_url": "/demo",
+                "utm_source": "affiliate",
+                "utm_medium": "referral",
+                "utm_campaign": "frylow_partner",
+                "click_count": 0,
+                "conversion_count": 0,
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.affiliate_links.insert_one(link)
+    
     logger.info("Demo data seeded successfully!")
 
 
-# ==================== INCLUDE ROUTER ====================
+# ==================== INCLUDE ROUTERS ====================
+
+# Import and include affiliate routes
+from app.api.affiliate_routes import router as affiliate_router
+api_router.include_router(affiliate_router)
 
 app.include_router(api_router)
 
