@@ -87,428 +87,480 @@ class AILandingPageBuilderTester:
             self.log_test("Health Check", False, error=e)
             return False
     
-    # ==================== MARKETING MATERIALS API TESTS ====================
+    # ==================== LANDING PAGES CRUD API TESTS ====================
     
-    def test_materials_create_url(self):
-        """Test POST /api/materials/url - Create URL-based material"""
+    def test_landing_pages_list(self):
+        """Test GET /api/landing-pages - List all landing pages"""
         try:
             headers = {"Authorization": f"Bearer {self.admin_token}"}
-            material_data = {
-                "name": "Test Marketing Banner",
-                "description": "Test banner for affiliate marketing",
-                "category": "banners",
-                "material_type": "url",
-                "url": "https://example.com/banner.jpg",
-                "tags": ["test", "banner"]
+            response = self.session.get(f"{BACKEND_URL}/landing-pages", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                pages = data.get("pages", [])
+                total = data.get("total", 0)
+                self.log_test("GET /landing-pages", True, f"Found {total} landing pages")
+                return True
+            else:
+                self.log_test("GET /landing-pages", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /landing-pages", False, error=e)
+            return False
+    
+    def test_landing_page_create_manual(self):
+        """Test POST /api/landing-pages - Create a landing page manually"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            
+            # Mock page schema for manual creation
+            mock_schema = {
+                "page_title": "Test Landing Page",
+                "meta_description": "A test landing page for API testing",
+                "sections": [
+                    {
+                        "type": "hero",
+                        "order": 1,
+                        "headline": "Welcome to Our Test Page",
+                        "subheadline": "This is a test landing page created via API",
+                        "body_text": "Testing the landing page creation functionality",
+                        "cta_text": "Get Started",
+                        "cta_url": "#signup",
+                        "image_placeholder": "Hero image placeholder"
+                    },
+                    {
+                        "type": "features",
+                        "order": 2,
+                        "headline": "Amazing Features",
+                        "items": [
+                            {"title": "Feature 1", "description": "First amazing feature", "icon": "star"},
+                            {"title": "Feature 2", "description": "Second amazing feature", "icon": "check"}
+                        ]
+                    }
+                ],
+                "color_scheme": {
+                    "primary": "#3B82F6",
+                    "secondary": "#1E40AF",
+                    "accent": "#F59E0B",
+                    "background": "#FFFFFF",
+                    "text": "#1F2937"
+                }
+            }
+            
+            page_data = {
+                "name": "Test Landing Page - Manual Creation",
+                "page_type": "generic",
+                "page_schema": mock_schema
             }
             
             response = self.session.post(
-                f"{BACKEND_URL}/materials/url",
-                json=material_data,
+                f"{BACKEND_URL}/landing-pages",
+                json=page_data,
                 headers=headers
             )
             
             if response.status_code == 201:
                 data = response.json()
-                if data.get("name") == material_data["name"] and data.get("url") == material_data["url"]:
-                    self.log_test("POST /materials/url", True, f"Created material: {data['name']}")
+                if data.get("name") == page_data["name"] and data.get("id"):
+                    self.created_page_id = data["id"]
+                    self.created_page_slug = data.get("slug")
+                    self.log_test("POST /landing-pages (Manual)", True, f"Created page: {data['name']} (ID: {data['id']})")
                     return True
                 else:
-                    self.log_test("POST /materials/url", False, "Response data doesn't match input")
+                    self.log_test("POST /landing-pages (Manual)", False, "Response data doesn't match input")
                     return False
             else:
-                self.log_test("POST /materials/url", False, f"Status: {response.status_code}", response.text)
+                self.log_test("POST /landing-pages (Manual)", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("POST /materials/url", False, error=e)
+            self.log_test("POST /landing-pages (Manual)", False, error=e)
             return False
     
-    def test_materials_list(self):
-        """Test GET /api/materials - List all materials"""
+    def test_landing_page_get_specific(self):
+        """Test GET /api/landing-pages/{id} - Get a specific page"""
         try:
+            if not self.created_page_id:
+                self.log_test("GET /landing-pages/{id}", False, "No page ID available")
+                return False
+            
             headers = {"Authorization": f"Bearer {self.admin_token}"}
-            response = self.session.get(f"{BACKEND_URL}/materials", headers=headers)
+            response = self.session.get(f"{BACKEND_URL}/landing-pages/{self.created_page_id}", headers=headers)
             
             if response.status_code == 200:
                 data = response.json()
-                materials = data.get("materials", [])
-                total = data.get("total", 0)
-                self.log_test("GET /materials", True, f"Found {total} materials")
-                return True
+                if data.get("id") == self.created_page_id and data.get("page_schema"):
+                    self.log_test("GET /landing-pages/{id}", True, f"Retrieved page: {data['name']}")
+                    return True
+                else:
+                    self.log_test("GET /landing-pages/{id}", False, "Invalid page data")
+                    return False
             else:
-                self.log_test("GET /materials", False, f"Status: {response.status_code}", response.text)
+                self.log_test("GET /landing-pages/{id}", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("GET /materials", False, error=e)
+            self.log_test("GET /landing-pages/{id}", False, error=e)
             return False
     
-    def test_materials_categories(self):
-        """Test GET /api/materials/categories - Get category counts"""
+    def test_landing_page_update(self):
+        """Test PUT /api/landing-pages/{id} - Update a page"""
         try:
-            headers = {"Authorization": f"Bearer {self.admin_token}"}
-            response = self.session.get(f"{BACKEND_URL}/materials/categories", headers=headers)
+            if not self.created_page_id:
+                self.log_test("PUT /landing-pages/{id}", False, "No page ID available")
+                return False
             
-            if response.status_code == 200:
-                data = response.json()
-                categories = data.get("categories", [])
-                self.log_test("GET /materials/categories", True, f"Found {len(categories)} categories")
-                return True
-            else:
-                self.log_test("GET /materials/categories", False, f"Status: {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("GET /materials/categories", False, error=e)
-            return False
-    
-    # ==================== AFFILIATE PORTAL API TESTS ====================
-    
-    def test_affiliate_portal_register(self):
-        """Test POST /api/affiliate-portal/register - Register new affiliate"""
-        try:
-            register_data = {
-                "name": "Test New Affiliate",
-                "email": "testnew@affiliate.com",
-                "password": "testpass123",
-                "company": "Test Marketing Co",
-                "tenant_slug": TENANT_SLUG
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            update_data = {
+                "name": "Updated Test Landing Page",
+                "seo_title": "Updated SEO Title",
+                "seo_description": "Updated SEO description for testing"
             }
             
-            response = self.session.post(
-                f"{BACKEND_URL}/affiliate-portal/register",
-                json=register_data,
-                headers={"Content-Type": "application/json"}
+            response = self.session.put(
+                f"{BACKEND_URL}/landing-pages/{self.created_page_id}",
+                json=update_data,
+                headers=headers
             )
             
-            if response.status_code == 201:
+            if response.status_code == 200:
                 data = response.json()
-                if data.get("success") and "pending approval" in data.get("message", "").lower():
-                    self.log_test("POST /affiliate-portal/register", True, "Registration successful, pending approval")
+                if data.get("success"):
+                    self.log_test("PUT /landing-pages/{id}", True, "Page updated successfully")
                     return True
                 else:
-                    self.log_test("POST /affiliate-portal/register", False, "Unexpected response format")
+                    self.log_test("PUT /landing-pages/{id}", False, "Update failed")
                     return False
             else:
-                self.log_test("POST /affiliate-portal/register", False, f"Status: {response.status_code}", response.text)
+                self.log_test("PUT /landing-pages/{id}", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("POST /affiliate-portal/register", False, error=e)
+            self.log_test("PUT /landing-pages/{id}", False, error=e)
             return False
     
-    def test_affiliate_portal_me(self):
-        """Test GET /api/affiliate-portal/me - Get affiliate profile"""
+    def test_landing_page_delete(self):
+        """Test DELETE /api/landing-pages/{id} - Delete a page"""
         try:
-            headers = {"Authorization": f"Bearer {self.affiliate_token}"}
-            response = self.session.get(f"{BACKEND_URL}/affiliate-portal/me", headers=headers)
+            if not self.created_page_id:
+                self.log_test("DELETE /landing-pages/{id}", False, "No page ID available")
+                return False
+            
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.delete(f"{BACKEND_URL}/landing-pages/{self.created_page_id}", headers=headers)
             
             if response.status_code == 200:
                 data = response.json()
-                if data.get("email") == AFFILIATE_EMAIL:
-                    self.log_test("GET /affiliate-portal/me", True, f"Profile: {data['name']} ({data['email']})")
+                if data.get("success"):
+                    self.log_test("DELETE /landing-pages/{id}", True, "Page deleted successfully")
                     return True
                 else:
-                    self.log_test("GET /affiliate-portal/me", False, "Profile data mismatch")
+                    self.log_test("DELETE /landing-pages/{id}", False, "Delete failed")
                     return False
             else:
-                self.log_test("GET /affiliate-portal/me", False, f"Status: {response.status_code}", response.text)
+                self.log_test("DELETE /landing-pages/{id}", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("GET /affiliate-portal/me", False, error=e)
+            self.log_test("DELETE /landing-pages/{id}", False, error=e)
             return False
     
-    def test_affiliate_portal_dashboard(self):
-        """Test GET /api/affiliate-portal/dashboard - Get affiliate dashboard stats"""
-        try:
-            headers = {"Authorization": f"Bearer {self.affiliate_token}"}
-            response = self.session.get(f"{BACKEND_URL}/affiliate-portal/dashboard", headers=headers)
-            
-            if response.status_code == 200:
-                data = response.json()
-                stats = data.get("stats", {})
-                affiliate = data.get("affiliate", {})
-                
-                total_earnings = affiliate.get("total_earnings", 0)
-                total_clicks = stats.get("total_clicks", 0)
-                total_conversions = stats.get("total_conversions", 0)
-                conversion_rate = stats.get("conversion_rate", 0)
-                
-                details = f"Earnings: ${total_earnings}, Clicks: {total_clicks}, Conversions: {total_conversions}, Rate: {conversion_rate}%"
-                self.log_test("GET /affiliate-portal/dashboard", True, details)
-                return True
-            else:
-                self.log_test("GET /affiliate-portal/dashboard", False, f"Status: {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("GET /affiliate-portal/dashboard", False, error=e)
-            return False
+    # ==================== AI GENERATION API TESTS ====================
     
-    def test_affiliate_portal_links(self):
-        """Test GET /api/affiliate-portal/links - Get affiliate's referral links"""
+    def test_ai_generate_landing_page(self):
+        """Test POST /api/landing-pages/generate - Generate a landing page using AI"""
         try:
-            headers = {"Authorization": f"Bearer {self.affiliate_token}"}
-            response = self.session.get(f"{BACKEND_URL}/affiliate-portal/links", headers=headers)
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
             
-            if response.status_code == 200:
-                data = response.json()
-                links = data.get("links", [])
-                self.log_test("GET /affiliate-portal/links", True, f"Found {len(links)} referral links")
-                
-                # Store first link for attribution testing
-                if links:
-                    self.test_referral_code = links[0].get("referral_code")
-                    print(f"   Sample referral code: {self.test_referral_code}")
-                
-                return True
-            else:
-                self.log_test("GET /affiliate-portal/links", False, f"Status: {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("GET /affiliate-portal/links", False, error=e)
-            return False
-    
-    def test_affiliate_portal_create_link(self):
-        """Test POST /api/affiliate-portal/links - Generate new referral link"""
-        try:
-            # First get available programs
-            headers = {"Authorization": f"Bearer {self.affiliate_token}"}
-            programs_response = self.session.get(f"{BACKEND_URL}/affiliate-portal/programs", headers=headers)
-            
-            if programs_response.status_code != 200:
-                self.log_test("POST /affiliate-portal/links (Get Programs)", False, "Failed to get programs")
-                return False
-            
-            programs_data = programs_response.json()
-            programs = programs_data.get("programs", [])
-            
-            if not programs:
-                self.log_test("POST /affiliate-portal/links", False, "No programs available")
-                return False
-            
-            # Create link for first program
-            link_data = {
-                "program_id": programs[0]["id"],
-                "landing_page_url": "/demo",
-                "custom_slug": None
+            generation_data = {
+                "page_goal": "Recruit affiliates for Frylow",
+                "target_audience": "Restaurant owners and food bloggers",
+                "offer_details": "10% commission, 30-day cookie, marketing materials",
+                "page_type": "affiliate_recruitment",
+                "cta_type": "signup",
+                "tone": "professional",
+                "brand_name": "Frylow",
+                "ai_model": "gpt-4o",
+                "product_features": [
+                    "Oil savings technology",
+                    "Easy installation",
+                    "Real-time monitoring"
+                ]
             }
             
             response = self.session.post(
-                f"{BACKEND_URL}/affiliate-portal/links",
-                json=link_data,
+                f"{BACKEND_URL}/landing-pages/generate",
+                json=generation_data,
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success") and data.get("page_schema"):
+                    page_schema = data["page_schema"]
+                    sections = page_schema.get("sections", [])
+                    self.log_test("POST /landing-pages/generate", True, f"Generated page with {len(sections)} sections using {data.get('ai_model', 'unknown')} model")
+                    
+                    # Store generated schema for creating a page
+                    self.generated_schema = page_schema
+                    return True
+                else:
+                    self.log_test("POST /landing-pages/generate", False, "Invalid generation response")
+                    return False
+            else:
+                self.log_test("POST /landing-pages/generate", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("POST /landing-pages/generate", False, error=e)
+            return False
+    
+    def test_save_generated_page(self):
+        """Test creating a page from AI-generated schema"""
+        try:
+            if not hasattr(self, 'generated_schema'):
+                self.log_test("Save Generated Page", False, "No generated schema available")
+                return False
+            
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            
+            page_data = {
+                "name": "AI Generated Frylow Affiliate Page",
+                "page_type": "affiliate_recruitment",
+                "page_schema": self.generated_schema
+            }
+            
+            response = self.session.post(
+                f"{BACKEND_URL}/landing-pages",
+                json=page_data,
                 headers=headers
             )
             
             if response.status_code == 201:
                 data = response.json()
-                if data.get("referral_code") and data.get("program_id") == link_data["program_id"]:
-                    self.log_test("POST /affiliate-portal/links", True, f"Created link: {data['referral_code']}")
+                if data.get("name") == page_data["name"] and data.get("id"):
+                    self.ai_generated_page_id = data["id"]
+                    self.ai_generated_page_slug = data.get("slug")
+                    self.log_test("Save Generated Page", True, f"Saved AI-generated page: {data['name']} (ID: {data['id']})")
                     return True
                 else:
-                    self.log_test("POST /affiliate-portal/links", False, "Invalid response data")
+                    self.log_test("Save Generated Page", False, "Response data doesn't match input")
                     return False
             else:
-                self.log_test("POST /affiliate-portal/links", False, f"Status: {response.status_code}", response.text)
+                self.log_test("Save Generated Page", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("POST /affiliate-portal/links", False, error=e)
+            self.log_test("Save Generated Page", False, error=e)
             return False
     
-    def test_affiliate_portal_programs(self):
-        """Test GET /api/affiliate-portal/programs - Get available programs"""
-        try:
-            headers = {"Authorization": f"Bearer {self.affiliate_token}"}
-            response = self.session.get(f"{BACKEND_URL}/affiliate-portal/programs", headers=headers)
-            
-            if response.status_code == 200:
-                data = response.json()
-                programs = data.get("programs", [])
-                
-                if len(programs) >= 2:
-                    program_names = [p["name"] for p in programs]
-                    self.log_test("GET /affiliate-portal/programs", True, f"Found {len(programs)} programs: {', '.join(program_names[:2])}")
-                    return True
-                else:
-                    self.log_test("GET /affiliate-portal/programs", False, f"Expected at least 2 programs, got {len(programs)}")
-                    return False
-            else:
-                self.log_test("GET /affiliate-portal/programs", False, f"Status: {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("GET /affiliate-portal/programs", False, error=e)
-            return False
+    # ==================== PUBLISHING API TESTS ====================
     
-    def test_affiliate_portal_commissions(self):
-        """Test GET /api/affiliate-portal/commissions - Get affiliate commissions"""
+    def test_publish_page(self):
+        """Test POST /api/landing-pages/{id}/publish - Publish a page"""
         try:
-            headers = {"Authorization": f"Bearer {self.affiliate_token}"}
-            response = self.session.get(f"{BACKEND_URL}/affiliate-portal/commissions", headers=headers)
-            
-            if response.status_code == 200:
-                data = response.json()
-                commissions = data.get("commissions", [])
-                total = data.get("total", 0)
-                self.log_test("GET /affiliate-portal/commissions", True, f"Found {total} commissions")
-                return True
-            else:
-                self.log_test("GET /affiliate-portal/commissions", False, f"Status: {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("GET /affiliate-portal/commissions", False, error=e)
-            return False
-    
-    def test_affiliate_portal_materials(self):
-        """Test GET /api/affiliate-portal/materials - Get marketing materials (affiliate view)"""
-        try:
-            headers = {"Authorization": f"Bearer {self.affiliate_token}"}
-            response = self.session.get(f"{BACKEND_URL}/affiliate-portal/materials", headers=headers)
-            
-            if response.status_code == 200:
-                data = response.json()
-                materials = data.get("materials", [])
-                total = data.get("total", 0)
-                self.log_test("GET /affiliate-portal/materials", True, f"Found {total} marketing materials")
-                return True
-            else:
-                self.log_test("GET /affiliate-portal/materials", False, f"Status: {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("GET /affiliate-portal/materials", False, error=e)
-            return False
-    
-    # ==================== ATTRIBUTION ENGINE TESTS ====================
-    
-    def test_attribution_engine_redirect(self):
-        """Test GET /api/ref/{referral_code} - Test click tracking redirect"""
-        try:
-            # Get a referral code from affiliate links
-            if not hasattr(self, 'test_referral_code'):
-                # Get links first
-                headers = {"Authorization": f"Bearer {self.affiliate_token}"}
-                response = self.session.get(f"{BACKEND_URL}/affiliate-portal/links", headers=headers)
-                if response.status_code == 200:
-                    links = response.json().get("links", [])
-                    if links:
-                        self.test_referral_code = links[0].get("referral_code")
-                    else:
-                        self.log_test("Attribution Engine - Get Referral Code", False, "No referral links found")
-                        return False
-                else:
-                    self.log_test("Attribution Engine - Get Referral Code", False, "Failed to get links")
-                    return False
-            
-            # Test the public redirect endpoint
-            response = self.session.get(
-                f"{BACKEND_URL}/ref/{self.test_referral_code}",
-                allow_redirects=False  # Don't follow redirects
-            )
-            
-            if response.status_code == 302:
-                location = response.headers.get("Location", "")
-                if self.test_referral_code in location:
-                    self.log_test("GET /ref/{referral_code}", True, f"Redirect to: {location}")
-                    return True
-                else:
-                    self.log_test("GET /ref/{referral_code}", False, f"Invalid redirect: {location}")
-                    return False
-            else:
-                self.log_test("GET /ref/{referral_code}", False, f"Status: {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("GET /ref/{referral_code}", False, error=e)
-            return False
-    
-    def test_attribution_click_count_increment(self):
-        """Verify click count increments after visiting referral link"""
-        try:
-            if not hasattr(self, 'test_referral_code'):
-                self.log_test("Attribution Click Count", False, "No referral code available")
+            page_id = getattr(self, 'ai_generated_page_id', None) or self.created_page_id
+            if not page_id:
+                self.log_test("POST /landing-pages/{id}/publish", False, "No page ID available")
                 return False
             
-            # Get initial click count
-            headers = {"Authorization": f"Bearer {self.affiliate_token}"}
-            response = self.session.get(f"{BACKEND_URL}/affiliate-portal/links", headers=headers)
-            
-            if response.status_code != 200:
-                self.log_test("Attribution Click Count - Get Initial", False, "Failed to get links")
-                return False
-            
-            links = response.json().get("links", [])
-            initial_link = next((l for l in links if l.get("referral_code") == self.test_referral_code), None)
-            
-            if not initial_link:
-                self.log_test("Attribution Click Count", False, "Referral link not found")
-                return False
-            
-            initial_count = initial_link.get("click_count", 0)
-            
-            # Click the link
-            click_response = self.session.get(
-                f"{BACKEND_URL}/ref/{self.test_referral_code}",
-                allow_redirects=False
-            )
-            
-            if click_response.status_code != 302:
-                self.log_test("Attribution Click Count - Click Link", False, "Link click failed")
-                return False
-            
-            # Get updated click count
-            response = self.session.get(f"{BACKEND_URL}/affiliate-portal/links", headers=headers)
-            
-            if response.status_code == 200:
-                links = response.json().get("links", [])
-                updated_link = next((l for l in links if l.get("referral_code") == self.test_referral_code), None)
-                
-                if updated_link:
-                    updated_count = updated_link.get("click_count", 0)
-                    if updated_count > initial_count:
-                        self.log_test("Attribution Click Count Increment", True, f"Count increased from {initial_count} to {updated_count}")
-                        return True
-                    else:
-                        self.log_test("Attribution Click Count Increment", False, f"Count did not increase: {initial_count} -> {updated_count}")
-                        return False
-                else:
-                    self.log_test("Attribution Click Count Increment", False, "Updated link not found")
-                    return False
-            else:
-                self.log_test("Attribution Click Count Increment", False, "Failed to get updated links")
-                return False
-                
-        except Exception as e:
-            self.log_test("Attribution Click Count Increment", False, error=e)
-            return False
-    
-    def test_affiliate_events_collection(self):
-        """Check affiliate_events collection for new click event"""
-        try:
             headers = {"Authorization": f"Bearer {self.admin_token}"}
-            response = self.session.get(f"{BACKEND_URL}/affiliates/events", headers=headers)
+            response = self.session.post(f"{BACKEND_URL}/landing-pages/{page_id}/publish", headers=headers)
             
             if response.status_code == 200:
                 data = response.json()
-                events = data.get("events", [])
-                total = data.get("total", 0)
-                
-                # Look for recent click events
-                click_events = [e for e in events if e.get("event_type") == "affiliate_link_clicked"]
-                
-                self.log_test("Affiliate Events Collection", True, f"Found {total} total events, {len(click_events)} click events")
-                return True
+                if data.get("success") and data.get("slug"):
+                    self.published_slug = data["slug"]
+                    self.log_test("POST /landing-pages/{id}/publish", True, f"Published page with slug: {data['slug']}")
+                    return True
+                else:
+                    self.log_test("POST /landing-pages/{id}/publish", False, "Publish failed")
+                    return False
             else:
-                self.log_test("Affiliate Events Collection", False, f"Status: {response.status_code}", response.text)
+                self.log_test("POST /landing-pages/{id}/publish", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("Affiliate Events Collection", False, error=e)
+            self.log_test("POST /landing-pages/{id}/publish", False, error=e)
+            return False
+    
+    def test_unpublish_page(self):
+        """Test POST /api/landing-pages/{id}/unpublish - Unpublish a page"""
+        try:
+            page_id = getattr(self, 'ai_generated_page_id', None) or self.created_page_id
+            if not page_id:
+                self.log_test("POST /landing-pages/{id}/unpublish", False, "No page ID available")
+                return False
+            
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.post(f"{BACKEND_URL}/landing-pages/{page_id}/unpublish", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    self.log_test("POST /landing-pages/{id}/unpublish", True, "Page unpublished successfully")
+                    return True
+                else:
+                    self.log_test("POST /landing-pages/{id}/unpublish", False, "Unpublish failed")
+                    return False
+            else:
+                self.log_test("POST /landing-pages/{id}/unpublish", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("POST /landing-pages/{id}/unpublish", False, error=e)
+            return False
+    
+    # ==================== VERSION MANAGEMENT TESTS ====================
+    
+    def test_list_page_versions(self):
+        """Test GET /api/landing-pages/{id}/versions - List versions"""
+        try:
+            page_id = getattr(self, 'ai_generated_page_id', None) or self.created_page_id
+            if not page_id:
+                self.log_test("GET /landing-pages/{id}/versions", False, "No page ID available")
+                return False
+            
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/landing-pages/{page_id}/versions", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                versions = data.get("versions", [])
+                self.log_test("GET /landing-pages/{id}/versions", True, f"Found {len(versions)} versions")
+                
+                # Store version for rollback test
+                if versions:
+                    self.test_version_number = versions[0].get("version_number")
+                return True
+            else:
+                self.log_test("GET /landing-pages/{id}/versions", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /landing-pages/{id}/versions", False, error=e)
+            return False
+    
+    def test_rollback_version(self):
+        """Test POST /api/landing-pages/{id}/rollback/{version_number} - Rollback"""
+        try:
+            page_id = getattr(self, 'ai_generated_page_id', None) or self.created_page_id
+            version_number = getattr(self, 'test_version_number', 1)
+            
+            if not page_id:
+                self.log_test("POST /landing-pages/{id}/rollback/{version}", False, "No page ID available")
+                return False
+            
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.post(f"{BACKEND_URL}/landing-pages/{page_id}/rollback/{version_number}", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    rolled_back_version = data.get("rolled_back_to_version")
+                    self.log_test("POST /landing-pages/{id}/rollback/{version}", True, f"Rolled back to version {rolled_back_version}")
+                    return True
+                else:
+                    self.log_test("POST /landing-pages/{id}/rollback/{version}", False, "Rollback failed")
+                    return False
+            else:
+                self.log_test("POST /landing-pages/{id}/rollback/{version}", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("POST /landing-pages/{id}/rollback/{version}", False, error=e)
+            return False
+    
+    # ==================== PUBLIC PAGE ACCESS TESTS ====================
+    
+    def test_public_page_access(self):
+        """Test GET /api/landing-pages/public/{slug} - Access published page (no auth)"""
+        try:
+            # First, republish the page to ensure it's available
+            page_id = getattr(self, 'ai_generated_page_id', None) or self.created_page_id
+            if page_id:
+                headers = {"Authorization": f"Bearer {self.admin_token}"}
+                publish_response = self.session.post(f"{BACKEND_URL}/landing-pages/{page_id}/publish", headers=headers)
+                if publish_response.status_code == 200:
+                    publish_data = publish_response.json()
+                    slug = publish_data.get("slug")
+                    if slug:
+                        self.published_slug = slug
+            
+            if not hasattr(self, 'published_slug') or not self.published_slug:
+                self.log_test("GET /landing-pages/public/{slug}", False, "No published slug available")
+                return False
+            
+            # Test public access (no auth required)
+            response = self.session.get(f"{BACKEND_URL}/landing-pages/public/{self.published_slug}")
+            
+            if response.status_code == 200:
+                data = response.json()
+                page = data.get("page")
+                if page and page.get("slug") == self.published_slug:
+                    self.log_test("GET /landing-pages/public/{slug}", True, f"Accessed public page: {page.get('name')}")
+                    return True
+                else:
+                    self.log_test("GET /landing-pages/public/{slug}", False, "Invalid page data")
+                    return False
+            else:
+                self.log_test("GET /landing-pages/public/{slug}", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /landing-pages/public/{slug}", False, error=e)
+            return False
+    
+    def test_analytics_increment(self):
+        """Test that view_count increases when accessing public page"""
+        try:
+            if not hasattr(self, 'published_slug') or not self.published_slug:
+                self.log_test("Analytics View Count Increment", False, "No published slug available")
+                return False
+            
+            # Get initial view count
+            page_id = getattr(self, 'ai_generated_page_id', None) or self.created_page_id
+            if not page_id:
+                self.log_test("Analytics View Count Increment", False, "No page ID available")
+                return False
+            
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            initial_response = self.session.get(f"{BACKEND_URL}/landing-pages/{page_id}", headers=headers)
+            
+            if initial_response.status_code != 200:
+                self.log_test("Analytics View Count Increment", False, "Failed to get initial view count")
+                return False
+            
+            initial_data = initial_response.json()
+            initial_count = initial_data.get("view_count", 0)
+            
+            # Access public page to increment view count
+            public_response = self.session.get(f"{BACKEND_URL}/landing-pages/public/{self.published_slug}")
+            
+            if public_response.status_code != 200:
+                self.log_test("Analytics View Count Increment", False, "Failed to access public page")
+                return False
+            
+            # Get updated view count
+            updated_response = self.session.get(f"{BACKEND_URL}/landing-pages/{page_id}", headers=headers)
+            
+            if updated_response.status_code == 200:
+                updated_data = updated_response.json()
+                updated_count = updated_data.get("view_count", 0)
+                
+                if updated_count > initial_count:
+                    self.log_test("Analytics View Count Increment", True, f"View count increased from {initial_count} to {updated_count}")
+                    return True
+                else:
+                    self.log_test("Analytics View Count Increment", False, f"View count did not increase: {initial_count} -> {updated_count}")
+                    return False
+            else:
+                self.log_test("Analytics View Count Increment", False, "Failed to get updated view count")
+                return False
+                
+        except Exception as e:
+            self.log_test("Analytics View Count Increment", False, error=e)
             return False
     
     def run_all_tests(self):
