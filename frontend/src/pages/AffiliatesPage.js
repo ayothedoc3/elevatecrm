@@ -458,6 +458,7 @@ const AffiliatesPage = () => {
           <TabsTrigger value="programs">Programs</TabsTrigger>
           <TabsTrigger value="commissions">Commissions</TabsTrigger>
           <TabsTrigger value="links">Links</TabsTrigger>
+          <TabsTrigger value="materials">Materials</TabsTrigger>
         </TabsList>
 
         {/* Affiliates Tab */}
