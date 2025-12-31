@@ -326,7 +326,7 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "Implemented 3 major features: 1) Dark/Light mode toggle 2) Frylow ROI Calculator with full backend logic 3) Custom Objects system. Please test: Login, toggle theme (sun/moon icon in header), go to Pipeline->click deal->Calculator tab should show ROI form, go to Objects page and create a custom object."
+    message: "Implemented 3 new features: 1) Full Activity Timeline page with stats and filters 2) Reports & Analytics dashboard with Overview/Pipeline/Outreach/Conversion tabs 3) NLA Accounting CRM blueprint with 15-stage tax filing workflow. Please test: Activity page, Reports page, and Add CRM modal shows 3 blueprints (Frylow, Blank, NLA Accounting)"
   - agent: "testing"
     message: "Starting comprehensive testing of the 3 new features: Dark/Light mode toggle, Frylow ROI Calculator, and Custom Objects system. Will test login flow, theme switching, calculator functionality, and custom object creation/management."
   - agent: "testing"
