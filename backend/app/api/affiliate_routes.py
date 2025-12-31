@@ -746,7 +746,8 @@ async def create_commission(
         metadata={"amount": data.amount}
     )
     
-    return commission
+    # Return clean response without MongoDB _id
+    return {k: v for k, v in commission.items() if k != "_id"}
 
 
 @router.post("/commissions/{commission_id}/approve")
