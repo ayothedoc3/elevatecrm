@@ -287,6 +287,7 @@ const AppRoutes = () => {
       <Route path="/custom-objects" element={<ProtectedRoute><CustomObjectsPage /></ProtectedRoute>} />
       <Route path="/activity" element={<ProtectedRoute><ActivityPage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+      <Route path="/affiliates" element={<ProtectedRoute><AffiliatesPage /></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
