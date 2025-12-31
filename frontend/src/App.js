@@ -39,6 +39,7 @@ import ActivityPage from './pages/ActivityPage';
 import ReportsPage from './pages/ReportsPage';
 import AffiliatesPage from './pages/AffiliatesPage';
 import LandingPagesPage from './pages/LandingPagesPage';
+import PublicLandingPage from './pages/PublicLandingPage';
 import AffiliateLoginPage from './pages/AffiliatePortal/AffiliateLoginPage';
 import AffiliateDashboard from './pages/AffiliatePortal/AffiliateDashboard';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
