@@ -87,139 +87,45 @@ class SettingsModuleTester:
             self.log_test("Health Check", False, error=e)
             return False
     
-    # ==================== LANDING PAGES CRUD API TESTS ====================
+    # ==================== WORKSPACE SETTINGS API TESTS ====================
     
-    def test_landing_pages_list(self):
-        """Test GET /api/landing-pages - List all landing pages"""
+    def test_get_workspace_settings(self):
+        """Test GET /api/settings/workspace - Get workspace settings"""
         try:
             headers = {"Authorization": f"Bearer {self.admin_token}"}
-            response = self.session.get(f"{BACKEND_URL}/landing-pages", headers=headers)
+            response = self.session.get(f"{BACKEND_URL}/settings/workspace", headers=headers)
             
             if response.status_code == 200:
                 data = response.json()
-                pages = data.get("pages", [])
-                total = data.get("total", 0)
-                self.log_test("GET /landing-pages", True, f"Found {total} landing pages")
-                return True
-            else:
-                self.log_test("GET /landing-pages", False, f"Status: {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("GET /landing-pages", False, error=e)
-            return False
-    
-    def test_landing_page_create_manual(self):
-        """Test POST /api/landing-pages - Create a landing page manually"""
-        try:
-            headers = {"Authorization": f"Bearer {self.admin_token}"}
-            
-            # Mock page schema for manual creation
-            mock_schema = {
-                "page_title": "Test Landing Page",
-                "meta_description": "A test landing page for API testing",
-                "sections": [
-                    {
-                        "type": "hero",
-                        "order": 1,
-                        "headline": "Welcome to Our Test Page",
-                        "subheadline": "This is a test landing page created via API",
-                        "body_text": "Testing the landing page creation functionality",
-                        "cta_text": "Get Started",
-                        "cta_url": "#signup",
-                        "image_placeholder": "Hero image placeholder"
-                    },
-                    {
-                        "type": "features",
-                        "order": 2,
-                        "headline": "Amazing Features",
-                        "items": [
-                            {"title": "Feature 1", "description": "First amazing feature", "icon": "star"},
-                            {"title": "Feature 2", "description": "Second amazing feature", "icon": "check"}
-                        ]
-                    }
-                ],
-                "color_scheme": {
-                    "primary": "#3B82F6",
-                    "secondary": "#1E40AF",
-                    "accent": "#F59E0B",
-                    "background": "#FFFFFF",
-                    "text": "#1F2937"
-                }
-            }
-            
-            page_data = {
-                "name": "Test Landing Page - Manual Creation",
-                "page_type": "generic",
-                "page_schema": mock_schema
-            }
-            
-            response = self.session.post(
-                f"{BACKEND_URL}/landing-pages",
-                json=page_data,
-                headers=headers
-            )
-            
-            if response.status_code == 201:
-                data = response.json()
-                if data.get("name") == page_data["name"] and data.get("id"):
-                    self.created_page_id = data["id"]
-                    self.created_page_slug = data.get("slug")
-                    self.log_test("POST /landing-pages (Manual)", True, f"Created page: {data['name']} (ID: {data['id']})")
+                required_fields = ["workspace_id", "name", "primary_color", "timezone", "currency"]
+                if all(field in data for field in required_fields):
+                    self.log_test("GET /settings/workspace", True, f"Retrieved workspace settings: {data.get('name')}")
                     return True
                 else:
-                    self.log_test("POST /landing-pages (Manual)", False, "Response data doesn't match input")
+                    self.log_test("GET /settings/workspace", False, "Missing required fields in response")
                     return False
             else:
-                self.log_test("POST /landing-pages (Manual)", False, f"Status: {response.status_code}", response.text)
+                self.log_test("GET /settings/workspace", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("POST /landing-pages (Manual)", False, error=e)
+            self.log_test("GET /settings/workspace", False, error=e)
             return False
     
-    def test_landing_page_get_specific(self):
-        """Test GET /api/landing-pages/{id} - Get a specific page"""
+    def test_update_workspace_settings(self):
+        """Test PUT /api/settings/workspace - Update workspace settings"""
         try:
-            if not self.created_page_id:
-                self.log_test("GET /landing-pages/{id}", False, "No page ID available")
-                return False
-            
-            headers = {"Authorization": f"Bearer {self.admin_token}"}
-            response = self.session.get(f"{BACKEND_URL}/landing-pages/{self.created_page_id}", headers=headers)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("id") == self.created_page_id and data.get("page_schema"):
-                    self.log_test("GET /landing-pages/{id}", True, f"Retrieved page: {data['name']}")
-                    return True
-                else:
-                    self.log_test("GET /landing-pages/{id}", False, "Invalid page data")
-                    return False
-            else:
-                self.log_test("GET /landing-pages/{id}", False, f"Status: {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("GET /landing-pages/{id}", False, error=e)
-            return False
-    
-    def test_landing_page_update(self):
-        """Test PUT /api/landing-pages/{id} - Update a page"""
-        try:
-            if not self.created_page_id:
-                self.log_test("PUT /landing-pages/{id}", False, "No page ID available")
-                return False
-            
             headers = {"Authorization": f"Bearer {self.admin_token}"}
             update_data = {
-                "name": "Updated Test Landing Page",
-                "seo_title": "Updated SEO Title",
-                "seo_description": "Updated SEO description for testing"
+                "name": "Updated Test Workspace",
+                "description": "Test workspace for Settings Module testing",
+                "primary_color": "#FF6B6B",
+                "timezone": "America/New_York",
+                "currency": "EUR"
             }
             
             response = self.session.put(
-                f"{BACKEND_URL}/landing-pages/{self.created_page_id}",
+                f"{BACKEND_URL}/settings/workspace",
                 json=update_data,
                 headers=headers
             )
@@ -227,340 +133,476 @@ class SettingsModuleTester:
             if response.status_code == 200:
                 data = response.json()
                 if data.get("success"):
-                    self.log_test("PUT /landing-pages/{id}", True, "Page updated successfully")
+                    self.log_test("PUT /settings/workspace", True, "Workspace settings updated successfully")
                     return True
                 else:
-                    self.log_test("PUT /landing-pages/{id}", False, "Update failed")
+                    self.log_test("PUT /settings/workspace", False, "Update failed")
                     return False
             else:
-                self.log_test("PUT /landing-pages/{id}", False, f"Status: {response.status_code}", response.text)
+                self.log_test("PUT /settings/workspace", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("PUT /landing-pages/{id}", False, error=e)
+            self.log_test("PUT /settings/workspace", False, error=e)
             return False
     
-    def test_landing_page_delete(self):
-        """Test DELETE /api/landing-pages/{id} - Delete a page"""
+    # ==================== AI CONFIGURATION API TESTS ====================
+    
+    def test_get_ai_config(self):
+        """Test GET /api/settings/ai - Get AI configuration"""
         try:
-            if not self.created_page_id:
-                self.log_test("DELETE /landing-pages/{id}", False, "No page ID available")
-                return False
-            
             headers = {"Authorization": f"Bearer {self.admin_token}"}
-            response = self.session.delete(f"{BACKEND_URL}/landing-pages/{self.created_page_id}", headers=headers)
+            response = self.session.get(f"{BACKEND_URL}/settings/ai", headers=headers)
             
             if response.status_code == 200:
                 data = response.json()
-                if data.get("success"):
-                    self.log_test("DELETE /landing-pages/{id}", True, "Page deleted successfully")
+                required_fields = ["default_provider", "default_model", "features_enabled", "usage_limits", "configured_providers"]
+                if all(field in data for field in required_fields):
+                    providers_count = len(data.get("configured_providers", []))
+                    self.log_test("GET /settings/ai", True, f"Retrieved AI config with {providers_count} configured providers")
                     return True
                 else:
-                    self.log_test("DELETE /landing-pages/{id}", False, "Delete failed")
+                    self.log_test("GET /settings/ai", False, "Missing required fields in AI config")
                     return False
             else:
-                self.log_test("DELETE /landing-pages/{id}", False, f"Status: {response.status_code}", response.text)
+                self.log_test("GET /settings/ai", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("DELETE /landing-pages/{id}", False, error=e)
+            self.log_test("GET /settings/ai", False, error=e)
             return False
     
-    # ==================== AI GENERATION API TESTS ====================
-    
-    def test_ai_generate_landing_page(self):
-        """Test POST /api/landing-pages/generate - Generate a landing page using AI"""
+    def test_update_ai_config(self):
+        """Test PUT /api/settings/ai - Update AI configuration"""
         try:
             headers = {"Authorization": f"Bearer {self.admin_token}"}
-            
-            generation_data = {
-                "page_goal": "Recruit affiliates for Frylow",
-                "target_audience": "Restaurant owners and food bloggers",
-                "offer_details": "10% commission, 30-day cookie, marketing materials",
-                "page_type": "affiliate_recruitment",
-                "cta_type": "signup",
-                "tone": "professional",
-                "brand_name": "Frylow",
-                "ai_model": "gpt-4o",
-                "product_features": [
-                    "Oil savings technology",
-                    "Easy installation",
-                    "Real-time monitoring"
-                ]
+            update_data = {
+                "default_provider": "openai",
+                "default_model": "gpt-4o",
+                "features_enabled": {
+                    "page_builder": True,
+                    "lead_scoring": True,
+                    "deal_analysis": False
+                },
+                "usage_limits": {
+                    "monthly_requests": 1000,
+                    "daily_requests": 50
+                }
             }
             
-            response = self.session.post(
-                f"{BACKEND_URL}/landing-pages/generate",
-                json=generation_data,
+            response = self.session.put(
+                f"{BACKEND_URL}/settings/ai",
+                json=update_data,
                 headers=headers
             )
             
             if response.status_code == 200:
                 data = response.json()
-                if data.get("success") and data.get("page_schema"):
-                    page_schema = data["page_schema"]
-                    sections = page_schema.get("sections", [])
-                    self.log_test("POST /landing-pages/generate", True, f"Generated page with {len(sections)} sections using {data.get('ai_model', 'unknown')} model")
-                    
-                    # Store generated schema for creating a page
-                    self.generated_schema = page_schema
-                    return True
-                else:
-                    self.log_test("POST /landing-pages/generate", False, "Invalid generation response")
-                    return False
-            else:
-                self.log_test("POST /landing-pages/generate", False, f"Status: {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("POST /landing-pages/generate", False, error=e)
-            return False
-    
-    def test_save_generated_page(self):
-        """Test creating a page from AI-generated schema"""
-        try:
-            if not hasattr(self, 'generated_schema'):
-                self.log_test("Save Generated Page", False, "No generated schema available")
-                return False
-            
-            headers = {"Authorization": f"Bearer {self.admin_token}"}
-            
-            page_data = {
-                "name": "AI Generated Frylow Affiliate Page",
-                "page_type": "affiliate_recruitment",
-                "page_schema": self.generated_schema
-            }
-            
-            response = self.session.post(
-                f"{BACKEND_URL}/landing-pages",
-                json=page_data,
-                headers=headers
-            )
-            
-            if response.status_code == 201:
-                data = response.json()
-                if data.get("name") == page_data["name"] and data.get("id"):
-                    self.ai_generated_page_id = data["id"]
-                    self.ai_generated_page_slug = data.get("slug")
-                    self.log_test("Save Generated Page", True, f"Saved AI-generated page: {data['name']} (ID: {data['id']})")
-                    return True
-                else:
-                    self.log_test("Save Generated Page", False, "Response data doesn't match input")
-                    return False
-            else:
-                self.log_test("Save Generated Page", False, f"Status: {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Save Generated Page", False, error=e)
-            return False
-    
-    # ==================== PUBLISHING API TESTS ====================
-    
-    def test_publish_page(self):
-        """Test POST /api/landing-pages/{id}/publish - Publish a page"""
-        try:
-            page_id = getattr(self, 'ai_generated_page_id', None) or self.created_page_id
-            if not page_id:
-                self.log_test("POST /landing-pages/{id}/publish", False, "No page ID available")
-                return False
-            
-            headers = {"Authorization": f"Bearer {self.admin_token}"}
-            response = self.session.post(f"{BACKEND_URL}/landing-pages/{page_id}/publish", headers=headers)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("success") and data.get("slug"):
-                    self.published_slug = data["slug"]
-                    self.log_test("POST /landing-pages/{id}/publish", True, f"Published page with slug: {data['slug']}")
-                    return True
-                else:
-                    self.log_test("POST /landing-pages/{id}/publish", False, "Publish failed")
-                    return False
-            else:
-                self.log_test("POST /landing-pages/{id}/publish", False, f"Status: {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("POST /landing-pages/{id}/publish", False, error=e)
-            return False
-    
-    def test_unpublish_page(self):
-        """Test POST /api/landing-pages/{id}/unpublish - Unpublish a page"""
-        try:
-            page_id = getattr(self, 'ai_generated_page_id', None) or self.created_page_id
-            if not page_id:
-                self.log_test("POST /landing-pages/{id}/unpublish", False, "No page ID available")
-                return False
-            
-            headers = {"Authorization": f"Bearer {self.admin_token}"}
-            response = self.session.post(f"{BACKEND_URL}/landing-pages/{page_id}/unpublish", headers=headers)
-            
-            if response.status_code == 200:
-                data = response.json()
                 if data.get("success"):
-                    self.log_test("POST /landing-pages/{id}/unpublish", True, "Page unpublished successfully")
+                    self.log_test("PUT /settings/ai", True, "AI configuration updated successfully")
                     return True
                 else:
-                    self.log_test("POST /landing-pages/{id}/unpublish", False, "Unpublish failed")
+                    self.log_test("PUT /settings/ai", False, "AI config update failed")
                     return False
             else:
-                self.log_test("POST /landing-pages/{id}/unpublish", False, f"Status: {response.status_code}", response.text)
+                self.log_test("PUT /settings/ai", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("POST /landing-pages/{id}/unpublish", False, error=e)
+            self.log_test("PUT /settings/ai", False, error=e)
             return False
     
-    # ==================== VERSION MANAGEMENT TESTS ====================
-    
-    def test_list_page_versions(self):
-        """Test GET /api/landing-pages/{id}/versions - List versions"""
+    def test_get_ai_usage_stats(self):
+        """Test GET /api/settings/ai/usage?days=30 - Get AI usage statistics"""
         try:
-            page_id = getattr(self, 'ai_generated_page_id', None) or self.created_page_id
-            if not page_id:
-                self.log_test("GET /landing-pages/{id}/versions", False, "No page ID available")
-                return False
-            
             headers = {"Authorization": f"Bearer {self.admin_token}"}
-            response = self.session.get(f"{BACKEND_URL}/landing-pages/{page_id}/versions", headers=headers)
+            response = self.session.get(f"{BACKEND_URL}/settings/ai/usage?days=30", headers=headers)
             
             if response.status_code == 200:
                 data = response.json()
-                versions = data.get("versions", [])
-                self.log_test("GET /landing-pages/{id}/versions", True, f"Found {len(versions)} versions")
-                
-                # Store version for rollback test
-                if versions:
-                    self.test_version_number = versions[0].get("version_number")
+                # Usage stats might be empty for new workspace, that's OK
+                self.log_test("GET /settings/ai/usage", True, f"Retrieved AI usage stats for 30 days")
                 return True
             else:
-                self.log_test("GET /landing-pages/{id}/versions", False, f"Status: {response.status_code}", response.text)
+                self.log_test("GET /settings/ai/usage", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("GET /landing-pages/{id}/versions", False, error=e)
+            self.log_test("GET /settings/ai/usage", False, error=e)
             return False
     
-    def test_rollback_version(self):
-        """Test POST /api/landing-pages/{id}/rollback/{version_number} - Rollback"""
+    def test_get_ai_status(self):
+        """Test GET /api/settings/ai/status - Get AI configuration status"""
         try:
-            page_id = getattr(self, 'ai_generated_page_id', None) or self.created_page_id
-            version_number = getattr(self, 'test_version_number', 1)
-            
-            if not page_id:
-                self.log_test("POST /landing-pages/{id}/rollback/{version}", False, "No page ID available")
-                return False
-            
             headers = {"Authorization": f"Bearer {self.admin_token}"}
-            response = self.session.post(f"{BACKEND_URL}/landing-pages/{page_id}/rollback/{version_number}", headers=headers)
+            response = self.session.get(f"{BACKEND_URL}/settings/ai/status", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                required_fields = ["is_configured", "has_fallback_key", "configured_providers", "default_provider"]
+                if all(field in data for field in required_fields):
+                    is_configured = data.get("is_configured", False)
+                    has_fallback = data.get("has_fallback_key", False)
+                    self.log_test("GET /settings/ai/status", True, f"AI Status - Configured: {is_configured}, Fallback: {has_fallback}")
+                    return True
+                else:
+                    self.log_test("GET /settings/ai/status", False, "Missing required fields in AI status")
+                    return False
+            else:
+                self.log_test("GET /settings/ai/status", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /settings/ai/status", False, error=e)
+            return False
+    
+    # ==================== INTEGRATIONS API TESTS (CRITICAL SECURITY) ====================
+    
+    def test_list_integrations(self):
+        """Test GET /api/settings/integrations - List integrations (SECURITY: Keys must be masked)"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/settings/integrations", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                integrations = data.get("integrations", [])
+                by_category = data.get("by_category", {})
+                
+                # SECURITY CHECK: Ensure no actual API keys are returned
+                security_violation = False
+                for integration in integrations:
+                    if "api_key" in integration:
+                        # If api_key field exists, it should be masked
+                        api_key = integration.get("api_key", "")
+                        if api_key and not api_key.startswith("••••••••"):
+                            security_violation = True
+                            break
+                
+                if security_violation:
+                    self.log_test("GET /settings/integrations", False, "SECURITY VIOLATION: Actual API key returned in response!")
+                    return False
+                
+                categories = ["ai", "communication", "payment"]
+                if all(cat in by_category for cat in categories):
+                    self.log_test("GET /settings/integrations", True, f"Retrieved {len(integrations)} integrations with proper security masking")
+                    return True
+                else:
+                    self.log_test("GET /settings/integrations", False, "Missing category groupings")
+                    return False
+            else:
+                self.log_test("GET /settings/integrations", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /settings/integrations", False, error=e)
+            return False
+    
+    def test_add_integration(self):
+        """Test POST /api/settings/integrations - Add new integration (SECURITY: Key encryption)"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            integration_data = {
+                "provider_type": self.test_integration_provider,
+                "api_key": self.test_api_key,
+                "config": {
+                    "model": "gpt-4o",
+                    "temperature": 0.7
+                }
+            }
+            
+            response = self.session.post(
+                f"{BACKEND_URL}/settings/integrations",
+                json=integration_data,
+                headers=headers
+            )
             
             if response.status_code == 200:
                 data = response.json()
                 if data.get("success"):
-                    rolled_back_version = data.get("rolled_back_to_version")
-                    self.log_test("POST /landing-pages/{id}/rollback/{version}", True, f"Rolled back to version {rolled_back_version}")
-                    return True
+                    integration = data.get("integration", {})
+                    
+                    # SECURITY CHECK: Ensure API key is not returned
+                    if "api_key" in integration and not integration["api_key"].startswith("••••••••"):
+                        self.log_test("POST /settings/integrations", False, "SECURITY VIOLATION: API key returned in response!")
+                        return False
+                    
+                    # Check for masked hint
+                    key_hint = integration.get("key_hint", "")
+                    if key_hint and key_hint.endswith("5678"):  # Last 4 chars of test key
+                        self.log_test("POST /settings/integrations", True, f"Integration '{self.test_integration_provider}' added with proper key masking")
+                        return True
+                    else:
+                        self.log_test("POST /settings/integrations", True, f"Integration '{self.test_integration_provider}' added successfully")
+                        return True
                 else:
-                    self.log_test("POST /landing-pages/{id}/rollback/{version}", False, "Rollback failed")
+                    self.log_test("POST /settings/integrations", False, "Integration creation failed")
                     return False
             else:
-                self.log_test("POST /landing-pages/{id}/rollback/{version}", False, f"Status: {response.status_code}", response.text)
+                self.log_test("POST /settings/integrations", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("POST /landing-pages/{id}/rollback/{version}", False, error=e)
+            self.log_test("POST /settings/integrations", False, error=e)
             return False
     
-    # ==================== PUBLIC PAGE ACCESS TESTS ====================
-    
-    def test_public_page_access(self):
-        """Test GET /api/landing-pages/public/{slug} - Access published page (no auth)"""
+    def test_get_specific_integration(self):
+        """Test GET /api/settings/integrations/{provider_type} - Get specific integration"""
         try:
-            # First, republish the page to ensure it's available
-            page_id = getattr(self, 'ai_generated_page_id', None) or self.created_page_id
-            if page_id:
-                headers = {"Authorization": f"Bearer {self.admin_token}"}
-                publish_response = self.session.post(f"{BACKEND_URL}/landing-pages/{page_id}/publish", headers=headers)
-                if publish_response.status_code == 200:
-                    publish_data = publish_response.json()
-                    slug = publish_data.get("slug")
-                    if slug:
-                        self.published_slug = slug
-            
-            if not hasattr(self, 'published_slug') or not self.published_slug:
-                self.log_test("GET /landing-pages/public/{slug}", False, "No published slug available")
-                return False
-            
-            # Test public access (no auth required)
-            response = self.session.get(f"{BACKEND_URL}/landing-pages/public/{self.published_slug}")
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/settings/integrations/{self.test_integration_provider}", headers=headers)
             
             if response.status_code == 200:
                 data = response.json()
-                page = data.get("page")
-                if page and page.get("slug") == self.published_slug:
-                    self.log_test("GET /landing-pages/public/{slug}", True, f"Accessed public page: {page.get('name')}")
+                
+                # SECURITY CHECK: Ensure API key is masked
+                if "api_key" in data and not data["api_key"].startswith("••••••••"):
+                    self.log_test("GET /settings/integrations/{provider}", False, "SECURITY VIOLATION: API key not masked!")
+                    return False
+                
+                if data.get("provider_type") == self.test_integration_provider:
+                    self.log_test("GET /settings/integrations/{provider}", True, f"Retrieved {self.test_integration_provider} integration with masked key")
                     return True
                 else:
-                    self.log_test("GET /landing-pages/public/{slug}", False, "Invalid page data")
+                    self.log_test("GET /settings/integrations/{provider}", False, "Invalid integration data")
                     return False
             else:
-                self.log_test("GET /landing-pages/public/{slug}", False, f"Status: {response.status_code}", response.text)
+                self.log_test("GET /settings/integrations/{provider}", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("GET /landing-pages/public/{slug}", False, error=e)
+            self.log_test("GET /settings/integrations/{provider}", False, error=e)
             return False
     
-    def test_analytics_increment(self):
-        """Test that view_count increases when accessing public page"""
+    def test_toggle_integration(self):
+        """Test PATCH /api/settings/integrations/{provider_type}/toggle - Enable/disable integration"""
         try:
-            if not hasattr(self, 'published_slug') or not self.published_slug:
-                self.log_test("Analytics View Count Increment", False, "No published slug available")
-                return False
-            
-            # Get initial view count
-            page_id = getattr(self, 'ai_generated_page_id', None) or self.created_page_id
-            if not page_id:
-                self.log_test("Analytics View Count Increment", False, "No page ID available")
-                return False
-            
             headers = {"Authorization": f"Bearer {self.admin_token}"}
-            initial_response = self.session.get(f"{BACKEND_URL}/landing-pages/{page_id}", headers=headers)
             
-            if initial_response.status_code != 200:
-                self.log_test("Analytics View Count Increment", False, "Failed to get initial view count")
-                return False
+            # First disable
+            toggle_data = {"enabled": False}
+            response = self.session.patch(
+                f"{BACKEND_URL}/settings/integrations/{self.test_integration_provider}/toggle",
+                json=toggle_data,
+                headers=headers
+            )
             
-            initial_data = initial_response.json()
-            initial_count = initial_data.get("view_count", 0)
-            
-            # Access public page to increment view count
-            public_response = self.session.get(f"{BACKEND_URL}/landing-pages/public/{self.published_slug}")
-            
-            if public_response.status_code != 200:
-                self.log_test("Analytics View Count Increment", False, "Failed to access public page")
-                return False
-            
-            # Get updated view count
-            updated_response = self.session.get(f"{BACKEND_URL}/landing-pages/{page_id}", headers=headers)
-            
-            if updated_response.status_code == 200:
-                updated_data = updated_response.json()
-                updated_count = updated_data.get("view_count", 0)
-                
-                if updated_count > initial_count:
-                    self.log_test("Analytics View Count Increment", True, f"View count increased from {initial_count} to {updated_count}")
-                    return True
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    # Then enable again
+                    toggle_data = {"enabled": True}
+                    response2 = self.session.patch(
+                        f"{BACKEND_URL}/settings/integrations/{self.test_integration_provider}/toggle",
+                        json=toggle_data,
+                        headers=headers
+                    )
+                    
+                    if response2.status_code == 200:
+                        data2 = response2.json()
+                        if data2.get("success"):
+                            self.log_test("PATCH /settings/integrations/{provider}/toggle", True, "Integration toggle working (disabled then enabled)")
+                            return True
+                        else:
+                            self.log_test("PATCH /settings/integrations/{provider}/toggle", False, "Failed to re-enable integration")
+                            return False
+                    else:
+                        self.log_test("PATCH /settings/integrations/{provider}/toggle", False, f"Re-enable failed: {response2.status_code}")
+                        return False
                 else:
-                    self.log_test("Analytics View Count Increment", False, f"View count did not increase: {initial_count} -> {updated_count}")
+                    self.log_test("PATCH /settings/integrations/{provider}/toggle", False, "Failed to disable integration")
                     return False
             else:
-                self.log_test("Analytics View Count Increment", False, "Failed to get updated view count")
+                self.log_test("PATCH /settings/integrations/{provider}/toggle", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("Analytics View Count Increment", False, error=e)
+            self.log_test("PATCH /settings/integrations/{provider}/toggle", False, error=e)
+            return False
+    
+    def test_integration_connection(self):
+        """Test POST /api/settings/integrations/test - Test connection (may fail without real key)"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            test_data = {
+                "provider_type": self.test_integration_provider,
+                "api_key": self.test_api_key  # Test with the fake key
+            }
+            
+            response = self.session.post(
+                f"{BACKEND_URL}/settings/integrations/test",
+                json=test_data,
+                headers=headers
+            )
+            
+            # This test may fail with fake key, but endpoint should respond properly
+            if response.status_code in [200, 400, 401]:
+                data = response.json()
+                # Even if connection fails, the endpoint should return structured response
+                if "success" in data or "error" in data:
+                    self.log_test("POST /settings/integrations/test", True, f"Connection test endpoint working (may fail with fake key)")
+                    return True
+                else:
+                    self.log_test("POST /settings/integrations/test", False, "Invalid response structure")
+                    return False
+            else:
+                self.log_test("POST /settings/integrations/test", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("POST /settings/integrations/test", False, error=e)
+            return False
+    
+    def test_revoke_integration(self):
+        """Test DELETE /api/settings/integrations/{provider_type} - Revoke integration"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.delete(f"{BACKEND_URL}/settings/integrations/{self.test_integration_provider}", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    self.log_test("DELETE /settings/integrations/{provider}", True, f"Integration '{self.test_integration_provider}' revoked successfully")
+                    return True
+                else:
+                    self.log_test("DELETE /settings/integrations/{provider}", False, "Revocation failed")
+                    return False
+            else:
+                self.log_test("DELETE /settings/integrations/{provider}", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("DELETE /settings/integrations/{provider}", False, error=e)
+            return False
+    
+    # ==================== PROVIDERS INFO API TESTS ====================
+    
+    def test_list_providers(self):
+        """Test GET /api/settings/providers - List all available providers"""
+        try:
+            # This endpoint doesn't require authentication
+            response = self.session.get(f"{BACKEND_URL}/settings/providers")
+            
+            if response.status_code == 200:
+                data = response.json()
+                providers = data.get("providers", {})
+                
+                required_categories = ["ai", "communication", "payment"]
+                if all(cat in providers for cat in required_categories):
+                    ai_count = len(providers.get("ai", []))
+                    comm_count = len(providers.get("communication", []))
+                    payment_count = len(providers.get("payment", []))
+                    
+                    self.log_test("GET /settings/providers", True, f"Retrieved providers: AI({ai_count}), Comm({comm_count}), Payment({payment_count})")
+                    return True
+                else:
+                    self.log_test("GET /settings/providers", False, "Missing required provider categories")
+                    return False
+            else:
+                self.log_test("GET /settings/providers", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /settings/providers", False, error=e)
+            return False
+    
+    # ==================== AFFILIATE SETTINGS API TESTS ====================
+    
+    def test_get_affiliate_settings(self):
+        """Test GET /api/settings/affiliates - Get affiliate system settings"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/settings/affiliates", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                # Affiliate settings might have defaults
+                self.log_test("GET /settings/affiliates", True, "Retrieved affiliate settings")
+                return True
+            else:
+                self.log_test("GET /settings/affiliates", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /settings/affiliates", False, error=e)
+            return False
+    
+    def test_update_affiliate_settings(self):
+        """Test PUT /api/settings/affiliates - Update affiliate settings"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            update_data = {
+                "enabled": True,
+                "default_currency": "USD",
+                "default_attribution_window_days": 30,
+                "approval_mode": "manual",
+                "min_payout_threshold": 100.0
+            }
+            
+            response = self.session.put(
+                f"{BACKEND_URL}/settings/affiliates",
+                json=update_data,
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    self.log_test("PUT /settings/affiliates", True, "Affiliate settings updated successfully")
+                    return True
+                else:
+                    self.log_test("PUT /settings/affiliates", False, "Affiliate settings update failed")
+                    return False
+            else:
+                self.log_test("PUT /settings/affiliates", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("PUT /settings/affiliates", False, error=e)
+            return False
+    
+    # ==================== AUDIT LOGS API TESTS ====================
+    
+    def test_get_audit_logs(self):
+        """Test GET /api/settings/audit-logs - Get audit log entries"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/settings/audit-logs?page=1&page_size=20", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                logs = data.get("logs", [])
+                total = data.get("total", 0)
+                
+                # Audit logs might be empty for new workspace
+                self.log_test("GET /settings/audit-logs", True, f"Retrieved {len(logs)} audit log entries (total: {total})")
+                return True
+            else:
+                self.log_test("GET /settings/audit-logs", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /settings/audit-logs", False, error=e)
+            return False
+    
+    # ==================== SECURITY VERIFICATION TESTS ====================
+    
+    def test_non_admin_access_denied(self):
+        """Test that non-admin users cannot access settings endpoints (403 Forbidden)"""
+        try:
+            # This test would require a non-admin user token
+            # For now, we'll test with no token to verify authentication is required
+            response = self.session.get(f"{BACKEND_URL}/settings/workspace")
+            
+            if response.status_code == 401:
+                self.log_test("Security: Non-admin Access", True, "Unauthenticated access properly denied (401)")
+                return True
+            else:
+                self.log_test("Security: Non-admin Access", False, f"Expected 401, got {response.status_code}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Security: Non-admin Access", False, error=e)
             return False
     
     def run_all_tests(self):
