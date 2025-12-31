@@ -59,7 +59,10 @@ const LandingPagesPage = () => {
   const [total, setTotal] = useState(0);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedPage, setSelectedPage] = useState(null);
+  const [editingSection, setEditingSection] = useState(null);
+  const [editingSectionIndex, setEditingSectionIndex] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
