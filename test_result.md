@@ -267,6 +267,42 @@ frontend:
         agent: "testing"
         comment: "✅ TESTED: Outreach Touchpoint Tracking feature fully functional - Pipeline branding shows 'Frylow Sales Pipeline' correctly, Activity panel in deal detail displays Touchpoint Summary card with all counts (Calls: 2, Emails: 0, SMS: 0, Replies: 0), Activity Timeline shows logged activities, Log Activity modal opens with all required fields (Type, Direction, Result, Subject, Notes), successfully logs new activities with immediate updates to timeline and summary counts. Fixed backend API issues during testing. All functionality working as expected."
 
+  - task: "Dark/Light Mode Toggle"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/contexts/ThemeContext.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented theme context and toggle button in header with sun/moon icons"
+
+  - task: "Frylow ROI Calculator"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/PipelinePage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented ROI calculator in deal detail sheet Calculator tab with backend integration"
+
+  - task: "Custom Objects System"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/CustomObjectsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented custom objects page with create object dialog, field management, and record CRUD operations"
+
 metadata:
   created_by: "main_agent"
   version: "2.2"
