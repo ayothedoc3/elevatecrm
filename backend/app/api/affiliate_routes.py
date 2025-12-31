@@ -208,7 +208,8 @@ async def log_affiliate_event(
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.affiliate_events.insert_one(event)
-    return event
+    # Return clean response without MongoDB _id
+    return {k: v for k, v in event.items() if k != "_id"}
 
 
 async def calculate_commission(
