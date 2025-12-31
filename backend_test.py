@@ -543,34 +543,51 @@ class Phase1AffiliateSystemTester:
             return False
     
     def run_all_tests(self):
-        """Run all affiliate API tests"""
-        print("🚀 Starting Affiliate Management System API Tests")
-        print("=" * 60)
+        """Run all Phase 1 Affiliate System tests"""
+        print("🚀 Starting Phase 1 Affiliate System API Tests")
+        print("=" * 70)
+        print("Testing: Marketing Materials + Affiliate Portal + Attribution Engine")
+        print("=" * 70)
         
         # Authentication is required for all tests
-        if not self.authenticate():
-            print("❌ Authentication failed. Cannot proceed with tests.")
+        if not self.authenticate_admin():
+            print("❌ Admin authentication failed. Cannot proceed with admin tests.")
+            return False
+        
+        if not self.authenticate_affiliate():
+            print("❌ Affiliate authentication failed. Cannot proceed with affiliate tests.")
             return False
         
         # Test basic health
         self.test_health_check()
         
-        # Core affiliate API tests
-        self.test_get_affiliates()
-        self.test_get_programs()
-        self.test_get_commissions()
-        self.test_get_analytics_dashboard()
+        print("\n📋 MARKETING MATERIALS API TESTS")
+        print("-" * 50)
+        self.test_materials_create_url()
+        self.test_materials_list()
+        self.test_materials_categories()
         
-        # Additional functionality tests
-        self.test_create_affiliate()
-        self.test_approve_affiliate()
-        self.test_get_links()
-        self.test_get_events()
+        print("\n🏢 AFFILIATE PORTAL API TESTS")
+        print("-" * 50)
+        self.test_affiliate_portal_register()
+        self.test_affiliate_portal_me()
+        self.test_affiliate_portal_dashboard()
+        self.test_affiliate_portal_links()
+        self.test_affiliate_portal_create_link()
+        self.test_affiliate_portal_programs()
+        self.test_affiliate_portal_commissions()
+        self.test_affiliate_portal_materials()
+        
+        print("\n🔗 ATTRIBUTION ENGINE TESTS")
+        print("-" * 50)
+        self.test_attribution_engine_redirect()
+        self.test_attribution_click_count_increment()
+        self.test_affiliate_events_collection()
         
         # Summary
-        print("=" * 60)
+        print("\n" + "=" * 70)
         print("📊 TEST SUMMARY")
-        print("=" * 60)
+        print("=" * 70)
         
         passed = sum(1 for result in self.test_results if result["success"])
         total = len(self.test_results)
@@ -586,12 +603,14 @@ class Phase1AffiliateSystemTester:
             print("\n❌ FAILED TESTS:")
             for test in failed_tests:
                 print(f"   - {test['test']}: {test['error'] or test['details']}")
+        else:
+            print("\n✅ ALL TESTS PASSED!")
         
         return passed == total
 
 def main():
     """Main test runner"""
-    tester = AffiliateAPITester()
+    tester = Phase1AffiliateSystemTester()
     success = tester.run_all_tests()
     
     # Exit with appropriate code
