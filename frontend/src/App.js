@@ -278,6 +278,7 @@ const AppRoutes = () => {
       <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
       <Route path="/workflows" element={<ProtectedRoute><WorkflowsPage /></ProtectedRoute>} />
       <Route path="/forms" element={<ProtectedRoute><FormsPage /></ProtectedRoute>} />
+      <Route path="/custom-objects" element={<ProtectedRoute><CustomObjectsPage /></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
