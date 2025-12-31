@@ -16,14 +16,14 @@ ADMIN_EMAIL = "admin@demo.com"
 ADMIN_PASSWORD = "admin123"
 TENANT_SLUG = "demo"
 
-class AILandingPageBuilderTester:
+class SettingsModuleTester:
     def __init__(self):
         self.session = requests.Session()
         self.admin_token = None
         self.admin_user_data = None
         self.test_results = []
-        self.created_page_id = None
-        self.created_page_slug = None
+        self.test_integration_provider = "openai"
+        self.test_api_key = "sk-test-key-12345678"
         
     def log_test(self, test_name, success, details="", error=None):
         """Log test result"""
