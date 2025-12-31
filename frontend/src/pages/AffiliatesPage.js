@@ -19,7 +19,8 @@ import {
   Users, Plus, Search, Filter, DollarSign, TrendingUp, Link2,
   MousePointer, CheckCircle, Clock, XCircle, ExternalLink,
   Copy, MoreVertical, UserPlus, Settings, Eye, Ban, Play,
-  RefreshCw, Download, ChevronRight, Percent, Target, Loader2
+  RefreshCw, Download, ChevronRight, Percent, Target, Loader2,
+  Image, FileText, Upload, Grid, List, Trash2, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 
