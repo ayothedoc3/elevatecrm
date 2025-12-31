@@ -34,6 +34,7 @@ import BlueprintPage from './pages/BlueprintPage';
 import InboxPage from './pages/InboxPage';
 import WorkflowsPage from './pages/WorkflowsPage';
 import FormsPage from './pages/FormsPage';
+import CustomObjectsPage from './pages/CustomObjectsPage';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 
 const navItems = [
@@ -43,6 +44,7 @@ const navItems = [
   { path: '/inbox', icon: MessageSquare, label: 'Inbox' },
   { path: '/workflows', icon: GitBranch, label: 'Workflows' },
   { path: '/forms', icon: FileText, label: 'Forms' },
+  { path: '/custom-objects', icon: Box, label: 'Objects' },
   { path: '/blueprints', icon: GitBranch, label: 'Blueprints' },
 ];
 
