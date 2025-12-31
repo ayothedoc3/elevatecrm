@@ -1761,8 +1761,99 @@ async def seed_demo_data():
             
             # Create Frylow ROI Calculator definition
             from app.models import CalculationDefinition
-            import json
             
+            frylow_calc_input_schema = [
+                {
+                    "name": "number_of_fryers",
+                    "type": "integer",
+                    "label": "Number of Fryers",
+                    "required": True,
+                    "placeholder": "e.g. 4",
+                    "help_text": "Total number of fryers in the kitchen",
+                    "min": 1,
+                    "max": 50
+                },
+                {
+                    "name": "fryer_capacities",
+                    "type": "multi_select",
+                    "label": "Fryer Capacities",
+                    "required": True,
+                    "help_text": "Select all fryer sizes used",
+                    "options": [
+                        {"value": "16L", "label": "16 Liters (Small)"},
+                        {"value": "30L", "label": "30 Liters (Medium)"},
+                        {"value": "45L", "label": "45 Liters (Large)"}
+                    ]
+                },
+                {
+                    "name": "oil_units",
+                    "type": "select",
+                    "label": "Oil Purchase Units",
+                    "required": True,
+                    "options": [
+                        {"value": "boxes", "label": "Boxes"},
+                        {"value": "gallons", "label": "Gallons"},
+                        {"value": "liters", "label": "Liters"}
+                    ]
+                },
+                {
+                    "name": "quantity_per_month",
+                    "type": "integer",
+                    "label": "Quantity Purchased Per Month",
+                    "required": True,
+                    "placeholder": "e.g. 20",
+                    "min": 1
+                },
+                {
+                    "name": "cost_per_unit",
+                    "type": "currency",
+                    "label": "Cost Per Unit ($)",
+                    "required": True,
+                    "placeholder": "e.g. 45.00",
+                    "min": 0
+                }
+            ]
+            
+            frylow_calc_output_schema = [
+                {
+                    "name": "monthly_oil_spend",
+                    "type": "currency",
+                    "label": "Monthly Oil Spend",
+                    "description": "Current monthly expenditure on cooking oil"
+                },
+                {
+                    "name": "yearly_oil_spend",
+                    "type": "currency",
+                    "label": "Yearly Oil Spend",
+                    "description": "Projected annual expenditure on cooking oil"
+                },
+                {
+                    "name": "estimated_savings_low",
+                    "type": "currency",
+                    "label": "Estimated Savings (Low)",
+                    "description": "Conservative savings estimate (30%)"
+                },
+                {
+                    "name": "estimated_savings_high",
+                    "type": "currency",
+                    "label": "Estimated Savings (High)",
+                    "description": "Optimistic savings estimate (50%)"
+                },
+                {
+                    "name": "recommended_device_quantity",
+                    "type": "integer",
+                    "label": "Recommended Device Quantity",
+                    "description": "Number of Frylow devices needed"
+                },
+                {
+                    "name": "recommended_device_size",
+                    "type": "text",
+                    "label": "Recommended Device Size",
+                    "description": "Best Frylow device size for your setup"
+                }
+            ]
+            
+            import json as json_module
             frylow_calc = CalculationDefinition(
                 id=str(uuid.uuid4()),
                 tenant_id=tenant.id,
@@ -1771,96 +1862,9 @@ async def seed_demo_data():
                 description="Calculate oil savings and recommended Frylow device configuration",
                 version=1,
                 is_active=True,
-                input_schema=json.dumps([
-                    {
-                        "name": "number_of_fryers",
-                        "type": "integer",
-                        "label": "Number of Fryers",
-                        "required": True,
-                        "placeholder": "e.g. 4",
-                        "help_text": "Total number of fryers in the kitchen",
-                        "min": 1,
-                        "max": 50
-                    },
-                    {
-                        "name": "fryer_capacities",
-                        "type": "multi_select",
-                        "label": "Fryer Capacities",
-                        "required": True,
-                        "help_text": "Select all fryer sizes used",
-                        "options": [
-                            {"value": "16L", "label": "16 Liters (Small)"},
-                            {"value": "30L", "label": "30 Liters (Medium)"},
-                            {"value": "45L", "label": "45 Liters (Large)"}
-                        ]
-                    },
-                    {
-                        "name": "oil_units",
-                        "type": "select",
-                        "label": "Oil Purchase Units",
-                        "required": True,
-                        "options": [
-                            {"value": "boxes", "label": "Boxes"},
-                            {"value": "gallons", "label": "Gallons"},
-                            {"value": "liters", "label": "Liters"}
-                        ]
-                    },
-                    {
-                        "name": "quantity_per_month",
-                        "type": "integer",
-                        "label": "Quantity Purchased Per Month",
-                        "required": True,
-                        "placeholder": "e.g. 20",
-                        "min": 1
-                    },
-                    {
-                        "name": "cost_per_unit",
-                        "type": "currency",
-                        "label": "Cost Per Unit ($)",
-                        "required": True,
-                        "placeholder": "e.g. 45.00",
-                        "min": 0
-                    }
-                ]),
-                output_schema=json.dumps([
-                    {
-                        "name": "monthly_oil_spend",
-                        "type": "currency",
-                        "label": "Monthly Oil Spend",
-                        "description": "Current monthly expenditure on cooking oil"
-                    },
-                    {
-                        "name": "yearly_oil_spend",
-                        "type": "currency",
-                        "label": "Yearly Oil Spend",
-                        "description": "Projected annual expenditure on cooking oil"
-                    },
-                    {
-                        "name": "estimated_savings_low",
-                        "type": "currency",
-                        "label": "Estimated Savings (Low)",
-                        "description": "Conservative savings estimate (30%)"
-                    },
-                    {
-                        "name": "estimated_savings_high",
-                        "type": "currency",
-                        "label": "Estimated Savings (High)",
-                        "description": "Optimistic savings estimate (50%)"
-                    },
-                    {
-                        "name": "recommended_device_quantity",
-                        "type": "integer",
-                        "label": "Recommended Device Quantity",
-                        "description": "Number of Frylow devices needed"
-                    },
-                    {
-                        "name": "recommended_device_size",
-                        "type": "text",
-                        "label": "Recommended Device Size",
-                        "description": "Best Frylow device size for your setup"
-                    }
-                ]),
-                editable_by_roles=json.dumps(["admin", "manager", "member"]),
+                input_schema=json_module.dumps(frylow_calc_input_schema),
+                output_schema=json_module.dumps(frylow_calc_output_schema),
+                editable_by_roles=json_module.dumps(["admin", "manager", "member"]),
                 auto_run_on_input_change=True
             )
             db.add(frylow_calc)
