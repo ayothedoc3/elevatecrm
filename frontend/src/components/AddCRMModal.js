@@ -133,6 +133,8 @@ const AddCRMModal = ({ open, onClose, onSuccess }) => {
         return <Square className="w-8 h-8" />;
       case 'briefcase':
         return <Briefcase className="w-8 h-8" />;
+      case 'calculator':
+        return <Calculator className="w-8 h-8" />;
       default:
         return <Building2 className="w-8 h-8" />;
     }
