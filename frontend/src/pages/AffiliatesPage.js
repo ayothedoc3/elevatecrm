@@ -205,9 +205,31 @@ const AffiliatesPage = () => {
     }
   };
 
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Copied to clipboard');
+  const copyToClipboard = async (text) => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        toast.success('Copied to clipboard');
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          toast.success('Copied to clipboard');
+        } catch (err) {
+          toast.info(`Copy this: ${text}`);
+          prompt('Copy this:', text);
+        }
+        document.body.removeChild(textArea);
+      }
+    } catch (err) {
+      toast.info(`Copy this: ${text}`);
+      prompt('Copy this:', text);
+    }
   };
 
   const formatCurrency = (amount) => {
