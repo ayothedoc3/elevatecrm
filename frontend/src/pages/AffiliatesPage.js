@@ -873,6 +873,275 @@ const AffiliatesPage = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Materials Tab */}
+        <TabsContent value="materials" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Select value={materialCategory} onValueChange={setMaterialCategory}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {MATERIAL_CATEGORIES.map(cat => (
+                    <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-1">
+                <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('grid')}>
+                  <Grid className="w-4 h-4" />
+                </Button>
+                <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('list')}>
+                  <List className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Dialog open={showUrlDialog} onOpenChange={setShowUrlDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Link2 className="w-4 h-4 mr-2" />
+                    Add URL
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add URL Material</DialogTitle>
+                    <DialogDescription>Add a link to external content</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Name *</Label>
+                      <Input value={urlName} onChange={(e) => setUrlName(e.target.value)} placeholder="Material name" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>URL *</Label>
+                      <Input value={urlValue} onChange={(e) => setUrlValue(e.target.value)} placeholder="https://..." />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Category</Label>
+                      <Select value={urlCategory} onValueChange={setUrlCategory}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {MATERIAL_CATEGORIES.map(cat => (
+                            <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Description</Label>
+                      <Textarea value={urlDescription} onChange={(e) => setUrlDescription(e.target.value)} placeholder="Optional description" rows={2} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tags</Label>
+                      <Input value={urlTags} onChange={(e) => setUrlTags(e.target.value)} placeholder="Comma-separated tags" />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowUrlDialog(false)}>Cancel</Button>
+                    <Button onClick={handleUrlCreate} disabled={uploading}>
+                      {uploading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Add URL
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload File
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Upload Material</DialogTitle>
+                    <DialogDescription>Upload images, PDFs, or documents for affiliates</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>File *</Label>
+                      <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                        {uploadFile ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <FileText className="w-5 h-5" />
+                            <span>{uploadFile.name}</span>
+                            <Button variant="ghost" size="sm" onClick={() => setUploadFile(null)}>
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <label className="cursor-pointer">
+                            <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                            <p className="text-sm text-muted-foreground">Click to upload or drag and drop</p>
+                            <p className="text-xs text-muted-foreground mt-1">Images, PDFs up to 50MB</p>
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept="image/*,.pdf"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  setUploadFile(file);
+                                  if (!uploadName) setUploadName(file.name.replace(/\.[^/.]+$/, ''));
+                                }
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Name *</Label>
+                      <Input value={uploadName} onChange={(e) => setUploadName(e.target.value)} placeholder="Material name" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Category</Label>
+                      <Select value={uploadCategory} onValueChange={setUploadCategory}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {MATERIAL_CATEGORIES.map(cat => (
+                            <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Description</Label>
+                      <Textarea value={uploadDescription} onChange={(e) => setUploadDescription(e.target.value)} placeholder="Optional description" rows={2} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tags</Label>
+                      <Input value={uploadTags} onChange={(e) => setUploadTags(e.target.value)} placeholder="Comma-separated tags" />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowUploadDialog(false)}>Cancel</Button>
+                    <Button onClick={handleFileUpload} disabled={uploading || !uploadFile}>
+                      {uploading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Upload
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          {/* Category Pills */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge
+              variant={materialCategory === 'all' ? 'default' : 'outline'}
+              className="cursor-pointer"
+              onClick={() => setMaterialCategory('all')}
+            >
+              All ({materials.length})
+            </Badge>
+            {materialCategories.map(cat => (
+              <Badge
+                key={cat.value}
+                variant={materialCategory === cat.value ? 'default' : 'outline'}
+                className="cursor-pointer"
+                onClick={() => setMaterialCategory(cat.value)}
+              >
+                {cat.label} ({cat.count})
+              </Badge>
+            ))}
+          </div>
+
+          {/* Materials Grid/List */}
+          {filteredMaterials.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Image className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="font-semibold mb-2">No Materials Found</h3>
+                <p className="text-muted-foreground mb-4">Upload your first marketing material for affiliates</p>
+                <Button onClick={() => setShowUploadDialog(true)}>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Material
+                </Button>
+              </CardContent>
+            </Card>
+          ) : viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredMaterials.map(material => (
+                <Card key={material.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                  <div className="aspect-video bg-muted relative flex items-center justify-center">
+                    {material.material_type === 'image' && material.file_url ? (
+                      <img src={material.file_url} alt={material.name} className="w-full h-full object-cover" />
+                    ) : material.material_type === 'pdf' ? (
+                      <FileText className="w-12 h-12 text-muted-foreground" />
+                    ) : (
+                      <Link2 className="w-12 h-12 text-muted-foreground" />
+                    )}
+                    <Badge className="absolute top-2 right-2 text-xs">{material.category?.replace('_', ' ')}</Badge>
+                  </div>
+                  <CardContent className="p-4">
+                    <h3 className="font-semibold truncate">{material.name}</h3>
+                    <p className="text-sm text-muted-foreground truncate">{material.description || 'No description'}</p>
+                    <div className="flex items-center justify-between mt-3">
+                      <span className="text-xs text-muted-foreground">
+                        {material.material_type === 'url' ? 'URL' : formatFileSize(material.file_size)}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {material.file_url && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(material.file_url, '_blank')}>
+                            <ExternalLink className="w-4 h-4" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyToClipboard(material.file_url || material.url)}>
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteMaterial(material.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <div className="divide-y">
+                  {filteredMaterials.map(material => (
+                    <div key={material.id} className="flex items-center gap-4 p-4 hover:bg-muted/50">
+                      <div className="w-12 h-12 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                        {material.material_type === 'image' ? <Image className="w-6 h-6 text-muted-foreground" /> :
+                         material.material_type === 'pdf' ? <FileText className="w-6 h-6 text-muted-foreground" /> :
+                         <Link2 className="w-6 h-6 text-muted-foreground" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium truncate">{material.name}</h3>
+                        <p className="text-sm text-muted-foreground truncate">{material.description || 'No description'}</p>
+                      </div>
+                      <Badge variant="outline">{material.category?.replace('_', ' ')}</Badge>
+                      <span className="text-sm text-muted-foreground w-20 text-right">
+                        {material.material_type === 'url' ? 'URL' : formatFileSize(material.file_size)}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {material.file_url && (
+                          <Button variant="ghost" size="icon" onClick={() => window.open(material.file_url, '_blank')}>
+                            <ExternalLink className="w-4 h-4" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" onClick={() => copyToClipboard(material.file_url || material.url)}>
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteMaterial(material.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* Affiliate Detail Sheet */}
