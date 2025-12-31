@@ -298,6 +298,8 @@ const AppRoutes = () => {
       <Route path="/affiliate-portal/login" element={<AffiliateLoginPage />} />
       <Route path="/affiliate-portal/dashboard" element={<AffiliateDashboard />} />
       <Route path="/affiliate-portal" element={<Navigate to="/affiliate-portal/login" replace />} />
+      {/* Public Landing Pages - No Auth Required */}
+      <Route path="/pages/:slug" element={<PublicLandingPage />} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
