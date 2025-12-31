@@ -50,22 +50,23 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { isDark } = useTheme();
 
   return (
     <div 
-      className={`h-screen bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 ${
+      className={`h-screen border-r flex flex-col transition-all duration-300 ${
         collapsed ? 'w-[70px]' : 'w-[240px]'
-      }`}
+      } ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'}`}
     >
       {/* Logo */}
-      <div className="p-4 border-b border-slate-800">
+      <div className={`p-4 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center flex-shrink-0">
             <Flame className="w-5 h-5 text-white" />
           </div>
           {!collapsed && (
             <div>
-              <h1 className="font-bold text-white">Elevate CRM</h1>
+              <h1 className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Elevate CRM</h1>
               <p className="text-xs text-slate-500">Multi-CRM Platform</p>
             </div>
           )}
@@ -84,8 +85,8 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
                     variant={isActive ? 'secondary' : 'ghost'}
                     className={`w-full justify-start gap-3 ${
                       isActive 
-                        ? 'bg-slate-800 text-white' 
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                        ? isDark ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-900'
+                        : isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800/50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                     } ${collapsed ? 'px-3' : ''}`}
                     onClick={() => navigate(item.path)}
                   >
@@ -105,11 +106,11 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       </nav>
 
       {/* Collapse Button */}
-      <div className="p-3 border-t border-slate-800">
+      <div className={`p-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
         <Button
           variant="ghost"
           size="sm"
-          className="w-full text-slate-400 hover:text-white"
+          className={`w-full ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'}`}
           onClick={() => setCollapsed(!collapsed)}
         >
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -118,10 +119,10 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       </div>
 
       {/* User */}
-      <div className="p-3 border-t border-slate-800">
+      <div className={`p-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="w-full justify-start gap-3 text-slate-400 hover:text-white">
+            <Button variant="ghost" className={`w-full justify-start gap-3 ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'}`}>
               <Avatar className="w-8 h-8">
                 <AvatarFallback className="bg-gradient-to-br from-blue-500 to-violet-600 text-white text-xs">
                   {user?.first_name?.[0]}{user?.last_name?.[0]}
