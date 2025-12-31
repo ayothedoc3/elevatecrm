@@ -695,6 +695,63 @@ const LandingPagesPage = () => {
           ))}
         </div>
       )}
+
+      {/* Preview Dialog */}
+      <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Page Preview: {selectedPage?.name}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedPage?.status === 'published' ? (
+                <span className="text-green-600">Published at /{selectedPage?.slug}</span>
+              ) : (
+                <span className="text-muted-foreground">Draft - not yet published</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="flex-1 mt-4">
+            {selectedPage?.page_schema ? (
+              <div className="space-y-4 pr-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">{selectedPage.page_schema.page_title}</CardTitle>
+                    <CardDescription>{selectedPage.page_schema.meta_description}</CardDescription>
+                  </CardHeader>
+                </Card>
+                
+                <div className="space-y-2">
+                  {selectedPage.page_schema.sections?.map(section => renderSectionPreview(section))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <p>No content available</p>
+              </div>
+            )}
+          </ScrollArea>
+
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowPreviewDialog(false)}>Close</Button>
+            {selectedPage?.status === 'published' && (
+              <Button onClick={() => window.open(`/pages/${selectedPage.slug}`, '_blank')}>
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open Page
+              </Button>
+            )}
+            {selectedPage?.status === 'draft' && (
+              <Button onClick={() => { handlePublish(selectedPage.id); setShowPreviewDialog(false); }}>
+                <Globe className="w-4 h-4 mr-2" />
+                Publish Page
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
