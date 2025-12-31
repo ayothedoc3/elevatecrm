@@ -847,6 +847,147 @@ const LandingPagesPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="w-5 h-5" />
+              Edit Page: {selectedPage?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Edit sections, reorder, or delete them
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="flex-1 mt-4">
+            {selectedPage?.page_schema?.sections ? (
+              <div className="space-y-4 pr-4">
+                {selectedPage.page_schema.sections.map((section, index) => (
+                  <Card key={index} className="overflow-hidden">
+                    <CardHeader className="py-3 px-4 bg-muted flex flex-row items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge>{section.type.toUpperCase()}</Badge>
+                        <span className="text-sm text-muted-foreground">Order: {section.order}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={() => handleMoveSection(index, 'up')}
+                          disabled={index === 0}
+                        >
+                          <ArrowUp className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={() => handleMoveSection(index, 'down')}
+                          disabled={index === selectedPage.page_schema.sections.length - 1}
+                        >
+                          <ArrowDown className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => handleEditSection(section, index)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="text-destructive"
+                          onClick={() => handleDeleteSection(index)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    
+                    {editingSectionIndex === index ? (
+                      <CardContent className="p-4 space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Headline</Label>
+                            <Input 
+                              value={editingSection?.headline || ''} 
+                              onChange={(e) => setEditingSection({...editingSection, headline: e.target.value})}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Subheadline</Label>
+                            <Input 
+                              value={editingSection?.subheadline || ''} 
+                              onChange={(e) => setEditingSection({...editingSection, subheadline: e.target.value})}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Body Text</Label>
+                          <Textarea 
+                            value={editingSection?.body_text || ''} 
+                            onChange={(e) => setEditingSection({...editingSection, body_text: e.target.value})}
+                            rows={3}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>CTA Text</Label>
+                            <Input 
+                              value={editingSection?.cta_text || ''} 
+                              onChange={(e) => setEditingSection({...editingSection, cta_text: e.target.value})}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>CTA URL</Label>
+                            <Input 
+                              value={editingSection?.cta_url || ''} 
+                              onChange={(e) => setEditingSection({...editingSection, cta_url: e.target.value})}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => { setEditingSection(null); setEditingSectionIndex(null); }}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleSaveSection} disabled={saving}>
+                            {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            Save Section
+                          </Button>
+                        </div>
+                      </CardContent>
+                    ) : (
+                      <CardContent className="p-4">
+                        {section.headline && <p className="font-semibold">{section.headline}</p>}
+                        {section.subheadline && <p className="text-sm text-muted-foreground">{section.subheadline}</p>}
+                        {section.body_text && <p className="text-sm mt-2 line-clamp-2">{section.body_text}</p>}
+                        {section.cta_text && (
+                          <Badge variant="outline" className="mt-2">CTA: {section.cta_text}</Badge>
+                        )}
+                      </CardContent>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <p>No sections to edit</p>
+              </div>
+            )}
+          </ScrollArea>
+
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>Close</Button>
+            <Button onClick={() => { setShowEditDialog(false); handlePreview(selectedPage); }}>
+              <Eye className="w-4 h-4 mr-2" />
+              Preview
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
