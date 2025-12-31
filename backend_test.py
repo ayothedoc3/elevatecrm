@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Elevate CRM - Phase 1 Affiliate System
-Tests Marketing Materials, Affiliate Portal, and Attribution Engine
+Backend API Testing for AI Landing Page Builder
+Tests Landing Pages CRUD, AI Generation, Publishing, Version Management, and Public Access
 """
 
 import requests
@@ -14,11 +14,9 @@ from datetime import datetime
 BACKEND_URL = "https://affilinker-8.preview.emergentagent.com/api"
 ADMIN_EMAIL = "admin@demo.com"
 ADMIN_PASSWORD = "admin123"
-AFFILIATE_EMAIL = "sarah@affiliate.com"
-AFFILIATE_PASSWORD = "affiliate123"
 TENANT_SLUG = "demo"
 
-class Phase1AffiliateSystemTester:
+class AILandingPageBuilderTester:
     def __init__(self):
         self.session = requests.Session()
         self.admin_token = None
