@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Elevate CRM - Affiliate Management System
-Tests all affiliate-related endpoints and functionality
+Backend API Testing for Elevate CRM - Phase 1 Affiliate System
+Tests Marketing Materials, Affiliate Portal, and Attribution Engine
 """
 
 import requests
@@ -12,8 +12,10 @@ from datetime import datetime
 
 # Configuration
 BACKEND_URL = "https://affilinker-8.preview.emergentagent.com/api"
-LOGIN_EMAIL = "admin@demo.com"
-LOGIN_PASSWORD = "admin123"
+ADMIN_EMAIL = "admin@demo.com"
+ADMIN_PASSWORD = "admin123"
+AFFILIATE_EMAIL = "sarah@affiliate.com"
+AFFILIATE_PASSWORD = "affiliate123"
 TENANT_SLUG = "demo"
 
 class AffiliateAPITester:
