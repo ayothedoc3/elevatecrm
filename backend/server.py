@@ -1213,6 +1213,30 @@ async def list_workflow_blueprints(user: dict = Depends(get_current_user)):
     return {"blueprints": blueprints, "total": len(blueprints)}
 
 
+# ==================== STORAGE FILE SERVING ====================
+
+from fastapi.responses import FileResponse
+import aiofiles
+
+@api_router.get("/storage/files/{file_path:path}")
+async def serve_storage_file(file_path: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Serve files from local storage (authenticated)"""
+    user = await get_current_user(credentials)
+    
+    # Construct full path
+    base_path = "/app/backend/uploads"
+    full_path = os.path.join(base_path, file_path)
+    
+    # Security: Prevent directory traversal
+    if not os.path.abspath(full_path).startswith(os.path.abspath(base_path)):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return FileResponse(full_path)
+
+
 # ==================== SEED DATA ====================
 
 async def seed_demo_data():
