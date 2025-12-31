@@ -359,9 +359,24 @@ async def create_affiliate(
     }
     
     await db.affiliates.insert_one(affiliate)
-    affiliate.pop("payout_details")  # Don't return sensitive data
     
-    return affiliate
+    # Return clean response without _id and payout_details
+    return {
+        "id": affiliate["id"],
+        "tenant_id": affiliate["tenant_id"],
+        "name": affiliate["name"],
+        "email": affiliate["email"],
+        "phone": affiliate["phone"],
+        "company": affiliate["company"],
+        "website": affiliate["website"],
+        "status": affiliate["status"],
+        "payout_method": affiliate["payout_method"],
+        "notes": affiliate["notes"],
+        "total_earnings": affiliate["total_earnings"],
+        "total_paid": affiliate["total_paid"],
+        "created_at": affiliate["created_at"],
+        "updated_at": affiliate["updated_at"]
+    }
 
 
 # ==================== PROGRAM ENDPOINTS ====================
