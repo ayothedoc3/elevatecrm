@@ -310,11 +310,16 @@ metadata:
   run_ui: true
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Dark/Light Mode Toggle"
+    - "Frylow ROI Calculator"
+    - "Custom Objects System"
   stuck_tasks: []
   test_all: false
-  test_priority: "completed"
+  test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
     message: "Implemented 3 major features: 1) Dark/Light mode toggle 2) Frylow ROI Calculator with full backend logic 3) Custom Objects system. Please test: Login, toggle theme (sun/moon icon in header), go to Pipeline->click deal->Calculator tab should show ROI form, go to Objects page and create a custom object."
+  - agent: "testing"
+    message: "Starting comprehensive testing of the 3 new features: Dark/Light mode toggle, Frylow ROI Calculator, and Custom Objects system. Will test login flow, theme switching, calculator functionality, and custom object creation/management."
