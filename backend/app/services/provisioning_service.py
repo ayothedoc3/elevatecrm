@@ -18,7 +18,7 @@ from app.models import (
     CalculationDefinition, StageTransitionRule,
     WorkspaceStatus, ProvisioningStatus, WorkspaceRole
 )
-from app.blueprints.frylow_blueprint import get_blueprint_json, get_all_blueprints, FRYLOW_BLUEPRINT, BLANK_BLUEPRINT
+from app.blueprints.frylow_blueprint import get_blueprint_json, get_all_blueprints, FRYLOW_BLUEPRINT, BLANK_BLUEPRINT, NLA_ACCOUNTING_BLUEPRINT
 
 logger = logging.getLogger(__name__)
 
