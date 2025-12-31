@@ -269,39 +269,48 @@ frontend:
 
   - task: "Dark/Light Mode Toggle"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/contexts/ThemeContext.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented theme context and toggle button in header with sun/moon icons"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Dark/Light mode toggle working perfectly - found theme toggle button in header, successfully toggled from light to dark mode, entire UI changed themes including sidebar, cards, and background. Theme persistence working correctly with localStorage. Both directions of toggle tested and working."
 
   - task: "Frylow ROI Calculator"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/pages/PipelinePage.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented ROI calculator in deal detail sheet Calculator tab with backend integration"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Frylow ROI Calculator fully functional - successfully accessed through Pipeline page > deal card > Calculator tab. Calculator displays 'Frylow ROI Calculator' with all required fields: Number of Fryers (integer input), Fryer Capacities (multi-select buttons: 16L, 30L, 45L), Oil Purchase Units (dropdown), Quantity Purchased Per Month (integer input), Cost Per Unit ($) (currency input), and Calculate & Save button. All form inputs working correctly."
 
   - task: "Custom Objects System"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/pages/CustomObjectsPage.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented custom objects page with create object dialog, field management, and record CRUD operations"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Custom Objects system fully functional - successfully navigated to Objects page showing 'Custom Objects' header, Create Object button opens dialog with Basic Info and Fields tabs, icon and color selectors working, field management allows adding custom fields with different types (text, currency, etc.), required field marking works, object creation process complete. All UI components and workflows tested successfully."
 
 metadata:
   created_by: "main_agent"
