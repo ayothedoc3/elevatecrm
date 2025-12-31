@@ -217,10 +217,48 @@ const LandingPagesPage = () => {
     setCreateForm({ name: '', page_type: 'generic', affiliate_program_id: '' });
   };
 
-  const copySlug = (slug) => {
+  const copySlug = async (slug) => {
     const url = `${window.location.origin}/pages/${slug}`;
-    navigator.clipboard.writeText(url);
-    toast.success('URL copied to clipboard');
+    try {
+      // Try modern clipboard API first
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(url);
+        toast.success('URL copied to clipboard');
+      } else {
+        // Fallback for non-secure contexts or blocked clipboard
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          toast.success('URL copied to clipboard');
+        } catch (err) {
+          // If all else fails, show the URL in a prompt
+          toast.info(`Copy this URL: ${url}`);
+          prompt('Copy this URL:', url);
+        }
+        document.body.removeChild(textArea);
+      }
+    } catch (err) {
+      // Show URL in prompt as final fallback
+      toast.info(`Copy this URL: ${url}`);
+      prompt('Copy this URL:', url);
+    }
+  };
+
+  const handlePreview = async (page) => {
+    setSelectedPage(page);
+    // Fetch full page data if needed
+    try {
+      const response = await api.get(`/landing-pages/${page.id}`);
+      setSelectedPage(response.data);
+      setShowPreviewDialog(true);
+    } catch (error) {
+      toast.error('Failed to load page preview');
+    }
   };
 
   const filteredPages = pages.filter(p => {
