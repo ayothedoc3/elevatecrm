@@ -20,10 +20,10 @@ class AILandingPageBuilderTester:
     def __init__(self):
         self.session = requests.Session()
         self.admin_token = None
-        self.affiliate_token = None
         self.admin_user_data = None
-        self.affiliate_user_data = None
         self.test_results = []
+        self.created_page_id = None
+        self.created_page_slug = None
         
     def log_test(self, test_name, success, details="", error=None):
         """Log test result"""
