@@ -23,7 +23,7 @@ import {
 import {
   LayoutDashboard, Users, Target, GitBranch, MessageSquare,
   FileText, Settings, LogOut, ChevronLeft, ChevronRight,
-  Flame, Bell, Search, Menu, Plus, Sun, Moon, Box, BarChart3, Activity, UserPlus
+  Flame, Bell, Search, Menu, Plus, Sun, Moon, Box, BarChart3, Activity, UserPlus, Image
 } from 'lucide-react';
 
 import LoginPage from './pages/LoginPage';
@@ -38,6 +38,7 @@ import CustomObjectsPage from './pages/CustomObjectsPage';
 import ActivityPage from './pages/ActivityPage';
 import ReportsPage from './pages/ReportsPage';
 import AffiliatesPage from './pages/AffiliatesPage';
+import MaterialsPage from './pages/MaterialsPage';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 
 const navItems = [
@@ -47,6 +48,7 @@ const navItems = [
   { path: '/activity', icon: Activity, label: 'Activity' },
   { path: '/reports', icon: BarChart3, label: 'Reports' },
   { path: '/affiliates', icon: UserPlus, label: 'Affiliates' },
+  { path: '/materials', icon: Image, label: 'Materials' },
   { path: '/inbox', icon: MessageSquare, label: 'Inbox' },
   { path: '/workflows', icon: GitBranch, label: 'Workflows' },
   { path: '/forms', icon: FileText, label: 'Forms' },
