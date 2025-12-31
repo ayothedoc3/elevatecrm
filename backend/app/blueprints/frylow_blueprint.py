@@ -530,10 +530,425 @@ BLANK_BLUEPRINT = {
 }
 
 
+# NLA Accounting CRM Blueprint
+NLA_ACCOUNTING_BLUEPRINT = {
+    "name": "NLA Accounting CRM",
+    "slug": "nla-accounting",
+    "description": "Complete CRM for accounting firms with tax filing workflow and client management",
+    "version": 1,
+    "icon": "calculator",
+    "color": "#3B82F6",
+    
+    # ==================== PIPELINES ====================
+    "pipelines": [
+        {
+            "name": "Tax Filing Pipeline",
+            "slug": "tax-filing",
+            "description": "15-step tax filing workflow from intake to final review",
+            "is_default": True,
+            "display_order": 0,
+            "stages": [
+                {
+                    "name": "New Client Intake",
+                    "slug": "intake",
+                    "description": "Initial client registration and document request",
+                    "display_order": 0,
+                    "probability": 5,
+                    "color": "#6366F1",
+                    "rules": {
+                        "require_client_info": True,
+                        "send_welcome_packet": True
+                    }
+                },
+                {
+                    "name": "Documents Requested",
+                    "slug": "docs-requested",
+                    "description": "Tax documents requested from client",
+                    "display_order": 1,
+                    "probability": 10,
+                    "color": "#818CF8",
+                    "rules": {
+                        "send_document_checklist": True,
+                        "reminder_days": [3, 7, 14]
+                    }
+                },
+                {
+                    "name": "Documents Received",
+                    "slug": "docs-received",
+                    "description": "All required documents collected",
+                    "display_order": 2,
+                    "probability": 20,
+                    "color": "#8B5CF6",
+                    "rules": {
+                        "require_document_checklist_complete": True
+                    }
+                },
+                {
+                    "name": "Initial Review",
+                    "slug": "initial-review",
+                    "description": "Preliminary review of documents",
+                    "display_order": 3,
+                    "probability": 25,
+                    "color": "#A855F7",
+                    "rules": {
+                        "assign_reviewer": True
+                    }
+                },
+                {
+                    "name": "Data Entry",
+                    "slug": "data-entry",
+                    "description": "Entering data into tax software",
+                    "display_order": 4,
+                    "probability": 30,
+                    "color": "#C084FC"
+                },
+                {
+                    "name": "Calculation Review",
+                    "slug": "calc-review",
+                    "description": "Reviewing calculated tax amounts",
+                    "display_order": 5,
+                    "probability": 40,
+                    "color": "#D946EF",
+                    "rules": {
+                        "require_calculation_verification": True
+                    }
+                },
+                {
+                    "name": "Manager Review",
+                    "slug": "manager-review",
+                    "description": "Senior review of tax return",
+                    "display_order": 6,
+                    "probability": 50,
+                    "color": "#E879F9",
+                    "rules": {
+                        "require_manager_role": True
+                    }
+                },
+                {
+                    "name": "Corrections Needed",
+                    "slug": "corrections",
+                    "description": "Issues found requiring correction",
+                    "display_order": 7,
+                    "probability": 35,
+                    "color": "#F59E0B",
+                    "rules": {
+                        "is_return_stage": True
+                    }
+                },
+                {
+                    "name": "Ready for Client Review",
+                    "slug": "client-review",
+                    "description": "Tax return ready for client approval",
+                    "display_order": 8,
+                    "probability": 60,
+                    "color": "#F97316"
+                },
+                {
+                    "name": "Client Reviewing",
+                    "slug": "client-reviewing",
+                    "description": "Awaiting client feedback",
+                    "display_order": 9,
+                    "probability": 65,
+                    "color": "#FB923C",
+                    "rules": {
+                        "reminder_days": [2, 5]
+                    }
+                },
+                {
+                    "name": "Client Approved",
+                    "slug": "client-approved",
+                    "description": "Client signed off on return",
+                    "display_order": 10,
+                    "probability": 75,
+                    "color": "#22C55E",
+                    "rules": {
+                        "require_e_signature": True
+                    }
+                },
+                {
+                    "name": "Payment Pending",
+                    "slug": "payment-pending",
+                    "description": "Awaiting payment for services",
+                    "display_order": 11,
+                    "probability": 80,
+                    "color": "#10B981",
+                    "rules": {
+                        "send_invoice": True
+                    }
+                },
+                {
+                    "name": "Ready to File",
+                    "slug": "ready-to-file",
+                    "description": "All requirements met, ready for filing",
+                    "display_order": 12,
+                    "probability": 90,
+                    "color": "#14B8A6",
+                    "rules": {
+                        "require_payment_or_arrangement": True
+                    }
+                },
+                {
+                    "name": "Filed",
+                    "slug": "filed",
+                    "description": "Tax return submitted",
+                    "display_order": 13,
+                    "probability": 95,
+                    "color": "#06B6D4",
+                    "rules": {
+                        "require_confirmation_number": True
+                    }
+                },
+                {
+                    "name": "Completed",
+                    "slug": "completed",
+                    "description": "All tax filing work completed",
+                    "display_order": 14,
+                    "probability": 100,
+                    "color": "#10B981",
+                    "is_won_stage": True,
+                    "rules": {
+                        "archive_documents": True
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Client Acquisition",
+            "slug": "acquisition",
+            "description": "New client acquisition pipeline",
+            "is_default": False,
+            "display_order": 1,
+            "stages": [
+                {"name": "Lead", "slug": "lead", "display_order": 0, "probability": 10, "color": "#6366F1"},
+                {"name": "Contacted", "slug": "contacted", "display_order": 1, "probability": 20, "color": "#8B5CF6"},
+                {"name": "Meeting Scheduled", "slug": "meeting", "display_order": 2, "probability": 40, "color": "#A855F7"},
+                {"name": "Proposal Sent", "slug": "proposal", "display_order": 3, "probability": 60, "color": "#D946EF"},
+                {"name": "Negotiation", "slug": "negotiation", "display_order": 4, "probability": 75, "color": "#EC4899"},
+                {"name": "Won - New Client", "slug": "won", "display_order": 5, "probability": 100, "color": "#10B981", "is_won_stage": True},
+                {"name": "Lost", "slug": "lost", "display_order": 6, "probability": 0, "color": "#EF4444", "is_lost_stage": True}
+            ]
+        }
+    ],
+    
+    # ==================== CALCULATIONS ====================
+    "calculations": [
+        {
+            "name": "Tax Preparation Quote Calculator",
+            "slug": "tax-quote",
+            "description": "Calculate estimated fees based on tax complexity",
+            "version": 1,
+            "inputs": [
+                {
+                    "name": "filing_type",
+                    "type": "select",
+                    "label": "Filing Type",
+                    "required": True,
+                    "options": [
+                        {"value": "individual", "label": "Individual (1040)"},
+                        {"value": "business_sole", "label": "Sole Proprietor (Schedule C)"},
+                        {"value": "business_llc", "label": "LLC/Partnership"},
+                        {"value": "business_scorp", "label": "S-Corporation"},
+                        {"value": "business_ccorp", "label": "C-Corporation"}
+                    ]
+                },
+                {
+                    "name": "has_rental_income",
+                    "type": "checkbox",
+                    "label": "Has Rental Income Properties"
+                },
+                {
+                    "name": "rental_properties",
+                    "type": "integer",
+                    "label": "Number of Rental Properties",
+                    "required": False,
+                    "min": 0
+                },
+                {
+                    "name": "has_investments",
+                    "type": "checkbox",
+                    "label": "Has Investment Income"
+                },
+                {
+                    "name": "state_returns",
+                    "type": "integer",
+                    "label": "Number of State Returns",
+                    "required": True,
+                    "min": 0,
+                    "max": 10
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "base_fee",
+                    "type": "currency",
+                    "label": "Base Preparation Fee",
+                    "currency": "USD"
+                },
+                {
+                    "name": "rental_fee",
+                    "type": "currency",
+                    "label": "Rental Property Fee",
+                    "currency": "USD"
+                },
+                {
+                    "name": "state_fee",
+                    "type": "currency",
+                    "label": "State Return Fees",
+                    "currency": "USD"
+                },
+                {
+                    "name": "total_estimate",
+                    "type": "currency",
+                    "label": "Total Estimated Fee",
+                    "currency": "USD"
+                }
+            ],
+            "editable_by_roles": ["admin", "manager", "accountant"]
+        }
+    ],
+    
+    # ==================== STAGE TRANSITION RULES ====================
+    "transition_rules": [
+        {
+            "pipeline": "tax-filing",
+            "from_stage": "intake",
+            "to_stage": "docs-requested",
+            "rule_type": "require_contact_info",
+            "config": {"fields": ["email", "phone"]},
+            "error_message": "Client contact information required before requesting documents"
+        },
+        {
+            "pipeline": "tax-filing",
+            "from_stage": "docs-requested",
+            "to_stage": "docs-received",
+            "rule_type": "require_documents",
+            "config": {"min_documents": 1},
+            "error_message": "At least one document must be uploaded"
+        },
+        {
+            "pipeline": "tax-filing",
+            "from_stage": "client-review",
+            "to_stage": "client-approved",
+            "rule_type": "require_action",
+            "config": {"action_type": "e_signature"},
+            "error_message": "Client signature required for approval"
+        },
+        {
+            "pipeline": "tax-filing",
+            "from_stage": "client-approved",
+            "to_stage": "ready-to-file",
+            "rule_type": "require_action",
+            "config": {"action_type": "payment_received"},
+            "error_message": "Payment must be received or payment arrangement made"
+        },
+        {
+            "pipeline": "tax-filing",
+            "from_stage": "ready-to-file",
+            "to_stage": "filed",
+            "rule_type": "require_field",
+            "config": {"field": "confirmation_number"},
+            "error_message": "Filing confirmation number required"
+        }
+    ],
+    
+    # ==================== FORMS ====================
+    "forms": [
+        {
+            "name": "New Client Registration",
+            "slug": "client-registration",
+            "description": "Register new tax preparation clients",
+            "fields": [
+                {"name": "first_name", "type": "text", "label": "First Name", "required": True},
+                {"name": "last_name", "type": "text", "label": "Last Name", "required": True},
+                {"name": "email", "type": "email", "label": "Email", "required": True},
+                {"name": "phone", "type": "phone", "label": "Phone", "required": True},
+                {"name": "filing_type", "type": "select", "label": "Filing Type", "required": True,
+                 "options": ["Individual", "Business", "Both"]},
+                {"name": "referred_by", "type": "text", "label": "Referred By", "required": False}
+            ],
+            "create_contact": True,
+            "create_deal": True,
+            "assign_pipeline": "tax-filing",
+            "assign_stage": "intake",
+            "success_message": "Thank you! We'll be in touch shortly to begin your tax preparation."
+        }
+    ],
+    
+    # ==================== WORKFLOW AUTOMATIONS ====================
+    "automations": [
+        {
+            "name": "Welcome Email",
+            "trigger": {"type": "stage_entered", "stage": "intake"},
+            "actions": [
+                {"type": "send_email", "template": "nla_welcome", "delay_minutes": 0}
+            ],
+            "is_active": True
+        },
+        {
+            "name": "Document Request",
+            "trigger": {"type": "stage_entered", "stage": "docs-requested"},
+            "actions": [
+                {"type": "send_email", "template": "document_checklist", "delay_minutes": 0}
+            ],
+            "is_active": True
+        },
+        {
+            "name": "Document Reminder",
+            "trigger": {"type": "time_in_stage", "stage": "docs-requested", "days": 7},
+            "actions": [
+                {"type": "send_email", "template": "document_reminder"}
+            ],
+            "is_active": True
+        },
+        {
+            "name": "Review Ready Notification",
+            "trigger": {"type": "stage_entered", "stage": "client-review"},
+            "actions": [
+                {"type": "send_email", "template": "review_ready"},
+                {"type": "send_sms", "template": "review_notification"}
+            ],
+            "is_active": True
+        }
+    ],
+    
+    # ==================== CUSTOM PROPERTIES ====================
+    "custom_properties": {
+        "contact": [
+            {"name": "ssn_last_four", "type": "text", "label": "SSN (Last 4)", "encrypted": True},
+            {"name": "filing_status", "type": "select", "label": "Filing Status",
+             "options": ["Single", "Married Filing Jointly", "Married Filing Separately", "Head of Household"]},
+            {"name": "occupation", "type": "text", "label": "Occupation"},
+            {"name": "employer", "type": "text", "label": "Employer"},
+            {"name": "prior_year_client", "type": "checkbox", "label": "Returning Client"}
+        ],
+        "deal": [
+            {"name": "tax_year", "type": "select", "label": "Tax Year",
+             "options": ["2024", "2023", "2022", "2021"]},
+            {"name": "complexity_level", "type": "select", "label": "Complexity",
+             "options": ["Simple", "Moderate", "Complex", "Very Complex"]},
+            {"name": "estimated_refund", "type": "currency", "label": "Estimated Refund"},
+            {"name": "balance_due", "type": "currency", "label": "Balance Due"},
+            {"name": "assigned_preparer", "type": "user", "label": "Assigned Preparer"},
+            {"name": "assigned_reviewer", "type": "user", "label": "Assigned Reviewer"}
+        ]
+    },
+    
+    # ==================== KPIs ====================
+    "kpis": [
+        {"name": "Document Turnaround", "type": "time_to_stage", "from": "docs-requested", "to": "docs-received", "target_days": 7},
+        {"name": "Preparation Time", "type": "time_to_stage", "from": "docs-received", "to": "client-review", "target_days": 5},
+        {"name": "Client Approval Rate", "type": "conversion", "from": "client-review", "to": "client-approved", "target_percent": 95},
+        {"name": "Filing Completion Rate", "type": "conversion", "from": "intake", "to": "completed", "target_percent": 90},
+        {"name": "Average Revenue per Client", "type": "average", "field": "deal.amount", "target": 500}
+    ]
+}
+
+
 def get_blueprint_json(slug: str) -> dict:
     """Get blueprint configuration by slug"""
     blueprints = {
         "frylow-sales": FRYLOW_BLUEPRINT,
+        "nla-accounting": NLA_ACCOUNTING_BLUEPRINT,
         "blank": BLANK_BLUEPRINT
     }
     return blueprints.get(slug, BLANK_BLUEPRINT)
@@ -543,5 +958,6 @@ def get_all_blueprints() -> list:
     """Get all available blueprints"""
     return [
         {"slug": "frylow-sales", "name": "Frylow Sales CRM", "is_default": True, "config": FRYLOW_BLUEPRINT},
+        {"slug": "nla-accounting", "name": "NLA Accounting CRM", "is_default": False, "config": NLA_ACCOUNTING_BLUEPRINT},
         {"slug": "blank", "name": "Blank CRM", "is_default": False, "config": BLANK_BLUEPRINT}
     ]
