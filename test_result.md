@@ -408,17 +408,95 @@ frontend:
         agent: "testing"
         comment: "✅ COMPREHENSIVE AFFILIATE MANAGEMENT TESTING COMPLETED: All core functionality working perfectly. ✅ NAVIGATION & PAGE LOAD: Successfully navigated to Affiliates page via sidebar, header 'Affiliate Management' displays correctly. ✅ DASHBOARD STATS: All 5 stats cards working - Total Affiliates (5), Active count (3 active), Total Clicks (0), Pending ($0), Approved ($0), Total Paid ($0). ✅ AFFILIATES TAB: Table displays 5 affiliate entries with proper columns (Affiliate, Status, Links, Clicks, Earnings, Paid), status badges working (Pending-yellow, Active-green), 2 Approve buttons present for pending affiliates, affiliate detail sheets open correctly when clicking rows. ✅ PROGRAMS TAB: Displays program cards with journey types and commission information. ✅ ADD AFFILIATE FLOW: Dialog opens successfully, form fields functional (Name, Email), submission works. ✅ NEW PROGRAM FLOW: Dialog opens successfully, form fields functional (Program Name), submission works. ✅ COMMISSIONS TAB: Displays properly with empty state message. ✅ LINKS TAB: Displays with 'Affiliate Links' header and appropriate content. All requested functionality from review request verified and working."
 
-  - task: "AI Landing Page Builder API"
+  - task: "Settings Module - Workspace Settings API"
     implemented: true
     working: true
-    file: "/app/backend/app/api/landing_pages_routes.py"
+    file: "/app/backend/app/api/settings_routes.py"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: true
+        agent: "main"
+        comment: "Implemented workspace settings API with GET/PUT endpoints for name, description, logo, color, timezone, currency"
+      - working: true
         agent: "testing"
-        comment: "✅ AI LANDING PAGE BUILDER COMPREHENSIVE TESTING COMPLETED - 100% SUCCESS RATE (15/15 tests passed). ✅ LANDING PAGES CRUD API: All 5 core endpoints working perfectly - GET /landing-pages (list), POST /landing-pages (create manual), GET /landing-pages/{id} (get specific), PUT /landing-pages/{id} (update), DELETE /landing-pages/{id} (delete/archive). ✅ AI GENERATION API: POST /landing-pages/generate successfully generated landing page with 6 sections using gpt-4o model for Frylow affiliate recruitment with proper schema structure. ✅ PUBLISHING API: POST /landing-pages/{id}/publish and POST /landing-pages/{id}/unpublish working correctly, returning proper slug for public access. ✅ VERSION MANAGEMENT: GET /landing-pages/{id}/versions and POST /landing-pages/{id}/rollback/{version_number} working perfectly for version control. ✅ PUBLIC PAGE ACCESS: GET /landing-pages/public/{slug} working without authentication, properly serving published pages. ✅ ANALYTICS: View count increment working correctly, tracking page views accurately. All AI integration, authentication, data persistence, and public access functionality verified and working."
+        comment: "✅ WORKSPACE SETTINGS API FULLY TESTED: Both endpoints working perfectly. ✅ GET /settings/workspace: Successfully retrieved workspace settings with all required fields (workspace_id, name, primary_color, timezone, currency). ✅ PUT /settings/workspace: Successfully updated workspace settings (name: 'Updated Test Workspace', currency: 'EUR', timezone: 'America/New_York', color: '#FF6B6B'). All updates properly reflected in response and audit logs created."
+
+  - task: "Settings Module - AI Configuration API"
+    implemented: true
+    working: true
+    file: "/app/backend/app/api/settings_routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented AI config API with GET/PUT endpoints, usage stats, status check, provider management"
+      - working: true
+        agent: "testing"
+        comment: "✅ AI CONFIGURATION API COMPREHENSIVE TESTING COMPLETED: All 4 endpoints working perfectly. ✅ GET /settings/ai: Retrieved AI config with all required fields (default_provider, default_model, features_enabled, usage_limits, configured_providers). ✅ PUT /settings/ai: Successfully updated AI configuration (provider: openai, model: gpt-4o, features enabled/disabled). ✅ GET /settings/ai/usage: Retrieved usage statistics for 30 days. ✅ GET /settings/ai/status: Status check working (is_configured: True, has_fallback_key: True). All AI configuration management functional."
+
+  - task: "Settings Module - Integrations API (CRITICAL Security)"
+    implemented: true
+    working: true
+    file: "/app/backend/app/api/settings_routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented secure integrations API with encryption, key masking, CRUD operations, connection testing"
+      - working: true
+        agent: "testing"
+        comment: "✅ INTEGRATIONS API CRITICAL SECURITY TESTING COMPLETED - 100% SECURE: All 6 endpoints working with proper security. ✅ SECURITY VERIFICATION: API keys NEVER returned in responses - only masked hints (••••••••abcd). ✅ GET /settings/integrations: Listed integrations by category (ai, communication, payment) with proper masking. ✅ POST /settings/integrations: Successfully added OpenAI integration with immediate key encryption. ✅ GET /settings/integrations/{provider}: Retrieved specific integration with masked key. ✅ PATCH /settings/integrations/{provider}/toggle: Enable/disable functionality working. ✅ POST /settings/integrations/test: Connection test endpoint working. ✅ DELETE /settings/integrations/{provider}: Integration revocation working. All security requirements met - keys encrypted immediately and never exposed."
+
+  - task: "Settings Module - Providers Info API"
+    implemented: true
+    working: true
+    file: "/app/backend/app/api/settings_routes.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented providers info API listing all available provider types and categories"
+      - working: true
+        agent: "testing"
+        comment: "✅ PROVIDERS INFO API TESTED: Successfully retrieved all available providers categorized by type. AI providers (3): OpenAI, Anthropic, OpenRouter. Communication providers (3): Twilio, SendGrid, Mailgun. Payment providers (3): Stripe, Wise, PayPal. All provider information includes models, key URLs, and configuration fields."
+
+  - task: "Settings Module - Affiliate Settings API"
+    implemented: true
+    working: true
+    file: "/app/backend/app/api/settings_routes.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented affiliate settings API with GET/PUT endpoints for system configuration"
+      - working: true
+        agent: "testing"
+        comment: "✅ AFFILIATE SETTINGS API TESTED: Both endpoints working perfectly. ✅ GET /settings/affiliates: Retrieved affiliate system settings with defaults. ✅ PUT /settings/affiliates: Successfully updated affiliate settings (enabled: true, currency: USD, attribution window: 30 days, approval mode: manual, min payout: $100). All updates properly reflected in response."
+
+  - task: "Settings Module - Audit Logs API"
+    implemented: true
+    working: true
+    file: "/app/backend/app/api/settings_routes.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented audit logs API for tracking all settings changes and key operations"
+      - working: true
+        agent: "testing"
+        comment: "✅ AUDIT LOGS API TESTED: Successfully retrieved audit log entries. Found 14 total audit log entries tracking all settings operations including key additions, updates, revocations, and configuration changes. Proper pagination and filtering support working."
 
 metadata:
   created_by: "main_agent"
