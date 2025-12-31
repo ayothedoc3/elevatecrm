@@ -549,11 +549,12 @@ class SettingsModuleTester:
             
             if response.status_code == 200:
                 data = response.json()
-                if data.get("success"):
+                # Check if the response contains the updated affiliate settings
+                if data.get("enabled") == update_data["enabled"] and data.get("min_payout_threshold") == update_data["min_payout_threshold"]:
                     self.log_test("PUT /settings/affiliates", True, "Affiliate settings updated successfully")
                     return True
                 else:
-                    self.log_test("PUT /settings/affiliates", False, "Affiliate settings update failed")
+                    self.log_test("PUT /settings/affiliates", False, "Updated affiliate settings not reflected in response")
                     return False
             else:
                 self.log_test("PUT /settings/affiliates", False, f"Status: {response.status_code}", response.text)
