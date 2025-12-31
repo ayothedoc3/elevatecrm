@@ -161,6 +161,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
 
 const TopBar = () => {
   const { user } = useAuth();
+  const { theme, toggleTheme, isDark } = useTheme();
   
   return (
     <div className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 flex items-center justify-between">
@@ -178,13 +179,34 @@ const TopBar = () => {
         </div>
       </div>
       
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
+        {/* Theme Toggle */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={toggleTheme}
+              className="relative"
+            >
+              {isDark ? (
+                <Sun className="w-5 h-5 text-yellow-500" />
+              ) : (
+                <Moon className="w-5 h-5 text-slate-700" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            Switch to {isDark ? 'light' : 'dark'} mode
+          </TooltipContent>
+        </Tooltip>
+        
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="w-5 h-5" />
           <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
         </Button>
         
-        <div className="text-right">
+        <div className="text-right ml-2">
           <p className="text-sm font-medium">{user?.first_name} {user?.last_name}</p>
           <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
         </div>
