@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for AI Landing Page Builder
-Tests Landing Pages CRUD, AI Generation, Publishing, Version Management, and Public Access
+Backend API Testing for Elevate CRM Settings Module
+Tests Settings APIs: Workspace, AI Config, Integrations, Affiliates, Audit Logs, Providers
 """
 
 import requests
