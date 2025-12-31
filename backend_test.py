@@ -606,10 +606,10 @@ class SettingsModuleTester:
             return False
     
     def run_all_tests(self):
-        """Run all AI Landing Page Builder tests"""
-        print("🚀 Starting AI Landing Page Builder API Tests")
+        """Run all Settings Module tests"""
+        print("🚀 Starting Settings Module API Tests")
         print("=" * 70)
-        print("Testing: Landing Pages CRUD + AI Generation + Publishing + Versions + Public Access")
+        print("Testing: Workspace Settings + AI Config + Integrations + Affiliates + Audit Logs + Providers")
         print("=" * 70)
         
         # Authentication is required for all tests
@@ -620,36 +620,43 @@ class SettingsModuleTester:
         # Test basic health
         self.test_health_check()
         
-        print("\n📋 LANDING PAGES CRUD API TESTS")
+        print("\n🏢 WORKSPACE SETTINGS API TESTS")
         print("-" * 50)
-        self.test_landing_pages_list()
-        self.test_landing_page_create_manual()
-        self.test_landing_page_get_specific()
-        self.test_landing_page_update()
+        self.test_get_workspace_settings()
+        self.test_update_workspace_settings()
         
-        print("\n🤖 AI GENERATION API TESTS")
+        print("\n🤖 AI CONFIGURATION API TESTS")
         print("-" * 50)
-        self.test_ai_generate_landing_page()
-        self.test_save_generated_page()
+        self.test_get_ai_config()
+        self.test_update_ai_config()
+        self.test_get_ai_usage_stats()
+        self.test_get_ai_status()
         
-        print("\n📤 PUBLISHING API TESTS")
+        print("\n🔐 INTEGRATIONS API TESTS (CRITICAL SECURITY)")
         print("-" * 50)
-        self.test_publish_page()
-        self.test_unpublish_page()
+        self.test_list_integrations()
+        self.test_add_integration()
+        self.test_get_specific_integration()
+        self.test_toggle_integration()
+        self.test_integration_connection()
+        self.test_revoke_integration()
         
-        print("\n📚 VERSION MANAGEMENT TESTS")
+        print("\n📋 PROVIDERS INFO API TESTS")
         print("-" * 50)
-        self.test_list_page_versions()
-        self.test_rollback_version()
+        self.test_list_providers()
         
-        print("\n🌐 PUBLIC PAGE ACCESS TESTS")
+        print("\n💰 AFFILIATE SETTINGS API TESTS")
         print("-" * 50)
-        self.test_public_page_access()
-        self.test_analytics_increment()
+        self.test_get_affiliate_settings()
+        self.test_update_affiliate_settings()
         
-        print("\n🗑️ CLEANUP TESTS")
+        print("\n📊 AUDIT LOGS API TESTS")
         print("-" * 50)
-        self.test_landing_page_delete()
+        self.test_get_audit_logs()
+        
+        print("\n🔒 SECURITY VERIFICATION TESTS")
+        print("-" * 50)
+        self.test_non_admin_access_denied()
         
         # Summary
         print("\n" + "=" * 70)
@@ -677,7 +684,7 @@ class SettingsModuleTester:
 
 def main():
     """Main test runner"""
-    tester = AILandingPageBuilderTester()
+    tester = SettingsModuleTester()
     success = tester.run_all_tests()
     
     # Exit with appropriate code
