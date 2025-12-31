@@ -37,6 +37,7 @@ import FormsPage from './pages/FormsPage';
 import CustomObjectsPage from './pages/CustomObjectsPage';
 import ActivityPage from './pages/ActivityPage';
 import ReportsPage from './pages/ReportsPage';
+import AffiliatesPage from './pages/AffiliatesPage';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 
 const navItems = [
