@@ -43,6 +43,14 @@ const triggerTypes = [
   { value: 'contact_created', label: 'Contact Created', icon: User, color: 'bg-amber-500' },
   { value: 'message_received', label: 'Message Received', icon: MessageSquare, color: 'bg-pink-500' },
   { value: 'manual', label: 'Manual Trigger', icon: Play, color: 'bg-slate-500' },
+  // Affiliate Triggers
+  { value: 'affiliate_link_clicked', label: 'Affiliate Link Clicked', icon: Zap, color: 'bg-orange-500', category: 'affiliate' },
+  { value: 'affiliate_signup', label: 'New Affiliate Signup', icon: User, color: 'bg-orange-500', category: 'affiliate' },
+  { value: 'affiliate_approved', label: 'Affiliate Approved', icon: CheckCircle2, color: 'bg-green-500', category: 'affiliate' },
+  { value: 'commission_earned', label: 'Commission Earned', icon: Tag, color: 'bg-emerald-500', category: 'affiliate' },
+  { value: 'commission_paid', label: 'Commission Paid', icon: CheckCircle2, color: 'bg-green-500', category: 'affiliate' },
+  { value: 'landing_page_view', label: 'Landing Page Viewed', icon: Eye, color: 'bg-blue-500', category: 'affiliate' },
+  { value: 'landing_page_conversion', label: 'Landing Page Conversion', icon: ArrowRight, color: 'bg-purple-500', category: 'affiliate' },
 ];
 
 const actionTypes = [
@@ -52,6 +60,11 @@ const actionTypes = [
   { value: 'add_tag', label: 'Add Tag', icon: Tag, color: 'bg-amber-500' },
   { value: 'set_property', label: 'Set Property', icon: Edit, color: 'bg-pink-500' },
   { value: 'delay', label: 'Wait/Delay', icon: Clock, color: 'bg-slate-500' },
+  // Affiliate Actions
+  { value: 'approve_affiliate', label: 'Approve Affiliate', icon: CheckCircle2, color: 'bg-green-500', category: 'affiliate' },
+  { value: 'create_commission', label: 'Create Commission', icon: Tag, color: 'bg-emerald-500', category: 'affiliate' },
+  { value: 'notify_affiliate', label: 'Notify Affiliate', icon: Mail, color: 'bg-orange-500', category: 'affiliate' },
+  { value: 'update_affiliate_status', label: 'Update Affiliate Status', icon: Edit, color: 'bg-amber-500', category: 'affiliate' },
 ];
 
 // Workflow Card Component
