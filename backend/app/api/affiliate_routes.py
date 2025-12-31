@@ -1157,3 +1157,89 @@ async def affiliate_signup(
         "status": affiliate["status"],
         "message": "Your affiliate application has been submitted. You will be notified once approved."
     }
+
+
+# ==================== SINGLE AFFILIATE ENDPOINTS ====================
+# NOTE: These routes MUST come LAST to avoid path parameter conflicts with specific routes like /programs, /links, etc.
+
+@router.get("/{affiliate_id}")
+async def get_affiliate(
+    affiliate_id: str,
+    request: Request
+):
+    """Get affiliate details"""
+    user = await get_current_user_from_token(request)
+    db = get_database()
+    
+    affiliate = await db.affiliates.find_one(
+        {"id": affiliate_id, "tenant_id": user["tenant_id"]},
+        {"_id": 0, "payout_details": 0}
+    )
+    if not affiliate:
+        raise HTTPException(status_code=404, detail="Affiliate not found")
+    
+    # Get links
+    links_cursor = db.affiliate_links.find({"affiliate_id": affiliate_id}, {"_id": 0})
+    affiliate["links"] = await links_cursor.to_list(length=100)
+    
+    # Get recent commissions
+    commissions_cursor = db.affiliate_commissions.find(
+        {"affiliate_id": affiliate_id}, {"_id": 0}
+    ).sort("created_at", -1).limit(10)
+    affiliate["recent_commissions"] = await commissions_cursor.to_list(length=10)
+    
+    return affiliate
+
+
+@router.put("/{affiliate_id}")
+async def update_affiliate(
+    affiliate_id: str,
+    data: AffiliateUpdate,
+    request: Request
+):
+    """Update affiliate"""
+    user = await get_current_user_from_token(request)
+    db = get_database()
+    
+    affiliate = await db.affiliates.find_one(
+        {"id": affiliate_id, "tenant_id": user["tenant_id"]}
+    )
+    if not affiliate:
+        raise HTTPException(status_code=404, detail="Affiliate not found")
+    
+    update_data = {k: v for k, v in data.dict().items() if v is not None}
+    if "status" in update_data:
+        update_data["status"] = update_data["status"].value
+    if "payout_method" in update_data:
+        update_data["payout_method"] = update_data["payout_method"].value
+    if "payout_details" in update_data:
+        update_data["payout_details"] = json.dumps(update_data["payout_details"])
+    
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.affiliates.update_one(
+        {"id": affiliate_id},
+        {"$set": update_data}
+    )
+    
+    return {"success": True}
+
+
+@router.post("/{affiliate_id}/approve")
+async def approve_affiliate(
+    affiliate_id: str,
+    request: Request
+):
+    """Approve a pending affiliate"""
+    user = await get_current_user_from_token(request)
+    db = get_database()
+    
+    result = await db.affiliates.update_one(
+        {"id": affiliate_id, "tenant_id": user["tenant_id"], "status": AffiliateStatus.PENDING.value},
+        {"$set": {"status": AffiliateStatus.ACTIVE.value, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=400, detail="Affiliate not found or already approved")
+    
+    return {"success": True, "status": "active"}
