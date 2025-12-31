@@ -1625,6 +1625,10 @@ api_router.include_router(portal_router)
 from app.api.landing_pages_routes import router as landing_pages_router
 api_router.include_router(landing_pages_router)
 
+# Import and include settings routes
+from app.api.settings_routes import router as settings_router
+api_router.include_router(settings_router)
+
 app.include_router(api_router)
 
 
