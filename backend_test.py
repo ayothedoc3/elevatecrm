@@ -18,11 +18,13 @@ AFFILIATE_EMAIL = "sarah@affiliate.com"
 AFFILIATE_PASSWORD = "affiliate123"
 TENANT_SLUG = "demo"
 
-class AffiliateAPITester:
+class Phase1AffiliateSystemTester:
     def __init__(self):
         self.session = requests.Session()
-        self.token = None
-        self.user_data = None
+        self.admin_token = None
+        self.affiliate_token = None
+        self.admin_user_data = None
+        self.affiliate_user_data = None
         self.test_results = []
         
     def log_test(self, test_name, success, details="", error=None):
@@ -44,12 +46,12 @@ class AffiliateAPITester:
             print(f"   Error: {error}")
         print()
     
-    def authenticate(self):
-        """Login and get JWT token"""
+    def authenticate_admin(self):
+        """Login as admin and get JWT token"""
         try:
             login_data = {
-                "email": LOGIN_EMAIL,
-                "password": LOGIN_PASSWORD
+                "email": ADMIN_EMAIL,
+                "password": ADMIN_PASSWORD
             }
             
             response = self.session.post(
@@ -60,19 +62,45 @@ class AffiliateAPITester:
             
             if response.status_code == 200:
                 data = response.json()
-                self.token = data["access_token"]
-                self.user_data = data["user"]
-                self.session.headers.update({
-                    "Authorization": f"Bearer {self.token}"
-                })
-                self.log_test("Authentication", True, f"Logged in as {self.user_data['email']}")
+                self.admin_token = data["access_token"]
+                self.admin_user_data = data["user"]
+                self.log_test("Admin Authentication", True, f"Logged in as {self.admin_user_data['email']}")
                 return True
             else:
-                self.log_test("Authentication", False, f"Status: {response.status_code}", response.text)
+                self.log_test("Admin Authentication", False, f"Status: {response.status_code}", response.text)
                 return False
                 
         except Exception as e:
-            self.log_test("Authentication", False, error=e)
+            self.log_test("Admin Authentication", False, error=e)
+            return False
+    
+    def authenticate_affiliate(self):
+        """Login as affiliate via portal"""
+        try:
+            login_data = {
+                "email": AFFILIATE_EMAIL,
+                "password": AFFILIATE_PASSWORD,
+                "tenant_slug": TENANT_SLUG
+            }
+            
+            response = self.session.post(
+                f"{BACKEND_URL}/affiliate-portal/login",
+                json=login_data,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.affiliate_token = data["access_token"]
+                self.affiliate_user_data = data["affiliate"]
+                self.log_test("Affiliate Portal Authentication", True, f"Logged in as {self.affiliate_user_data['email']}")
+                return True
+            else:
+                self.log_test("Affiliate Portal Authentication", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("Affiliate Portal Authentication", False, error=e)
             return False
     
     def test_health_check(self):
