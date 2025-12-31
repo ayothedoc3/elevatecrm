@@ -216,6 +216,89 @@ const AffiliatesPage = () => {
     }).format(amount || 0);
   };
 
+  const formatFileSize = (bytes) => {
+    if (!bytes) return 'N/A';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleFileUpload = async () => {
+    if (!uploadFile || !uploadName) {
+      toast.error('Please select a file and enter a name');
+      return;
+    }
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('name', uploadName);
+      formData.append('description', uploadDescription);
+      formData.append('category', uploadCategory);
+      formData.append('tags', uploadTags);
+      await api.post('/materials/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      toast.success('Material uploaded successfully');
+      setShowUploadDialog(false);
+      setUploadFile(null);
+      setUploadName('');
+      setUploadDescription('');
+      setUploadCategory('other');
+      setUploadTags('');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to upload material');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleUrlCreate = async () => {
+    if (!urlName || !urlValue) {
+      toast.error('Please enter a name and URL');
+      return;
+    }
+    setUploading(true);
+    try {
+      await api.post('/materials/url', {
+        name: urlName,
+        description: urlDescription,
+        category: urlCategory,
+        material_type: 'url',
+        url: urlValue,
+        tags: urlTags.split(',').map(t => t.trim()).filter(Boolean)
+      });
+      toast.success('URL material created successfully');
+      setShowUrlDialog(false);
+      setUrlName('');
+      setUrlDescription('');
+      setUrlCategory('other');
+      setUrlValue('');
+      setUrlTags('');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to create URL material');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteMaterial = async (materialId) => {
+    if (!window.confirm('Are you sure you want to delete this material?')) return;
+    try {
+      await api.delete(`/materials/${materialId}`);
+      toast.success('Material deleted');
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to delete material');
+    }
+  };
+
+  const filteredMaterials = materials.filter(mat => {
+    return materialCategory === 'all' || mat.category === materialCategory;
+  });
+
   const filteredAffiliates = affiliates.filter(aff => {
     const matchesSearch = !searchQuery || 
       aff.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
