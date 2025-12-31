@@ -40,6 +40,7 @@ import ReportsPage from './pages/ReportsPage';
 import AffiliatesPage from './pages/AffiliatesPage';
 import LandingPagesPage from './pages/LandingPagesPage';
 import PublicLandingPage from './pages/PublicLandingPage';
+import SettingsPage from './pages/SettingsPage';
 import AffiliateLoginPage from './pages/AffiliatePortal/AffiliateLoginPage';
 import AffiliateDashboard from './pages/AffiliatePortal/AffiliateDashboard';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
@@ -57,6 +58,7 @@ const navItems = [
   { path: '/forms', icon: FileText, label: 'Forms' },
   { path: '/custom-objects', icon: Box, label: 'Objects' },
   { path: '/blueprints', icon: GitBranch, label: 'Blueprints' },
+  { path: '/settings', icon: Settings, label: 'Settings', bottom: true },
 ];
 
 const Sidebar = ({ collapsed, setCollapsed }) => {
