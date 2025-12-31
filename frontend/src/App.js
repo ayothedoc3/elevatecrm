@@ -50,7 +50,6 @@ const navItems = [
   { path: '/activity', icon: Activity, label: 'Activity' },
   { path: '/reports', icon: BarChart3, label: 'Reports' },
   { path: '/affiliates', icon: UserPlus, label: 'Affiliates' },
-  { path: '/materials', icon: Image, label: 'Materials' },
   { path: '/inbox', icon: MessageSquare, label: 'Inbox' },
   { path: '/workflows', icon: GitBranch, label: 'Workflows' },
   { path: '/forms', icon: FileText, label: 'Forms' },
