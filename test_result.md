@@ -348,6 +348,18 @@ frontend:
         agent: "testing"
         comment: "✅ TESTED: NLA Accounting CRM Blueprint fully functional - accessible via Add CRM button in header, modal displays 3 blueprints: Frylow Sales CRM (flame icon, marked as Default), Blank CRM (square icon), and NLA Accounting CRM (calculator icon, blue color). Selection workflow works correctly - clicking NLA blueprint shows checkmark, Continue button advances to configuration step. All blueprint icons and descriptions display properly."
 
+  - task: "Affiliate Management System"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/AffiliatesPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented full affiliate management admin dashboard with: 1) Navigation link in sidebar 2) Dashboard stats cards (Total Affiliates, Clicks, Pending, Approved, Paid) 3) Affiliates tab with table showing status, links, clicks, earnings 4) Programs tab showing program cards with journey type, commission config 5) Commissions tab 6) Links tab. Backend API routes fixed for path parameter conflicts."
+
 metadata:
   created_by: "main_agent"
   version: "2.2"
