@@ -72,35 +72,6 @@ class AILandingPageBuilderTester:
             self.log_test("Admin Authentication", False, error=e)
             return False
     
-    def authenticate_affiliate(self):
-        """Login as affiliate via portal"""
-        try:
-            login_data = {
-                "email": AFFILIATE_EMAIL,
-                "password": AFFILIATE_PASSWORD,
-                "tenant_slug": TENANT_SLUG
-            }
-            
-            response = self.session.post(
-                f"{BACKEND_URL}/affiliate-portal/login",
-                json=login_data,
-                headers={"Content-Type": "application/json"}
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.affiliate_token = data["access_token"]
-                self.affiliate_user_data = data["affiliate"]
-                self.log_test("Affiliate Portal Authentication", True, f"Logged in as {self.affiliate_user_data['email']}")
-                return True
-            else:
-                self.log_test("Affiliate Portal Authentication", False, f"Status: {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Affiliate Portal Authentication", False, error=e)
-            return False
-    
     def test_health_check(self):
         """Test basic health endpoint"""
         try:
