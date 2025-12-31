@@ -45,14 +45,35 @@ const AffiliatesPage = () => {
   const [affiliates, setAffiliates] = useState([]);
   const [programs, setPrograms] = useState([]);
   const [commissions, setCommissions] = useState([]);
+  const [materials, setMaterials] = useState([]);
+  const [materialCategories, setMaterialCategories] = useState([]);
   const [dashboard, setDashboard] = useState(null);
   const [selectedAffiliate, setSelectedAffiliate] = useState(null);
   const [showAffiliateSheet, setShowAffiliateSheet] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showProgramDialog, setShowProgramDialog] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [showUrlDialog, setShowUrlDialog] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [materialCategory, setMaterialCategory] = useState('all');
+  const [viewMode, setViewMode] = useState('grid');
+
+  // Upload form state
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadName, setUploadName] = useState('');
+  const [uploadDescription, setUploadDescription] = useState('');
+  const [uploadCategory, setUploadCategory] = useState('other');
+  const [uploadTags, setUploadTags] = useState('');
+
+  // URL form state
+  const [urlName, setUrlName] = useState('');
+  const [urlDescription, setUrlDescription] = useState('');
+  const [urlCategory, setUrlCategory] = useState('other');
+  const [urlValue, setUrlValue] = useState('');
+  const [urlTags, setUrlTags] = useState('');
 
   // New affiliate form
   const [newAffiliate, setNewAffiliate] = useState({
@@ -66,6 +87,17 @@ const AffiliatesPage = () => {
     attribution_type: 'deal', commission_type: 'percentage', commission_value: 10,
     attribution_window_days: 30, auto_approve: false
   });
+
+  const MATERIAL_CATEGORIES = [
+    { value: 'banners', label: 'Banners' },
+    { value: 'social_posts', label: 'Social Posts' },
+    { value: 'email_templates', label: 'Email Templates' },
+    { value: 'logos', label: 'Logos' },
+    { value: 'product_images', label: 'Product Images' },
+    { value: 'sales_sheets', label: 'Sales Sheets' },
+    { value: 'videos', label: 'Videos' },
+    { value: 'other', label: 'Other' }
+  ];
 
   const api = axios.create({
     baseURL: process.env.REACT_APP_BACKEND_URL + '/api',
