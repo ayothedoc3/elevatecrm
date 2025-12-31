@@ -264,6 +264,95 @@ const LandingPagesPage = () => {
     }
   };
 
+  const handleEditPage = async (page) => {
+    try {
+      const response = await api.get(`/landing-pages/${page.id}`);
+      setSelectedPage(response.data);
+      setShowEditDialog(true);
+    } catch (error) {
+      toast.error('Failed to load page for editing');
+    }
+  };
+
+  const handleEditSection = (section, index) => {
+    setEditingSection({ ...section });
+    setEditingSectionIndex(index);
+  };
+
+  const handleSaveSection = async () => {
+    if (!selectedPage || editingSectionIndex === null) return;
+    
+    setSaving(true);
+    try {
+      const updatedSections = [...selectedPage.page_schema.sections];
+      updatedSections[editingSectionIndex] = editingSection;
+      
+      const updatedSchema = {
+        ...selectedPage.page_schema,
+        sections: updatedSections
+      };
+      
+      await api.put(`/landing-pages/${selectedPage.id}`, {
+        page_schema: updatedSchema
+      });
+      
+      setSelectedPage({
+        ...selectedPage,
+        page_schema: updatedSchema
+      });
+      
+      setEditingSection(null);
+      setEditingSectionIndex(null);
+      toast.success('Section updated!');
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to save section');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleMoveSection = async (fromIndex, direction) => {
+    if (!selectedPage) return;
+    
+    const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
+    if (toIndex < 0 || toIndex >= selectedPage.page_schema.sections.length) return;
+    
+    const sections = [...selectedPage.page_schema.sections];
+    [sections[fromIndex], sections[toIndex]] = [sections[toIndex], sections[fromIndex]];
+    
+    // Update order numbers
+    sections.forEach((s, i) => s.order = i + 1);
+    
+    const updatedSchema = { ...selectedPage.page_schema, sections };
+    
+    try {
+      await api.put(`/landing-pages/${selectedPage.id}`, { page_schema: updatedSchema });
+      setSelectedPage({ ...selectedPage, page_schema: updatedSchema });
+      toast.success('Section moved');
+    } catch (error) {
+      toast.error('Failed to move section');
+    }
+  };
+
+  const handleDeleteSection = async (index) => {
+    if (!selectedPage || !window.confirm('Delete this section?')) return;
+    
+    const sections = selectedPage.page_schema.sections.filter((_, i) => i !== index);
+    sections.forEach((s, i) => s.order = i + 1);
+    
+    const updatedSchema = { ...selectedPage.page_schema, sections };
+    
+    try {
+      await api.put(`/landing-pages/${selectedPage.id}`, { page_schema: updatedSchema });
+      setSelectedPage({ ...selectedPage, page_schema: updatedSchema });
+      toast.success('Section deleted');
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to delete section');
+    }
+  };
+
   const filteredPages = pages.filter(p => {
     if (statusFilter !== 'all' && p.status !== statusFilter) return false;
     if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
