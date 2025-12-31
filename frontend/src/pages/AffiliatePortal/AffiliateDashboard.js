@@ -113,9 +113,32 @@ const AffiliateDashboard = () => {
     }
   };
 
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(`${window.location.origin}/ref/${text}`);
-    toast.success('Link copied!');
+  const copyToClipboard = async (text) => {
+    const url = `${window.location.origin}/ref/${text}`;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(url);
+        toast.success('Link copied!');
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          toast.success('Link copied!');
+        } catch (err) {
+          toast.info(`Copy this: ${url}`);
+          prompt('Copy this URL:', url);
+        }
+        document.body.removeChild(textArea);
+      }
+    } catch (err) {
+      toast.info(`Copy this: ${url}`);
+      prompt('Copy this URL:', url);
+    }
   };
 
   const formatCurrency = (amount) => {
