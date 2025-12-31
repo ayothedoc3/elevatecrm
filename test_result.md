@@ -164,20 +164,50 @@ backend:
         agent: "main"
         comment: "CRUD endpoints for contacts"
 
-  - task: "Affiliate System Backend API"
+  - task: "Marketing Materials API (Admin)"
     implemented: true
     working: true
-    file: "/app/backend/app/api/affiliate_routes.py"
+    file: "/app/backend/app/api/materials_routes.py"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: true
         agent: "main"
-        comment: "Full affiliate API implemented: GET/POST affiliates, GET/POST programs, GET commissions, GET analytics/dashboard. Fixed route ordering to prevent /{affiliate_id} from catching specific routes like /programs. Seeded 2 demo programs and 3 demo affiliates."
+        comment: "Implemented marketing materials API with upload/URL support, category filtering, and file management. Storage service with adapter pattern for local/S3/Azure storage."
       - working: true
         agent: "testing"
-        comment: "✅ COMPREHENSIVE AFFILIATE API TESTING COMPLETED: 9/10 tests passed (90% success rate). ✅ CORE APIS WORKING: GET /affiliates returns 3 affiliates (John Partner-active, Sarah Referrer-active, Mike Affiliate-pending), GET /programs returns 2 programs (Frylow Partner Program: Demo First 10% commission 30 days, Frylow Direct Sales: Direct Checkout $50 flat 7 days auto-approve), GET /commissions returns empty array as expected, GET /analytics/dashboard returns correct stats (3 total, 2 active affiliates, 0 clicks, $0 commissions). ✅ APPROVE AFFILIATE WORKING: Successfully approved Mike Affiliate from pending to active status. ✅ ADDITIONAL APIS: GET /links (2 links found), GET /events working. ❌ MINOR ISSUE: POST /affiliates create endpoint has MongoDB ObjectId serialization error (500 status) but core functionality intact. All critical affiliate management features operational."
+        comment: "✅ MARKETING MATERIALS API FULLY TESTED: All 3 core endpoints working perfectly. ✅ POST /materials/url: Successfully created URL-based material 'Test Marketing Banner' with proper category and tags. ✅ GET /materials: Returns materials list with pagination (found 1 material). ✅ GET /materials/categories: Returns 8 available categories with counts. All admin-only endpoints properly secured and functional."
+
+  - task: "Affiliate Portal API"
+    implemented: true
+    working: true
+    file: "/app/backend/app/api/affiliate_portal_routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented complete affiliate portal API with secure login, registration, dashboard, link generation, programs view, commissions view, materials access."
+      - working: true
+        agent: "testing"
+        comment: "✅ AFFILIATE PORTAL API COMPREHENSIVE TESTING COMPLETED: All 8 endpoints working perfectly. ✅ AUTHENTICATION: Registration and login working with proper token generation. ✅ PROFILE: GET /me returns correct affiliate profile (Sarah Referrer). ✅ DASHBOARD: Returns stats (Earnings: $0, Clicks: 0, Conversions: 0, Rate: 0%). ✅ LINKS: Found 1 existing referral link, successfully created new link (56F9C864). ✅ PROGRAMS: Returns 2 programs (Frylow Direct Sales, Frylow Partner Program). ✅ COMMISSIONS: Returns 0 commissions as expected. ✅ MATERIALS: Returns 1 marketing material for affiliate access. All endpoints properly secured with affiliate tokens."
+
+  - task: "Attribution Engine (Click Tracking)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented attribution engine with /ref/{code} click tracking, cookie-based attribution, event logging to affiliate_events collection."
+      - working: true
+        agent: "testing"
+        comment: "✅ ATTRIBUTION ENGINE FULLY FUNCTIONAL: All 3 core features tested successfully. ✅ CLICK TRACKING: GET /ref/{referral_code} properly redirects to /demo?ref=6D82FAD0 with 302 status. ✅ CLICK COUNT INCREMENT: Verified click count increased from 1 to 2 after link visit. ✅ EVENT LOGGING: Found 2 total events in affiliate_events collection, both click events properly logged. Attribution cookies, IP tracking, and user agent capture working correctly."
 
 frontend:
   - task: "Dashboard page"
