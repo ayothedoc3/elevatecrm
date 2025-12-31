@@ -1,202 +1,169 @@
 <analysis>**original_problem_statement:**
-A new, detailed product requirements document (PRD) was provided, which constitutes a major architectural pivot.
+A new product requirements document (PRD) was provided to build a comprehensive, multi-CRM affiliate system within the existing Elevate CRM platform. This is a major new feature set.
 
-ROLE: You are a senior full-stack engineering team building “Elevate CRM”, a multi-CRM platform that fully replaces GoHighLevel (GHL).
-GOAL: Deliver a production-ready V1 CRM platform where a default Frylow Sales CRM runs end-to-end, and new CRM instances can be created via a one-click “Add CRM” action using CRM Blueprints.
+The system must support two distinct affiliate journeys:
+1.  **Demo-First Journey:** For service-based products like Frylow/NLA, where the affiliate drives leads into a sales pipeline.
+2.  **Direct Checkout Journey:** For digital products, where the affiliate drives traffic directly to a payment page.
 
-PRODUCT REQUIREMENTS:
-The platform must support:
-1.  **Multi-CRM Architecture:** Each CRM is an isolated workspace (tenant).
-2.  **CRM Instantiation (Add CRM):** A UI button to provision a new CRM from a selected blueprint (default: Frylow Sales CRM).
-3.  **CRM Blueprint System:** A framework for defining CRM structures (objects, pipelines, workflows, etc.).
-4.  **Workflow Blueprint System:** Enforce rules and requirements for moving through pipeline stages.
-5.  **Core & Custom Objects:** Support for standard objects (Contact, Deal) and user-defined custom objects.
-6.  **Activity Timeline:** A central log for all significant events.
-7.  **Pipelines:** Kanban-style boards that enforce stage rules from blueprints.
-8.  **Conversations Inbox:** Unified inbox for emails and SMS.
-9.  **Forms:** To capture data and trigger automations.
-10. **Automation Engine:** A trigger/action-based system.
-11. **Calculation Engine (Mandatory):** A system for running calculations based on deal properties, with the ability to gate stage progression.
-12. **Reporting:** KPIs for outreach, conversion, and pipeline velocity.
-13. **Seed Blueprints:** Frylow Sales CRM (default), Blank CRM.
+The goal is to deliver a production-ready system for admins to manage affiliate programs and for affiliates to access a dedicated portal.
+
+This supersedes the previous goal and represents a new direction for the project. The full, detailed PRD is available in message #346 of the previous session's history.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application has undergone a major architectural extension to support a multi-CRM workspace model on top of the existing React/FastAPI/PostgreSQL stack.
+The application is a full-stack React/FastAPI platform that has undergone a critical architectural migration from PostgreSQL to MongoDB to ensure database persistence. The multi-CRM workspace architecture is stable.
 
-**Backend:**
-- The database schema and models have been updated to support , , , and . The original  concept has been replaced with .
-- A  exists that can create a new, fully configured CRM workspace from a blueprint. This includes creating pipelines, stages, rules, and demo data.
-- The Frylow Sales CRM is defined as a blueprint and can be provisioned successfully.
-- New API endpoints for creating workspaces () and checking provisioning status have been created and tested.
+Several features were recently completed and tested:
+- A full-application migration to MongoDB, resolving the previous data persistence issues.
+- Dark/Light mode theme toggling.
+- Backend logic for the Frylow ROI Calculator is live and connected to the UI.
+- Foundational UI and backend for creating Custom Objects.
+- Dedicated pages for a global Activity Timeline and a V1 Reporting Dashboard.
+- Branding issues were fixed (NLA -> Frylow).
+- Outreach touchpoint tracking was added to the deal detail view.
 
-**Frontend:**
-- The UI has been rebranded to Elevate CRM.
-- A  component has been added to the header, allowing users to see their workspaces and access an Add CRM modal.
-- The Add CRM modal allows users to select a blueprint (e.g., Frylow Sales) to create a new workspace.
-- A major refactor was just completed to make the frontend workspace-aware by overhauling the , , , and .
+The agent has just begun implementing the new Affiliate System.
 
 **Last working item**:
-- Last item agent was working: The agent just finished a large-scale frontend refactoring to align with the new multi-CRM architecture and address specific user requests. This included overhauling  for workspace switching, rewriting  to add drag-and-drop functionality and a deal detail view, and making contact cards clickable. The agent resolved linting errors from these changes and was preparing to restart the services for testing.
+- Last item agent was working: The agent began implementing the new Affiliate System based on the user's detailed PRD. This involved creating the initial backend API file (), adding the new router and affiliate seed data logic to the main  file, and creating the shell for the admin-facing frontend page (). The agent was in the process of adding the navigation link for this new page.
 - Status: IN PROGRESS
 - Agent Testing Done: N
-- Which testing method agent to use? Frontend testing agent
+- Which testing method agent to use? both
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-- Issue 1: (P0) Verify Multi-CRM Frontend Integration and New UI Features. The recent, extensive frontend refactor is completely untested. It's critical to verify that workspace switching works correctly and that all data displays are scoped to the selected workspace. The new UI features (drag-and-drop, detail sheets) also need functional testing.
-
-  Issues Detail:
-  - Issue 1:
-     - Attempted fixes: The agent has written the code but has not yet tested it.
-     - Next debug checklist:
-        1. Restart the backend and frontend services.
-        2. Log in and verify the dashboard loads data for the default workspace.
-        3. Use the  to change to a different workspace (e.g., Frylow NYC Team).
-        4. Confirm that all pages (Dashboard, Pipelines, Contacts) update to show data *only* from the newly selected workspace.
-        5. On the , test dragging and dropping a deal card between stages.
-        6. On the , test clicking a deal to open the new detail sheet and check for the calculation form.
-        7. On the , test clicking a contact to open its detail sheet.
-     - Why fix this issue and what will be achieved with the fix? This will validate the core multi-CRM user experience and the new UI enhancements, completing the primary architectural pivot on the frontend.
-     - Status: IN PROGRESS
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? frontend
-     - Blocked on other issue: Issue 2 (PostgreSQL Instability) is a potential blocker.
-
-- Issue 2: (P1) PostgreSQL service is not persistent. The agent had to manually install PostgreSQL because it was missing from the forked environment. This installation was lost after an assumed container restart, causing the application to crash. The database service is not configured to be persistent.
-
-  Issues Detail:
-  - Issue 2:
-     - Attempted fixes: The agent manually re-installed PostgreSQL during the session, which is a temporary workaround, not a permanent fix.
-     - Next debug checklist:
-        1. Investigate the environment's service management configuration (e.g., a , , or startup script).
-        2. Modify the configuration to include PostgreSQL as a standard, persistent service that starts automatically.
-     - Why fix this issue and what will be achieved with the fix? Without a persistent database, the application is fundamentally broken and will fail on every new session or restart.
-     - Status: NOT STARTED
-     - Is recurring issue? Y
-     - Should Test frontend/backend/both after fix? backend
-     - Blocked on other issue: None
+There are no outstanding bugs or issues. The primary focus is on new feature development.
 
 **In progress Task List**:
-None separate from the pending issues.
+- Task 1: Affiliate System Scaffolding (P0)
+   - Where to resume: The agent has created  and added the route to . The next step is to add the navigation link for Affiliates to the sidebar in  to make the page accessible.
+   - What will be achieved with this? Completing the initial UI scaffolding for the affiliate system admin section.
+   - Status: IN PROGRESS
+   - Should Test frontend/backend/both after fix? frontend
+   - Blocked on something: None
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
-- (P0) Implement drag-and-drop on the Kanban view ().
-- (P0) Make cards clickable to reveal more information on all relevant pages (e.g., Deals, Contacts).
-- (P0) Add UI for stage transition rule enforcement (e.g., modal explaining why a move is blocked).
-- (P0) Add the Calculation Form to the deal detail view.
-- (P1) Implement outreach touchpoint tracking (backend model, API, and frontend UI).
+- **(P0) Affiliate System Backend Implementation:**
+  - Define and implement the MongoDB schemas/collections for all affiliate entities as specified in the PRD (, , , , ) within  or new model files.
+  - Implement the backend logic for the two journey types: Demo-First and Direct Checkout.
+  - Build the core attribution engine to handle first/last touch attribution and event logging.
+  - Implement all API endpoints in  for managing programs, affiliates, links, and commissions.
+
+- **(P0) Affiliate System Frontend Implementation:**
+  - Build out the admin dashboards on  for viewing affiliates, programs, commissions, and attribution data.
+  - Create a new, secure Affiliate Portal for affiliates to log in, get referral links, and view their performance.
+  - Integrate with the existing page builder to create affiliate-specific landing and signup pages.
+
+- **(P1) Workflow Integration:**
+  - Connect the affiliate system to the workflow engine by creating new triggers (e.g., ) and actions (e.g., ).
 
 Future Tasks:
-- (P1) Implement backend logic for the Calculation Engine.
-- (P1) Implement Custom Objects functionality.
-- (P2) Build out the full Activity Timeline.
-- (P2) Build Reporting V1 dashboards.
-- (P2) Create the NLA Accounting CRM as a selectable blueprint.
-- (P2) Migrate from JWT to Auth0.
+- **(P2) Reporting V2:** Enhance the Reporting dashboard with detailed affiliate-specific metrics.
+- **(P2) Auth0 Migration:** Migrate the application's authentication from the current JWT implementation to Auth0.
 
 **Completed work in this session**
-- **Critical Environment Fix**: Diagnosed that PostgreSQL was missing, installed it, and configured the database, allowing the backend to run.
-- **Architectural Pivot to Multi-CRM (Backend)**:
-  - Re-architected the data model to support  and .
-  - Built a  that can create new, isolated CRM instances from a blueprint via an API call.
-  - Created and seeded the Frylow Sales CRM as the default blueprint.
-- **Architectural Pivot to Multi-CRM (Frontend)**:
-  - Rebranded the application to Elevate CRM.
-  - Implemented a  component in the header.
-  - Implemented an Add CRM modal for provisioning new workspaces.
-  - Refactored core pages and contexts (, , , ) to be workspace-aware (Testing Pending).
+- **CRITICAL: Database Migration (PostgreSQL → MongoDB):** Solved the critical database persistence issue by migrating the entire backend from PostgreSQL/SQLAlchemy to MongoDB/Motor. This involved a complete rewrite of  and the creation of a new database connection module.
+- **Dark/Light Mode Toggle:** Implemented a theme provider and a UI toggle in the header for switching between dark and light modes.
+- **Calculation Engine Backend:** Seeded the Frylow ROI Calculator definition and successfully connected the frontend Calculator tab to the live API.
+- **Outreach Touchpoint Tracking:** Implemented the backend API and frontend UI to log and display outreach activities (calls, emails, SMS) on the deal detail sheet.
+- **Custom Objects Foundation:** Created the backend models, API routes, and a frontend page for defining and viewing custom data objects.
+- **New Core Pages:** Created and implemented a global Activity Timeline page, a V1 Reporting Dashboard page, and added the NLA Accounting CRM as a selectable blueprint.
+- **Extensive Testing:** Used the testing agent to verify all major features, including the post-MongoDB migration stability.
 
 **Earlier issues found/mentioned but not fixed**
-None.
+None. All identified issues from the session were resolved.
 
 **Known issue recurrence from previous fork**
-None.
+- **Issue recurrence in previous fork:** PostgreSQL service was not persistent and was lost on every environment restart.
+- **Recurrence count:** 3+ times during the session.
+- **Status:** RESOLVED. This was permanently fixed by migrating the entire application backend to MongoDB, which is the persistent database provided in the environment.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Backend**: FastAPI, PostgreSQL, SQLAlchemy.
-- **Frontend**: React (Create React App), , Tailwind CSS.
-- **Architecture**: **Multi-CRM Workspace Architecture**, Asynchronous Provisioning via FastAPI , **Blueprint-based configuration**.
+- **Backend**: FastAPI, **MongoDB (with Motor async driver)**. This is a fundamental change from the previous PostgreSQL setup.
+- **Frontend**: React, Tailwind CSS, Shadcn UI.
+- **Architecture**: Multi-CRM Workspace Architecture, Blueprint-based configuration.
+- **New Concept**: Event-Driven Affiliate Attribution as the core of the new affiliate system.
 
 **key DB schema**
-- : {id, name, slug, tenant_id}
-- : {user_id, workspace_id, role}
-- : {id, name, is_default, is_system}
-- : {id, workspace_id, status, logs}
-- : {id, name, workspace_id}
-- : {id, name, pipeline_id}
-- : {id, type, from_stage_id, to_stage_id (nullable)}
-- : {id, name, slug, workspace_id}
-- *Note: Most existing tables like , , etc., will need a  foreign key.*
+The application now uses MongoDB. Key collections include: , , , , , .
+
+The new **Affiliate System** will require the following collections (as per the PRD):
+- : { id, name, email, status, payout_method, payout_details }
+- : { id, name, crm_workspace_id, product_type, commission_type, commission_value }
+- : { id, affiliate_id, program_id, slug, landing_page_id }
+- : { id, affiliate_id, deal_id, payment_id, amount, status }
+- : { event_type, affiliate_id, timestamp, metadata }
 
 **changes in tech stack**
-None. The existing stack (React/FastAPI/Postgres) was kept, but the application architecture built upon it was fundamentally changed.
+- **Database:** Migrated from **PostgreSQL/SQLAlchemy** to **MongoDB/Motor**.
 
 **All files of reference**
-*   **/app/backend/app/models/workspace.py**: Contains all new SQLAlchemy models for the multi-CRM architecture.
-*   **/app/backend/app/services/provisioning_service.py**: Contains the logic for creating new CRM workspaces.
-*   **/app/backend/app/api/workspace_routes.py**: API endpoints for creating and managing workspaces.
-*   **/app/backend/app/blueprints/frylow_blueprint.py**: The definition file for the default Frylow Sales CRM.
-*   **/app/frontend/src/contexts/AuthContext.js**: Overhauled to manage the current user's active workspace.
-*   **/app/frontend/src/components/WorkspaceSwitcher.js**: New component for the UI to switch between workspaces.
-*   **/app/frontend/src/pages/PipelinePage.js**: Heavily modified to support drag-and-drop, detail views, and rule enforcement UI.
-*   **/app/frontend/src/pages/ContactsPage.js**: Modified to support clickable cards and detail views.
-*   **/app/frontend/src/pages/DashboardPage.js**: Modified to be workspace-aware.
+*   : Completely rewritten to use MongoDB. Contains most of the application's backend logic, API routes, and data seeding.
+*   : New file that handles the MongoDB connection.
+*   : New file for the affiliate system API (currently a shell).
+*   : Updated with new routes for , , , and  pages, and wrapped with the new .
+*   : New context to manage dark/light mode.
+*   : New page for the affiliate admin dashboard.
+*   : New page for the global activity timeline.
+*   : New page for V1 reporting.
+*   : New page for custom object management.
 
 **Areas that need refactoring**:
-- The  file remains very large and could be broken down further by creating separate  files for each resource (e.g., , ).
-- The use of FastAPI's  for provisioning is suitable for now, but a more robust, persistent job queue (like Celery or RQ) should be considered for a production system.
+- The  file is now over 1400 lines and acts as a monolith containing API routes, Pydantic models, database logic, and seeding. It should be broken down into smaller, more manageable modules (e.g., separate files for routes, models, and services for each major feature like , , ).
 
 **key api endpoints**
-- : Authenticates a user.
-- : Triggers a job to provision a new CRM workspace from a blueprint.
-- : Checks the status of a provisioning job.
-- : Lists available CRM blueprints.
-- : (Implicitly needed) Returns the workspaces for the current user.
+- 
+- 
+-  (now fetches global timeline)
+-  (New)
+-  (New)
+-  (New, currently placeholder)
 
 **Critical Info for New Agent**
-- **Architectural Pivot is Key:** The entire application has shifted from a single-tenant CRM to a multi-CRM platform. All new work must be workspace-aware. The goal is to build Elevate CRM, with Frylow as the default blueprint, not NLA.
-- **PostgreSQL is Not Persistent:** The database service is not properly configured in the environment and will disappear on restart. This is a critical blocker (Issue #2) that must be fixed for any progress to be stable.
-- **Login Credentials:** Use  / .
-- **Immediate Priority:** Your first task is to fix the PostgreSQL persistence issue. After that, you must thoroughly test the massive frontend refactor to ensure the multi-CRM experience is functional before building new features.
+- **The backend is now 100% MongoDB.** The critical database persistence issue has been solved by migrating away from PostgreSQL. All new database development must use the existing Motor client () and follow MongoDB conventions. Do not attempt to use or reinstall PostgreSQL.
+- **The primary focus is building the new Affiliate System.** Refer to the detailed PRD in message #346 for all requirements.
+- The  file is very large. Consider refactoring as you add new features to improve maintainability.
+- **Login Credentials:**  / .
 
 **documents and test reports created in this job**
-None.
+- The agent updated  multiple times to define test plans for the testing subagent.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (Msg 318):** I am still seeing a lot of NLA stuff. -> Requests removal of old branding.
-2.  **User (Msg 318):** Make the cards clickable... -> Wants detail views for objects.
-3.  **User (Msg 318):** We should be able to drag and drop the kanban view... -> Requests D&D on pipeline page.
-4.  **User (Msg 318):** Integrate workspace switching with auth context... -> Critical request to make the frontend state workspace-aware.
-5.  **User (Msg 318):** Add stage transition rule enforcement UI -> Wants visual feedback for blocked actions.
-6.  **User (Msg 318):** Add calculation form to deal detail view -> Requests UI for the new calculation engine.
-7.  **User (Msg 318):** Implement outreach touchpoint tracking -> New feature request.
-8.  **User (Msg 162):** Provided detailed clarifications on the architectural pivot, confirming the tech stack should be kept and providing specific rules for the Frylow CRM.
-9.  **User (Msg 159):** Provided a complete and detailed new Product Requirements Document for Elevate CRM, superseding all previous requests.
+1. **User (Msg 346):** Provided a new, extensive PRD to build a full Affiliate System. This is the new primary goal.
+2. **User (Msg 318):** Confirmed the agent should proceed with the permanent fix (migrating to MongoDB) to solve the database persistence issue.
+3. **User (Msg 317):** Agent asked the user whether to do a temporary (reinstall Postgres) or permanent (migrate to Mongo) fix for the database issue.
+4. **User (Msg 311):** Asked how to make the database persistent because login was failing again, triggering the migration discussion.
+5. **User (Msg 310):** Agent provided a summary of completed features (Activity Timeline, Reports, NLA Blueprint).
+6. **User (Msg 237):** Requested implementation of the Activity Timeline, Reporting V1, and NLA Accounting CRM blueprint.
+7. **User (Msg 236):** Agent provided a summary of completed features (Dark/Light Mode, Calculator, Custom Objects).
+8. **User (Msg 120):** Requested implementation of Dark/Light mode, Calculation Engine backend logic, and Custom Objects functionality.
+9. **User (Msg 119):** Agent provided a summary of the completed Outreach Touchpoint feature.
+10. **User (Msg 71):** Pointed out that NLA branding was still visible in the pipeline tab and requested next action items.
 
 **Project Health Check:**
-- **Broken:** The application is not stable due to the non-persistent PostgreSQL service. It will crash upon environment restart.
-- **Mocked:** 3rd party integrations (Email, SMS) remain mocked.
+- **Broken:** None.
+- **Mocked:** 3rd party integrations for a full conversations inbox (Email/SMS via SendGrid/Twilio) and user authentication (Auth0) are not yet implemented. Affiliate payout methods (Stripe/Wise) are also not yet implemented.
 
 **3rd Party Integrations**
-- **Auth0:** User-preferred, but JWT is the current implementation. Future task.
-- **SendGrid/Mailgun:** Not yet integrated. Required for Conversations Inbox.
-- **Twilio:** Not yet integrated. Required for Conversations Inbox.
+- **Auth0:** Planned for future migration from JWT.
+- **SendGrid/Mailgun:** Required for the Conversations Inbox feature (not started).
+- **Twilio:** Required for SMS in the Conversations Inbox feature (not started).
+- **Stripe/Wise:** Will be required for affiliate payouts as per the new PRD (not started).
 
 **Testing status**
-- **Testing agent used after significant changes:** NO
+- **Testing agent used after significant changes:** YES. Used multiple times to verify new features and confirm the success of the MongoDB migration.
 - **Troubleshoot agent used after agent stuck in loop:** NO
-- **Test files created:** None.
-- **Known regressions:** The entire application is at risk of failure due to the non-persistent PostgreSQL database.
+- **Test files created:** None. Testing was performed using ad-hoc plans in .
+- **Known regressions:** None.
 
 **Credentials to test flow:**
 - **Username:** 
 - **Password:** 
 
 **What agent forgot to execute**
-The agent was actively working on the user's latest requests. It prioritized the core architectural and UI changes and had not yet started the outreach touchpoint tracking feature, which was a reasonable decision. The most significant oversight was not identifying a permanent solution for the non-persistent PostgreSQL service.</analysis>
+The agent was actively working on scaffolding the new Affiliate System and was mid-task when the session ended. The immediate next step is to add the navigation link for the newly created  to the application's sidebar.</analysis>
