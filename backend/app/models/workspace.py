@@ -336,3 +336,124 @@ class OutreachActivity(Base):
     # Timestamps
     activity_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class FieldType(str, enum.Enum):
+    TEXT = 'text'
+    NUMBER = 'number'
+    CURRENCY = 'currency'
+    DATE = 'date'
+    DATETIME = 'datetime'
+    EMAIL = 'email'
+    PHONE = 'phone'
+    URL = 'url'
+    SELECT = 'select'
+    MULTI_SELECT = 'multi_select'
+    CHECKBOX = 'checkbox'
+    TEXTAREA = 'textarea'
+    RELATIONSHIP = 'relationship'
+
+
+class CustomObjectDefinition(Base):
+    """
+    Definition of a custom object in the CRM.
+    Users can create their own data structures.
+    """
+    __tablename__ = 'custom_object_definitions'
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String(36), ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    name = Column(String(100), nullable=False)  # Display name (e.g., "Product")
+    slug = Column(String(100), nullable=False, index=True)  # API name (e.g., "product")
+    plural_name = Column(String(100), nullable=True)  # Plural display name
+    description = Column(Text, nullable=True)
+    icon = Column(String(50), default='Box')  # Lucide icon name
+    color = Column(String(20), default='#6366F1')
+    
+    # Schema configuration
+    label_field = Column(String(100), default='name')  # Which field to use as label
+    
+    # Permissions and settings
+    is_system = Column(Boolean, default=False)  # System objects can't be deleted
+    is_active = Column(Boolean, default=True)
+    allow_create = Column(Boolean, default=True)
+    allow_edit = Column(Boolean, default=True)
+    allow_delete = Column(Boolean, default=True)
+    
+    # Display settings
+    show_in_nav = Column(Boolean, default=True)
+    display_order = Column(Integer, default=0)
+    
+    created_by = Column(String(36), ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class CustomObjectField(Base):
+    """
+    Field definition for a custom object.
+    """
+    __tablename__ = 'custom_object_fields'
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    object_id = Column(String(36), ForeignKey('custom_object_definitions.id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    name = Column(String(100), nullable=False)  # API name
+    label = Column(String(100), nullable=False)  # Display label
+    field_type = Column(String(30), nullable=False)  # Uses FieldType enum values
+    
+    # Field configuration (JSON)
+    config = Column(Text, default='{}')  # {"options": [...], "default_value": ..., etc}
+    
+    # Validation
+    is_required = Column(Boolean, default=False)
+    is_unique = Column(Boolean, default=False)
+    min_length = Column(Integer, nullable=True)
+    max_length = Column(Integer, nullable=True)
+    min_value = Column(Float, nullable=True)
+    max_value = Column(Float, nullable=True)
+    validation_regex = Column(String(500), nullable=True)
+    
+    # For relationship fields
+    related_object_id = Column(String(36), ForeignKey('custom_object_definitions.id', ondelete='SET NULL'), nullable=True)
+    
+    # Display settings
+    show_in_list = Column(Boolean, default=True)
+    show_in_detail = Column(Boolean, default=True)
+    is_searchable = Column(Boolean, default=False)
+    is_sortable = Column(Boolean, default=True)
+    display_order = Column(Integer, default=0)
+    
+    # Help text
+    placeholder = Column(String(200), nullable=True)
+    help_text = Column(String(500), nullable=True)
+    
+    is_system = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class CustomObjectRecord(Base):
+    """
+    Instance of a custom object (the actual data record).
+    """
+    __tablename__ = 'custom_object_records'
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String(36), ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, index=True)
+    object_id = Column(String(36), ForeignKey('custom_object_definitions.id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    # Data stored as JSON
+    data = Column(Text, default='{}')  # {"name": "value", "field2": "value2"}
+    
+    # Computed display label (cached)
+    display_label = Column(String(500), nullable=True)
+    
+    # Ownership
+    owner_id = Column(String(36), ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    created_by = Column(String(36), ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
