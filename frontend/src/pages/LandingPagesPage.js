@@ -417,10 +417,10 @@ const LandingPagesPage = () => {
                       </div>
                       <div className="space-y-2">
                         <Label>Affiliate Program</Label>
-                        <Select value={genForm.affiliate_program_id} onValueChange={(v) => setGenForm({...genForm, affiliate_program_id: v})}>
+                        <Select value={genForm.affiliate_program_id || "none"} onValueChange={(v) => setGenForm({...genForm, affiliate_program_id: v === "none" ? "" : v})}>
                           <SelectTrigger><SelectValue placeholder="Select program (optional)" /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">None</SelectItem>
+                            <SelectItem value="none">None</SelectItem>
                             {programs.map(p => (
                               <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                             ))}
