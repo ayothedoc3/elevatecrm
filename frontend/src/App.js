@@ -23,7 +23,7 @@ import {
 import {
   LayoutDashboard, Users, Target, GitBranch, MessageSquare,
   FileText, Settings, LogOut, ChevronLeft, ChevronRight,
-  Flame, Bell, Search, Menu, Plus, Sun, Moon, Box, BarChart3, Activity, UserPlus
+  Flame, Bell, Search, Menu, Plus, Sun, Moon, Box, BarChart3, Activity, UserPlus, LayoutTemplate
 } from 'lucide-react';
 
 import LoginPage from './pages/LoginPage';
@@ -38,6 +38,7 @@ import CustomObjectsPage from './pages/CustomObjectsPage';
 import ActivityPage from './pages/ActivityPage';
 import ReportsPage from './pages/ReportsPage';
 import AffiliatesPage from './pages/AffiliatesPage';
+import LandingPagesPage from './pages/LandingPagesPage';
 import AffiliateLoginPage from './pages/AffiliatePortal/AffiliateLoginPage';
 import AffiliateDashboard from './pages/AffiliatePortal/AffiliateDashboard';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
@@ -49,6 +50,7 @@ const navItems = [
   { path: '/activity', icon: Activity, label: 'Activity' },
   { path: '/reports', icon: BarChart3, label: 'Reports' },
   { path: '/affiliates', icon: UserPlus, label: 'Affiliates' },
+  { path: '/landing-pages', icon: LayoutTemplate, label: 'Pages' },
   { path: '/inbox', icon: MessageSquare, label: 'Inbox' },
   { path: '/workflows', icon: GitBranch, label: 'Workflows' },
   { path: '/forms', icon: FileText, label: 'Forms' },
