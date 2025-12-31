@@ -107,16 +107,20 @@ const AffiliatesPage = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [affiliatesRes, programsRes, commissionsRes, dashboardRes] = await Promise.all([
+      const [affiliatesRes, programsRes, commissionsRes, dashboardRes, materialsRes, categoriesRes] = await Promise.all([
         api.get('/affiliates'),
         api.get('/affiliates/programs'),
         api.get('/affiliates/commissions'),
-        api.get('/affiliates/analytics/dashboard')
+        api.get('/affiliates/analytics/dashboard'),
+        api.get('/materials'),
+        api.get('/materials/categories')
       ]);
       setAffiliates(affiliatesRes.data.affiliates || []);
       setPrograms(programsRes.data.programs || []);
       setCommissions(commissionsRes.data.commissions || []);
       setDashboard(dashboardRes.data);
+      setMaterials(materialsRes.data.materials || []);
+      setMaterialCategories(categoriesRes.data.categories || []);
     } catch (error) {
       console.error('Error fetching affiliate data:', error);
       toast.error('Failed to load affiliate data');
