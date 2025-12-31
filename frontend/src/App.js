@@ -39,6 +39,8 @@ import ActivityPage from './pages/ActivityPage';
 import ReportsPage from './pages/ReportsPage';
 import AffiliatesPage from './pages/AffiliatesPage';
 import MaterialsPage from './pages/MaterialsPage';
+import AffiliateLoginPage from './pages/AffiliatePortal/AffiliateLoginPage';
+import AffiliateDashboard from './pages/AffiliatePortal/AffiliateDashboard';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 
 const navItems = [
