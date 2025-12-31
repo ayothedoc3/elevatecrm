@@ -765,6 +765,9 @@ const LandingPagesPage = () => {
                   <Button size="sm" variant="outline" onClick={() => handlePreview(page)}>
                     <Eye className="w-3 h-3" />
                   </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleEditPage(page)}>
+                    <Edit className="w-3 h-3" />
+                  </Button>
                   {page.status === 'draft' ? (
                     <Button size="sm" className="flex-1" onClick={() => handlePublish(page.id)}>
                       <Globe className="w-3 h-3 mr-1" />
