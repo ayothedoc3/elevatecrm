@@ -1413,9 +1413,11 @@ setup_routes(
 from app.api.workspace_routes import router as workspace_router
 from app.api.calculation_routes import router as calculation_router
 from app.api.outreach_routes import router as outreach_router
+from app.api.custom_objects_routes import router as custom_objects_router
 api_router.include_router(workspace_router)
 api_router.include_router(calculation_router)
 api_router.include_router(outreach_router)
+api_router.include_router(custom_objects_router)
 
 # Include router AFTER all routes are added
 app.include_router(api_router)
