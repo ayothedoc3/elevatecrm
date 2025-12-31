@@ -1237,6 +1237,79 @@ async def serve_storage_file(file_path: str, credentials: HTTPAuthorizationCrede
     return FileResponse(full_path)
 
 
+# ==================== PUBLIC REFERRAL TRACKING ====================
+
+from fastapi.responses import RedirectResponse
+
+@api_router.get("/ref/{referral_code}")
+async def public_referral_redirect(referral_code: str, request: Request):
+    """Public endpoint to track affiliate link clicks and redirect"""
+    db = get_database()
+    
+    # Find the link
+    link = await db.affiliate_links.find_one(
+        {"referral_code": referral_code, "is_active": True},
+        {"_id": 0}
+    )
+    
+    if not link:
+        raise HTTPException(status_code=404, detail="Invalid referral link")
+    
+    # Get program for cookie duration
+    program = await db.affiliate_programs.find_one(
+        {"id": link["program_id"]},
+        {"_id": 0, "cookie_duration_days": 1}
+    )
+    cookie_days = program.get("cookie_duration_days", 30) if program else 30
+    
+    # Get client info
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent", "")
+    
+    # Log click event
+    event = {
+        "id": str(uuid.uuid4()),
+        "tenant_id": link["tenant_id"],
+        "event_type": "affiliate_link_clicked",
+        "affiliate_id": link["affiliate_id"],
+        "link_id": link["id"],
+        "program_id": link["program_id"],
+        "ip_address": ip_address,
+        "user_agent": user_agent,
+        "metadata": {
+            "referral_code": referral_code,
+            "referer": request.headers.get("referer", "")
+        },
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.affiliate_events.insert_one(event)
+    
+    # Increment click count
+    await db.affiliate_links.update_one(
+        {"id": link["id"]},
+        {"$inc": {"click_count": 1}}
+    )
+    
+    # Determine redirect URL
+    redirect_url = link.get("landing_page_url") or "/"
+    if "?" in redirect_url:
+        redirect_url += f"&ref={referral_code}"
+    else:
+        redirect_url += f"?ref={referral_code}"
+    
+    # Create response with cookie
+    response = RedirectResponse(url=redirect_url, status_code=302)
+    response.set_cookie(
+        key="_aff_ref",
+        value=referral_code,
+        max_age=cookie_days * 24 * 60 * 60,
+        httponly=True,
+        samesite="lax"
+    )
+    
+    return response
+
+
 # ==================== SEED DATA ====================
 
 async def seed_demo_data():
