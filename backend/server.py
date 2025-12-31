@@ -1516,6 +1516,14 @@ async def seed_demo_data():
 from app.api.affiliate_routes import router as affiliate_router
 api_router.include_router(affiliate_router)
 
+# Import and include marketing materials routes
+from app.api.materials_routes import router as materials_router
+api_router.include_router(materials_router)
+
+# Import and include affiliate portal routes
+from app.api.affiliate_portal_routes import router as portal_router
+api_router.include_router(portal_router)
+
 app.include_router(api_router)
 
 
