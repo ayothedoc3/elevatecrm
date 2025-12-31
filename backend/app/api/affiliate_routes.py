@@ -8,6 +8,7 @@ Handles all affiliate-related operations:
 - Commission ledger
 - Attribution engine
 - Event logging
+- Workflow triggers
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
@@ -21,6 +22,13 @@ import hashlib
 import secrets
 
 from app.db.mongodb import get_database
+from app.services.workflow_triggers import (
+    trigger_affiliate_signup,
+    trigger_affiliate_approved,
+    trigger_commission_earned,
+    trigger_commission_paid,
+    trigger_affiliate_link_clicked
+)
 
 router = APIRouter(prefix="/affiliates", tags=["Affiliates"])
 
