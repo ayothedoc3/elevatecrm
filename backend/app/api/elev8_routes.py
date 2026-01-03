@@ -959,7 +959,7 @@ async def delete_partner(partner_id: str, request: Request):
 
 @router.get("/products")
 async def list_products(
-    request,
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     search: Optional[str] = None,
