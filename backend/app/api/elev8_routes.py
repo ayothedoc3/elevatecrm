@@ -468,7 +468,7 @@ async def list_leads(
     }
 
 
-@router.post("/leads", status_code=201)
+@router.post("/leads", status_code=http_status.HTTP_201_CREATED)
 async def create_lead(data: LeadCreate, user = Depends(get_current_user)):
     """Create a new lead"""
     
@@ -868,7 +868,7 @@ async def list_partners(
     }
 
 
-@router.post("/partners", status_code=201)
+@router.post("/partners", status_code=http_status.HTTP_201_CREATED)
 async def create_partner(data: PartnerCreate, user = Depends(get_current_user)):
     """Create a new partner"""
     
@@ -1018,7 +1018,7 @@ async def list_products(
     }
 
 
-@router.post("/products", status_code=201)
+@router.post("/products", status_code=http_status.HTTP_201_CREATED)
 async def create_product(data: ProductCreate, user = Depends(get_current_user)):
     """Create a new product"""
     
@@ -1151,7 +1151,7 @@ async def list_companies(
     }
 
 
-@router.post("/companies", status_code=201)
+@router.post("/companies", status_code=http_status.HTTP_201_CREATED)
 async def create_company(data: CompanyCreate, user = Depends(get_current_user)):
     """Create a new company"""
     
