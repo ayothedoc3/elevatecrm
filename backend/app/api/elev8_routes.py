@@ -647,7 +647,15 @@ async def qualify_lead(lead_id: str, request: Request):
     if not sales_pipeline:
         raise HTTPException(status_code=400, detail="Sales pipeline not configured")
     
-    first_stage = sales_pipeline.get("stages", [{}])[0]
+    # Get first stage of sales pipeline
+    first_stage = await db.pipeline_stages.find_one(
+        {"pipeline_id": sales_pipeline["id"]},
+        {"_id": 0},
+        sort=[("display_order", 1)]
+    )
+    
+    if not first_stage:
+        raise HTTPException(status_code=400, detail="Sales pipeline has no stages")
     
     # Create company if needed
     company_id = None
