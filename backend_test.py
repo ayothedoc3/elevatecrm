@@ -16,14 +16,20 @@ ADMIN_EMAIL = "admin@demo.com"
 ADMIN_PASSWORD = "admin123"
 TENANT_SLUG = "demo"
 
-class SettingsModuleTester:
+class Elev8CRMTester:
     def __init__(self):
         self.session = requests.Session()
         self.admin_token = None
         self.admin_user_data = None
         self.test_results = []
-        self.test_integration_provider = "openai"
-        self.test_api_key = "sk-test-key-12345678"
+        
+        # Test data storage
+        self.test_partner_id = None
+        self.test_product_id = None
+        self.test_lead_id = None
+        self.test_company_id = None
+        self.test_contact_id = None
+        self.test_deal_id = None
         
     def log_test(self, test_name, success, details="", error=None):
         """Log test result"""
