@@ -355,7 +355,7 @@ def calculate_lead_score(lead: dict) -> tuple[int, str]:
     score += motivation_scores.get(primary_motivation.lower(), 8) if primary_motivation else 5
     
     # 5. Decision Readiness (15 points max)
-    decision_role = lead.get("decision_role", "").lower()
+    decision_role = (lead.get("decision_role") or "").lower()
     decision_clarity = lead.get("decision_process_clarity") or 0
     
     role_scores = {
