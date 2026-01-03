@@ -405,7 +405,7 @@ def get_tier_probability(tier: str) -> float:
 
 @router.get("/leads")
 async def list_leads(
-    request: Request,
+    user = Depends(get_current_user),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = None,
@@ -820,7 +820,7 @@ async def delete_lead(lead_id: str, request: Request):
 
 @router.get("/partners")
 async def list_partners(
-    request: Request,
+    user = Depends(get_current_user),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = None,
@@ -969,7 +969,7 @@ async def delete_partner(partner_id: str, request: Request):
 
 @router.get("/products")
 async def list_products(
-    request: Request,
+    user = Depends(get_current_user),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     search: Optional[str] = None,
@@ -1101,7 +1101,7 @@ async def delete_product(product_id: str, request: Request):
 
 @router.get("/companies")
 async def list_companies(
-    request: Request,
+    user = Depends(get_current_user),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = None,
