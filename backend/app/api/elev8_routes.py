@@ -1226,9 +1226,8 @@ async def delete_company(company_id: str, user = Depends(get_current_user)):
 # ==================== LEAD SCORING STATS ====================
 
 @router.get("/leads/scoring/stats")
-async def get_lead_scoring_stats(request: Request):
+async def get_lead_scoring_stats(user = Depends(get_current_user)):
     """Get lead scoring statistics and tier distribution"""
-    
     db = get_database()
     
     # Tier distribution
