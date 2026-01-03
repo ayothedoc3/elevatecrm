@@ -247,33 +247,35 @@ class CompanyUpdate(BaseModel):
 
 # ==================== AUTH HELPER ====================
 
-async def get_current_user(request):
-    """Get current user from request (reuse from main server)"""
-    from jose import jwt
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+security = HTTPBearer()
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get current user from JWT token"""
+    from jose import jwt, JWTError
     import os
     
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = credentials.credentials
+    SECRET_KEY = os.environ.get("SECRET_KEY", "elevate-crm-secret-key-change-in-production")
+    ALGORITHM = "HS256"
     
-    token = auth_header.replace("Bearer ", "")
     try:
-        SECRET_KEY = os.environ.get("SECRET_KEY", "elevate-crm-secret-key-change-in-production")
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
-        if not user_id:
+        if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
-        
-        db = get_database()
-        user = await db.users.find_one({"id": user_id}, {"_id": 0})
-        if not user:
-            raise HTTPException(status_code=401, detail="User not found")
-        
-        return user
-    except HTTPException:
-        raise
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid token")
+    
+    db = get_database()
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if user is None:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    return user
 
 
 # ==================== LEAD SCORING LOGIC ====================
