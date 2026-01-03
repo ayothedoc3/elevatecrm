@@ -416,7 +416,6 @@ async def list_leads(
     owner_id: Optional[str] = None
 ):
     """List leads with filtering"""
-    user = await get_current_user(request)
     db = get_database()
     
     # Build query
