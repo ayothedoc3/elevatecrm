@@ -112,6 +112,19 @@ async def create_indexes():
     await db.settings_audit_logs.create_index([("workspace_id", 1), ("action", 1)])
     await db.affiliate_settings.create_index("workspace_id", unique=True)
     
+    # Elev8 CRM entity indexes
+    await db.leads.create_index([("tenant_id", 1), ("status", 1)])
+    await db.leads.create_index([("tenant_id", 1), ("tier", 1)])
+    await db.leads.create_index([("tenant_id", 1), ("sales_motion_type", 1)])
+    await db.leads.create_index([("tenant_id", 1), ("partner_id", 1)])
+    await db.leads.create_index([("tenant_id", 1), ("owner_id", 1)])
+    await db.leads.create_index([("tenant_id", 1), ("created_at", -1)])
+    await db.partners.create_index([("tenant_id", 1), ("name", 1)])
+    await db.partners.create_index([("tenant_id", 1), ("status", 1)])
+    await db.products.create_index([("tenant_id", 1), ("partner_id", 1)])
+    await db.products.create_index([("tenant_id", 1), ("name", 1)])
+    await db.companies.create_index([("tenant_id", 1), ("name", 1)])
+    
     logger.info("Database indexes created")
 
 
