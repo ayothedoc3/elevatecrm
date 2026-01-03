@@ -810,7 +810,7 @@ async def delete_lead(lead_id: str, request: Request):
 
 @router.get("/partners")
 async def list_partners(
-    request,
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = None,
