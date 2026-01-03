@@ -1087,7 +1087,12 @@ async def update_product(product_id: str, data: ProductUpdate, user = Depends(ge
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Product not found")
     
-    return await get_product(product_id, request)
+    # Return updated product
+    updated_product = await db.products.find_one(
+        {"id": product_id, "tenant_id": user["tenant_id"]},
+        {"_id": 0}
+    )
+    return updated_product
 
 
 @router.delete("/products/{product_id}")
