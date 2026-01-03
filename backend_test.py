@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Elevate CRM Settings Module
-Tests Settings APIs: Workspace, AI Config, Integrations, Affiliates, Audit Logs, Providers
+Backend API Testing for Elevate CRM - Elev8 CRM Entity Model
+Tests Elev8 CRM APIs: Lead Scoring, Dual Pipelines, Partner Management, Lead Qualification Flow
 """
 
 import requests
