@@ -815,10 +815,10 @@ class Elev8CRMTester:
             return False
     
     def run_all_tests(self):
-        """Run all Settings Module tests"""
-        print("🚀 Starting Settings Module API Tests")
+        """Run all Elev8 CRM Entity Model tests"""
+        print("🚀 Starting Elev8 CRM Entity Model API Tests")
         print("=" * 70)
-        print("Testing: Workspace Settings + AI Config + Integrations + Affiliates + Audit Logs + Providers")
+        print("Testing: Lead Scoring + Dual Pipelines + Partner Management + Lead Qualification Flow")
         print("=" * 70)
         
         # Authentication is required for all tests
@@ -829,43 +829,46 @@ class Elev8CRMTester:
         # Test basic health
         self.test_health_check()
         
-        print("\n🏢 WORKSPACE SETTINGS API TESTS")
+        print("\n🏗️ PIPELINE SETUP TESTS")
         print("-" * 50)
-        self.test_get_workspace_settings()
-        self.test_update_workspace_settings()
+        self.test_setup_elev8_pipelines()
+        self.test_get_elev8_pipelines()
         
-        print("\n🤖 AI CONFIGURATION API TESTS")
+        print("\n🤝 PARTNER MANAGEMENT TESTS")
         print("-" * 50)
-        self.test_get_ai_config()
-        self.test_update_ai_config()
-        self.test_get_ai_usage_stats()
-        self.test_get_ai_status()
+        self.test_list_partners()
+        self.test_create_partner()
+        self.test_get_partner_with_products()
         
-        print("\n🔐 INTEGRATIONS API TESTS (CRITICAL SECURITY)")
+        print("\n📦 PRODUCT MANAGEMENT TESTS")
         print("-" * 50)
-        self.test_list_integrations()
-        self.test_add_integration()
-        self.test_get_specific_integration()
-        self.test_toggle_integration()
-        self.test_integration_connection()
-        self.test_revoke_integration()
+        self.test_list_products()
+        self.test_list_products_by_partner()
+        self.test_create_product()
         
-        print("\n📋 PROVIDERS INFO API TESTS")
+        print("\n🎯 LEAD MANAGEMENT WITH SCORING TESTS")
         print("-" * 50)
-        self.test_list_providers()
+        self.test_list_leads()
+        self.test_create_lead_partnership_sales()
+        self.test_create_lead_partner_sales()
+        self.test_get_lead_with_score_and_tier()
+        self.test_update_lead_recalculate_score()
+        self.test_get_lead_scoring_stats()
         
-        print("\n💰 AFFILIATE SETTINGS API TESTS")
+        print("\n🔥 LEAD QUALIFICATION FLOW TESTS (CRITICAL)")
         print("-" * 50)
-        self.test_get_affiliate_settings()
-        self.test_update_affiliate_settings()
+        self.test_qualify_lead_validation()
+        self.test_qualify_lead_success()
+        self.test_record_touchpoint()
         
-        print("\n📊 AUDIT LOGS API TESTS")
+        print("\n🏢 COMPANY MANAGEMENT TESTS")
         print("-" * 50)
-        self.test_get_audit_logs()
+        self.test_list_companies()
+        self.test_create_company()
         
-        print("\n🔒 SECURITY VERIFICATION TESTS")
+        print("\n📊 LEAD SCORING VALIDATION TESTS")
         print("-" * 50)
-        self.test_non_admin_access_denied()
+        self.test_lead_scoring_tiers()
         
         # Summary
         print("\n" + "=" * 70)
@@ -893,7 +896,7 @@ class Elev8CRMTester:
 
 def main():
     """Main test runner"""
-    tester = SettingsModuleTester()
+    tester = Elev8CRMTester()
     success = tester.run_all_tests()
     
     # Exit with appropriate code
