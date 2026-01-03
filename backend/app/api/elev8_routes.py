@@ -267,7 +267,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             raise HTTPException(status_code=401, detail="Invalid token")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
     
     db = get_database()
