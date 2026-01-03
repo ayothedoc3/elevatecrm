@@ -469,7 +469,7 @@ async def list_leads(
 
 
 @router.post("/leads", status_code=201)
-async def create_lead(data: LeadCreate, request: Request):
+async def create_lead(data: LeadCreate, user = Depends(get_current_user)):
     """Create a new lead"""
     user = await get_current_user(request)
     db = get_database()
@@ -533,7 +533,7 @@ async def create_lead(data: LeadCreate, request: Request):
 
 
 @router.get("/leads/{lead_id}")
-async def get_lead(lead_id: str, request: Request):
+async def get_lead(lead_id: str, user = Depends(get_current_user)):
     """Get a specific lead"""
     user = await get_current_user(request)
     db = get_database()
@@ -563,7 +563,7 @@ async def get_lead(lead_id: str, request: Request):
 
 
 @router.put("/leads/{lead_id}")
-async def update_lead(lead_id: str, data: LeadUpdate, request: Request):
+async def update_lead(lead_id: str, data: LeadUpdate, user = Depends(get_current_user)):
     """Update a lead"""
     user = await get_current_user(request)
     db = get_database()
@@ -609,7 +609,7 @@ async def update_lead(lead_id: str, data: LeadUpdate, request: Request):
 
 
 @router.post("/leads/{lead_id}/qualify")
-async def qualify_lead(lead_id: str, request: Request):
+async def qualify_lead(lead_id: str, user = Depends(get_current_user)):
     """
     Qualify a lead and push to Sales Pipeline.
     Creates a Deal from the lead per Section 5.1.
@@ -777,7 +777,7 @@ async def qualify_lead(lead_id: str, request: Request):
 
 
 @router.post("/leads/{lead_id}/touchpoint")
-async def record_touchpoint(lead_id: str, request: Request):
+async def record_touchpoint(lead_id: str, user = Depends(get_current_user)):
     """Record a touchpoint/activity for a lead"""
     user = await get_current_user(request)
     db = get_database()
@@ -800,7 +800,7 @@ async def record_touchpoint(lead_id: str, request: Request):
 
 
 @router.delete("/leads/{lead_id}")
-async def delete_lead(lead_id: str, request: Request):
+async def delete_lead(lead_id: str, user = Depends(get_current_user)):
     """Delete a lead"""
     user = await get_current_user(request)
     db = get_database()
@@ -864,7 +864,7 @@ async def list_partners(
 
 
 @router.post("/partners", status_code=201)
-async def create_partner(data: PartnerCreate, request: Request):
+async def create_partner(data: PartnerCreate, user = Depends(get_current_user)):
     """Create a new partner"""
     user = await get_current_user(request)
     db = get_database()
@@ -887,7 +887,7 @@ async def create_partner(data: PartnerCreate, request: Request):
 
 
 @router.get("/partners/{partner_id}")
-async def get_partner(partner_id: str, request: Request):
+async def get_partner(partner_id: str, user = Depends(get_current_user)):
     """Get a specific partner"""
     user = await get_current_user(request)
     db = get_database()
@@ -919,7 +919,7 @@ async def get_partner(partner_id: str, request: Request):
 
 
 @router.put("/partners/{partner_id}")
-async def update_partner(partner_id: str, data: PartnerUpdate, request: Request):
+async def update_partner(partner_id: str, data: PartnerUpdate, user = Depends(get_current_user)):
     """Update a partner"""
     user = await get_current_user(request)
     db = get_database()
@@ -939,7 +939,7 @@ async def update_partner(partner_id: str, data: PartnerUpdate, request: Request)
 
 
 @router.delete("/partners/{partner_id}")
-async def delete_partner(partner_id: str, request: Request):
+async def delete_partner(partner_id: str, user = Depends(get_current_user)):
     """Delete a partner"""
     user = await get_current_user(request)
     db = get_database()
@@ -1009,7 +1009,7 @@ async def list_products(
 
 
 @router.post("/products", status_code=201)
-async def create_product(data: ProductCreate, request: Request):
+async def create_product(data: ProductCreate, user = Depends(get_current_user)):
     """Create a new product"""
     user = await get_current_user(request)
     db = get_database()
@@ -1039,7 +1039,7 @@ async def create_product(data: ProductCreate, request: Request):
 
 
 @router.get("/products/{product_id}")
-async def get_product(product_id: str, request: Request):
+async def get_product(product_id: str, user = Depends(get_current_user)):
     """Get a specific product"""
     user = await get_current_user(request)
     db = get_database()
@@ -1061,7 +1061,7 @@ async def get_product(product_id: str, request: Request):
 
 
 @router.put("/products/{product_id}")
-async def update_product(product_id: str, data: ProductUpdate, request: Request):
+async def update_product(product_id: str, data: ProductUpdate, user = Depends(get_current_user)):
     """Update a product"""
     user = await get_current_user(request)
     db = get_database()
@@ -1081,7 +1081,7 @@ async def update_product(product_id: str, data: ProductUpdate, request: Request)
 
 
 @router.delete("/products/{product_id}")
-async def delete_product(product_id: str, request: Request):
+async def delete_product(product_id: str, user = Depends(get_current_user)):
     """Delete a product"""
     user = await get_current_user(request)
     db = get_database()
@@ -1137,7 +1137,7 @@ async def list_companies(
 
 
 @router.post("/companies", status_code=201)
-async def create_company(data: CompanyCreate, request: Request):
+async def create_company(data: CompanyCreate, user = Depends(get_current_user)):
     """Create a new company"""
     user = await get_current_user(request)
     db = get_database()
@@ -1160,7 +1160,7 @@ async def create_company(data: CompanyCreate, request: Request):
 
 
 @router.get("/companies/{company_id}")
-async def get_company(company_id: str, request: Request):
+async def get_company(company_id: str, user = Depends(get_current_user)):
     """Get a specific company"""
     user = await get_current_user(request)
     db = get_database()
@@ -1188,7 +1188,7 @@ async def get_company(company_id: str, request: Request):
 
 
 @router.put("/companies/{company_id}")
-async def update_company(company_id: str, data: CompanyUpdate, request: Request):
+async def update_company(company_id: str, data: CompanyUpdate, user = Depends(get_current_user)):
     """Update a company"""
     user = await get_current_user(request)
     db = get_database()
@@ -1208,7 +1208,7 @@ async def update_company(company_id: str, data: CompanyUpdate, request: Request)
 
 
 @router.delete("/companies/{company_id}")
-async def delete_company(company_id: str, request: Request):
+async def delete_company(company_id: str, user = Depends(get_current_user)):
     """Delete a company"""
     user = await get_current_user(request)
     db = get_database()
