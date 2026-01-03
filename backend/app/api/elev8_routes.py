@@ -325,7 +325,7 @@ def calculate_lead_score(lead: dict) -> tuple[int, str]:
         score += 5
     
     # 3. Lead Source Quality (15 points max)
-    source = lead.get("source", "").lower()
+    source = (lead.get("source") or "").lower()
     source_scores = {
         "referral": 15,
         "partner_referral": 15,
