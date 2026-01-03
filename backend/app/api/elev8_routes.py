@@ -468,7 +468,7 @@ async def list_leads(
 
 
 @router.post("/leads", status_code=201)
-async def create_lead(data: LeadCreate, request):
+async def create_lead(data: LeadCreate, request: Request):
     """Create a new lead"""
     user = await get_current_user(request)
     db = get_database()
@@ -532,7 +532,7 @@ async def create_lead(data: LeadCreate, request):
 
 
 @router.get("/leads/{lead_id}")
-async def get_lead(lead_id: str, request):
+async def get_lead(lead_id: str, request: Request):
     """Get a specific lead"""
     user = await get_current_user(request)
     db = get_database()
@@ -562,7 +562,7 @@ async def get_lead(lead_id: str, request):
 
 
 @router.put("/leads/{lead_id}")
-async def update_lead(lead_id: str, data: LeadUpdate, request):
+async def update_lead(lead_id: str, data: LeadUpdate, request: Request):
     """Update a lead"""
     user = await get_current_user(request)
     db = get_database()
@@ -608,7 +608,7 @@ async def update_lead(lead_id: str, data: LeadUpdate, request):
 
 
 @router.post("/leads/{lead_id}/qualify")
-async def qualify_lead(lead_id: str, request):
+async def qualify_lead(lead_id: str, request: Request):
     """
     Qualify a lead and push to Sales Pipeline.
     Creates a Deal from the lead per Section 5.1.
@@ -768,7 +768,7 @@ async def qualify_lead(lead_id: str, request):
 
 
 @router.post("/leads/{lead_id}/touchpoint")
-async def record_touchpoint(lead_id: str, request):
+async def record_touchpoint(lead_id: str, request: Request):
     """Record a touchpoint/activity for a lead"""
     user = await get_current_user(request)
     db = get_database()
@@ -791,7 +791,7 @@ async def record_touchpoint(lead_id: str, request):
 
 
 @router.delete("/leads/{lead_id}")
-async def delete_lead(lead_id: str, request):
+async def delete_lead(lead_id: str, request: Request):
     """Delete a lead"""
     user = await get_current_user(request)
     db = get_database()
@@ -855,7 +855,7 @@ async def list_partners(
 
 
 @router.post("/partners", status_code=201)
-async def create_partner(data: PartnerCreate, request):
+async def create_partner(data: PartnerCreate, request: Request):
     """Create a new partner"""
     user = await get_current_user(request)
     db = get_database()
@@ -878,7 +878,7 @@ async def create_partner(data: PartnerCreate, request):
 
 
 @router.get("/partners/{partner_id}")
-async def get_partner(partner_id: str, request):
+async def get_partner(partner_id: str, request: Request):
     """Get a specific partner"""
     user = await get_current_user(request)
     db = get_database()
@@ -910,7 +910,7 @@ async def get_partner(partner_id: str, request):
 
 
 @router.put("/partners/{partner_id}")
-async def update_partner(partner_id: str, data: PartnerUpdate, request):
+async def update_partner(partner_id: str, data: PartnerUpdate, request: Request):
     """Update a partner"""
     user = await get_current_user(request)
     db = get_database()
@@ -930,7 +930,7 @@ async def update_partner(partner_id: str, data: PartnerUpdate, request):
 
 
 @router.delete("/partners/{partner_id}")
-async def delete_partner(partner_id: str, request):
+async def delete_partner(partner_id: str, request: Request):
     """Delete a partner"""
     user = await get_current_user(request)
     db = get_database()
@@ -1000,7 +1000,7 @@ async def list_products(
 
 
 @router.post("/products", status_code=201)
-async def create_product(data: ProductCreate, request):
+async def create_product(data: ProductCreate, request: Request):
     """Create a new product"""
     user = await get_current_user(request)
     db = get_database()
@@ -1030,7 +1030,7 @@ async def create_product(data: ProductCreate, request):
 
 
 @router.get("/products/{product_id}")
-async def get_product(product_id: str, request):
+async def get_product(product_id: str, request: Request):
     """Get a specific product"""
     user = await get_current_user(request)
     db = get_database()
@@ -1052,7 +1052,7 @@ async def get_product(product_id: str, request):
 
 
 @router.put("/products/{product_id}")
-async def update_product(product_id: str, data: ProductUpdate, request):
+async def update_product(product_id: str, data: ProductUpdate, request: Request):
     """Update a product"""
     user = await get_current_user(request)
     db = get_database()
@@ -1072,7 +1072,7 @@ async def update_product(product_id: str, data: ProductUpdate, request):
 
 
 @router.delete("/products/{product_id}")
-async def delete_product(product_id: str, request):
+async def delete_product(product_id: str, request: Request):
     """Delete a product"""
     user = await get_current_user(request)
     db = get_database()
@@ -1128,7 +1128,7 @@ async def list_companies(
 
 
 @router.post("/companies", status_code=201)
-async def create_company(data: CompanyCreate, request):
+async def create_company(data: CompanyCreate, request: Request):
     """Create a new company"""
     user = await get_current_user(request)
     db = get_database()
@@ -1151,7 +1151,7 @@ async def create_company(data: CompanyCreate, request):
 
 
 @router.get("/companies/{company_id}")
-async def get_company(company_id: str, request):
+async def get_company(company_id: str, request: Request):
     """Get a specific company"""
     user = await get_current_user(request)
     db = get_database()
@@ -1179,7 +1179,7 @@ async def get_company(company_id: str, request):
 
 
 @router.put("/companies/{company_id}")
-async def update_company(company_id: str, data: CompanyUpdate, request):
+async def update_company(company_id: str, data: CompanyUpdate, request: Request):
     """Update a company"""
     user = await get_current_user(request)
     db = get_database()
@@ -1199,7 +1199,7 @@ async def update_company(company_id: str, data: CompanyUpdate, request):
 
 
 @router.delete("/companies/{company_id}")
-async def delete_company(company_id: str, request):
+async def delete_company(company_id: str, request: Request):
     """Delete a company"""
     user = await get_current_user(request)
     db = get_database()
