@@ -41,12 +41,15 @@ import AffiliatesPage from './pages/AffiliatesPage';
 import LandingPagesPage from './pages/LandingPagesPage';
 import PublicLandingPage from './pages/PublicLandingPage';
 import SettingsPage from './pages/SettingsPage';
+import LeadsPage from './pages/LeadsPage';
+import PartnersPage from './pages/PartnersPage';
 import AffiliateLoginPage from './pages/AffiliatePortal/AffiliateLoginPage';
 import AffiliateDashboard from './pages/AffiliatePortal/AffiliateDashboard';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { path: '/leads', icon: UserPlus, label: 'Leads' },
   { path: '/contacts', icon: Users, label: 'Contacts' },
   { path: '/pipeline', icon: Target, label: 'Pipeline' },
   { path: '/activity', icon: Activity, label: 'Activity' },
