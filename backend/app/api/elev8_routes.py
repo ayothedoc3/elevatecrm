@@ -341,7 +341,7 @@ def calculate_lead_score(lead: dict) -> tuple[int, str]:
     score += source_scores.get(source, 5)
     
     # 4. Strategic Motivation & Vision (20 points max)
-    primary_motivation = lead.get("primary_motivation", "")
+    primary_motivation = (lead.get("primary_motivation") or "")
     motivation_scores = {
         "cost_reduction": 18,
         "revenue_growth": 20,
