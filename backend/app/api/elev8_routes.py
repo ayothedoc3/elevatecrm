@@ -1294,11 +1294,10 @@ async def setup_elev8_pipelines(user = Depends(get_current_user)):
 
 
 @router.post("/setup/migrate-deals")
-async def migrate_deals_to_elev8(request: Request, old_pipeline_id: str = Query(...)):
+async def migrate_deals_to_elev8(old_pipeline_id: str = Query(...), user = Depends(get_current_user)):
     """
     Migrate existing deals from an old pipeline to the new Sales Pipeline.
     """
-    
     db = get_database()
     
     # Check admin role
