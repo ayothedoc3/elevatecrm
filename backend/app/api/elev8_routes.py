@@ -1219,7 +1219,12 @@ async def update_company(company_id: str, data: CompanyUpdate, user = Depends(ge
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Company not found")
     
-    return await get_company(company_id, request)
+    # Return updated company
+    updated_company = await db.companies.find_one(
+        {"id": company_id, "tenant_id": user["tenant_id"]},
+        {"_id": 0}
+    )
+    return updated_company
 
 
 @router.delete("/companies/{company_id}")
