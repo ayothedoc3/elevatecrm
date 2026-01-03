@@ -1276,12 +1276,11 @@ async def get_lead_scoring_stats(user = Depends(get_current_user)):
 # ==================== PIPELINE SETUP ====================
 
 @router.post("/setup/pipelines")
-async def setup_elev8_pipelines(request: Request):
+async def setup_elev8_pipelines(user = Depends(get_current_user)):
     """
     Create the Elev8 dual pipeline structure (Qualification + Sales).
     This is typically run once during initial setup.
     """
-    
     db = get_database()
     
     # Check admin role
