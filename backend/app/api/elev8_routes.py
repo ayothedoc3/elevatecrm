@@ -940,7 +940,12 @@ async def update_partner(partner_id: str, data: PartnerUpdate, user = Depends(ge
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Partner not found")
     
-    return await get_partner(partner_id, request)
+    # Return updated partner
+    updated_partner = await db.partners.find_one(
+        {"id": partner_id, "tenant_id": user["tenant_id"]},
+        {"_id": 0}
+    )
+    return updated_partner
 
 
 @router.delete("/partners/{partner_id}")
