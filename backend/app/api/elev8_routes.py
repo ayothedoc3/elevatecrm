@@ -27,7 +27,7 @@ import uuid
 
 from app.db.mongodb import get_database
 
-router = APIRouter(tags=["Elev8 CRM"])
+router = APIRouter(prefix="/elev8", tags=["Elev8 CRM"])
 
 
 # ==================== ENUMS ====================
