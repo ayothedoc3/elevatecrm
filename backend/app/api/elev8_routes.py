@@ -403,7 +403,7 @@ def get_tier_probability(tier: str) -> float:
 
 @router.get("/leads")
 async def list_leads(
-    request,
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = None,
