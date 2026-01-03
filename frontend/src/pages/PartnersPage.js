@@ -109,7 +109,7 @@ const PartnersPage = () => {
   });
 
   const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('crm_token');
     return {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
