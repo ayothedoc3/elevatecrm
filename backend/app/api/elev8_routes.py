@@ -1322,9 +1322,8 @@ async def migrate_deals_to_elev8(old_pipeline_id: str = Query(...), user = Depen
 
 
 @router.get("/pipelines/elev8")
-async def get_elev8_pipelines(request: Request):
+async def get_elev8_pipelines(user = Depends(get_current_user)):
     """Get the Elev8 dual pipeline configuration"""
-    
     db = get_database()
     
     qual_pipeline = await db.pipelines.find_one(
