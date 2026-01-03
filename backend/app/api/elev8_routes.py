@@ -471,7 +471,7 @@ async def list_leads(
 @router.post("/leads", status_code=201)
 async def create_lead(data: LeadCreate, user = Depends(get_current_user)):
     """Create a new lead"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     # Validate partner sales requirements (Section 4)
@@ -535,7 +535,7 @@ async def create_lead(data: LeadCreate, user = Depends(get_current_user)):
 @router.get("/leads/{lead_id}")
 async def get_lead(lead_id: str, user = Depends(get_current_user)):
     """Get a specific lead"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     lead = await db.leads.find_one(
@@ -565,7 +565,7 @@ async def get_lead(lead_id: str, user = Depends(get_current_user)):
 @router.put("/leads/{lead_id}")
 async def update_lead(lead_id: str, data: LeadUpdate, user = Depends(get_current_user)):
     """Update a lead"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     lead = await db.leads.find_one(
@@ -614,7 +614,7 @@ async def qualify_lead(lead_id: str, user = Depends(get_current_user)):
     Qualify a lead and push to Sales Pipeline.
     Creates a Deal from the lead per Section 5.1.
     """
-    user = await get_current_user(request)
+    
     db = get_database()
     
     lead = await db.leads.find_one(
@@ -779,7 +779,7 @@ async def qualify_lead(lead_id: str, user = Depends(get_current_user)):
 @router.post("/leads/{lead_id}/touchpoint")
 async def record_touchpoint(lead_id: str, user = Depends(get_current_user)):
     """Record a touchpoint/activity for a lead"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     result = await db.leads.update_one(
@@ -802,7 +802,7 @@ async def record_touchpoint(lead_id: str, user = Depends(get_current_user)):
 @router.delete("/leads/{lead_id}")
 async def delete_lead(lead_id: str, user = Depends(get_current_user)):
     """Delete a lead"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     result = await db.leads.delete_one(
@@ -827,7 +827,7 @@ async def list_partners(
     partner_type: Optional[str] = None
 ):
     """List partners"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     query = {"tenant_id": user["tenant_id"]}
@@ -866,7 +866,7 @@ async def list_partners(
 @router.post("/partners", status_code=201)
 async def create_partner(data: PartnerCreate, user = Depends(get_current_user)):
     """Create a new partner"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     now = datetime.now(timezone.utc).isoformat()
@@ -889,7 +889,7 @@ async def create_partner(data: PartnerCreate, user = Depends(get_current_user)):
 @router.get("/partners/{partner_id}")
 async def get_partner(partner_id: str, user = Depends(get_current_user)):
     """Get a specific partner"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     partner = await db.partners.find_one(
@@ -921,7 +921,7 @@ async def get_partner(partner_id: str, user = Depends(get_current_user)):
 @router.put("/partners/{partner_id}")
 async def update_partner(partner_id: str, data: PartnerUpdate, user = Depends(get_current_user)):
     """Update a partner"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     updates = {k: v for k, v in data.dict().items() if v is not None}
@@ -941,7 +941,7 @@ async def update_partner(partner_id: str, data: PartnerUpdate, user = Depends(ge
 @router.delete("/partners/{partner_id}")
 async def delete_partner(partner_id: str, user = Depends(get_current_user)):
     """Delete a partner"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     # Check for active deals
@@ -976,7 +976,7 @@ async def list_products(
     is_active: Optional[bool] = None
 ):
     """List products"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     query = {"tenant_id": user["tenant_id"]}
@@ -1011,7 +1011,7 @@ async def list_products(
 @router.post("/products", status_code=201)
 async def create_product(data: ProductCreate, user = Depends(get_current_user)):
     """Create a new product"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     # Verify partner exists
@@ -1041,7 +1041,7 @@ async def create_product(data: ProductCreate, user = Depends(get_current_user)):
 @router.get("/products/{product_id}")
 async def get_product(product_id: str, user = Depends(get_current_user)):
     """Get a specific product"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     product = await db.products.find_one(
@@ -1063,7 +1063,7 @@ async def get_product(product_id: str, user = Depends(get_current_user)):
 @router.put("/products/{product_id}")
 async def update_product(product_id: str, data: ProductUpdate, user = Depends(get_current_user)):
     """Update a product"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     updates = {k: v for k, v in data.dict().items() if v is not None}
@@ -1083,7 +1083,7 @@ async def update_product(product_id: str, data: ProductUpdate, user = Depends(ge
 @router.delete("/products/{product_id}")
 async def delete_product(product_id: str, user = Depends(get_current_user)):
     """Delete a product"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     result = await db.products.delete_one(
@@ -1107,7 +1107,7 @@ async def list_companies(
     industry: Optional[str] = None
 ):
     """List companies"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     query = {"tenant_id": user["tenant_id"]}
@@ -1139,7 +1139,7 @@ async def list_companies(
 @router.post("/companies", status_code=201)
 async def create_company(data: CompanyCreate, user = Depends(get_current_user)):
     """Create a new company"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     now = datetime.now(timezone.utc).isoformat()
@@ -1162,7 +1162,7 @@ async def create_company(data: CompanyCreate, user = Depends(get_current_user)):
 @router.get("/companies/{company_id}")
 async def get_company(company_id: str, user = Depends(get_current_user)):
     """Get a specific company"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     company = await db.companies.find_one(
@@ -1190,7 +1190,7 @@ async def get_company(company_id: str, user = Depends(get_current_user)):
 @router.put("/companies/{company_id}")
 async def update_company(company_id: str, data: CompanyUpdate, user = Depends(get_current_user)):
     """Update a company"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     updates = {k: v for k, v in data.dict().items() if v is not None}
@@ -1210,7 +1210,7 @@ async def update_company(company_id: str, data: CompanyUpdate, user = Depends(ge
 @router.delete("/companies/{company_id}")
 async def delete_company(company_id: str, user = Depends(get_current_user)):
     """Delete a company"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     result = await db.companies.delete_one(
@@ -1228,7 +1228,7 @@ async def delete_company(company_id: str, user = Depends(get_current_user)):
 @router.get("/leads/scoring/stats")
 async def get_lead_scoring_stats(request: Request):
     """Get lead scoring statistics and tier distribution"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     # Tier distribution
@@ -1282,7 +1282,7 @@ async def setup_elev8_pipelines(request: Request):
     Create the Elev8 dual pipeline structure (Qualification + Sales).
     This is typically run once during initial setup.
     """
-    user = await get_current_user(request)
+    
     db = get_database()
     
     # Check admin role
@@ -1300,7 +1300,7 @@ async def migrate_deals_to_elev8(request: Request, old_pipeline_id: str = Query(
     """
     Migrate existing deals from an old pipeline to the new Sales Pipeline.
     """
-    user = await get_current_user(request)
+    
     db = get_database()
     
     # Check admin role
@@ -1327,7 +1327,7 @@ async def migrate_deals_to_elev8(request: Request, old_pipeline_id: str = Query(
 @router.get("/pipelines/elev8")
 async def get_elev8_pipelines(request: Request):
     """Get the Elev8 dual pipeline configuration"""
-    user = await get_current_user(request)
+    
     db = get_database()
     
     qual_pipeline = await db.pipelines.find_one(
