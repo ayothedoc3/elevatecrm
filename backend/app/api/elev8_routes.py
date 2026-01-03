@@ -605,7 +605,12 @@ async def update_lead(lead_id: str, data: LeadUpdate, user = Depends(get_current
         {"$set": updates}
     )
     
-    return await get_lead(lead_id, request)
+    # Return updated lead
+    updated_lead = await db.leads.find_one(
+        {"id": lead_id, "tenant_id": user["tenant_id"]},
+        {"_id": 0}
+    )
+    return updated_lead
 
 
 @router.post("/leads/{lead_id}/qualify")
