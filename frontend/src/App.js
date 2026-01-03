@@ -52,6 +52,7 @@ const navItems = [
   { path: '/leads', icon: UserPlus, label: 'Leads' },
   { path: '/contacts', icon: Users, label: 'Contacts' },
   { path: '/pipeline', icon: Target, label: 'Pipeline' },
+  { path: '/partners', icon: Building2, label: 'Partners' },
   { path: '/activity', icon: Activity, label: 'Activity' },
   { path: '/reports', icon: BarChart3, label: 'Reports' },
   { path: '/affiliates', icon: UserPlus, label: 'Affiliates' },
