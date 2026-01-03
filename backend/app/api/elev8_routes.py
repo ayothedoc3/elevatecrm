@@ -1091,7 +1091,7 @@ async def delete_product(product_id: str, request: Request):
 
 @router.get("/companies")
 async def list_companies(
-    request,
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = None,
