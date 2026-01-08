@@ -466,7 +466,7 @@ const TasksPage = () => {
               </h3>
               <div className="space-y-3">
                 {myTasks.overdue.map(task => (
-                  <TaskCard key={task.id} task={task} />
+                  <TaskCard key={task.id} task={task} onComplete={handleCompleteClick} onDelete={handleDeleteTask} />
                 ))}
               </div>
             </div>
@@ -481,7 +481,7 @@ const TasksPage = () => {
               </h3>
               <div className="space-y-3">
                 {myTasks.due_today.map(task => (
-                  <TaskCard key={task.id} task={task} />
+                  <TaskCard key={task.id} task={task} onComplete={handleCompleteClick} onDelete={handleDeleteTask} />
                 ))}
               </div>
             </div>
@@ -496,7 +496,7 @@ const TasksPage = () => {
               </h3>
               <div className="space-y-3">
                 {myTasks.upcoming.map(task => (
-                  <TaskCard key={task.id} task={task} />
+                  <TaskCard key={task.id} task={task} onComplete={handleCompleteClick} onDelete={handleDeleteTask} />
                 ))}
               </div>
             </div>
