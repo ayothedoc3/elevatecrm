@@ -10,6 +10,10 @@ Routes are split by entity for better maintainability:
 - companies.py: Company/Account management
 - pipelines.py: Pipeline setup and queries
 - ai_assistant.py: AI Assistant (advisory/draft-only)
+- kpis.py: KPIs and forecasting
+- handoff.py: Handoff to Delivery workflow
+- partner_config.py: Partner-specific configurations
+- tasks.py: SLA & Task management
 - scoring.py: Lead scoring engine (business logic)
 - models.py: Shared enums and schemas
 - auth.py: Authentication helpers
@@ -26,6 +30,9 @@ from .companies import router as companies_router
 from .pipelines import router as pipelines_router
 from .ai_assistant import router as ai_assistant_router
 from .kpis import router as kpis_router
+from .handoff import router as handoff_router
+from .partner_config import router as partner_config_router
+from .tasks import router as tasks_router
 
 # Create main router
 router = APIRouter(prefix="/elev8", tags=["Elev8 CRM"])
@@ -38,6 +45,9 @@ router.include_router(companies_router)
 router.include_router(pipelines_router)
 router.include_router(ai_assistant_router)
 router.include_router(kpis_router)
+router.include_router(handoff_router)
+router.include_router(partner_config_router)
+router.include_router(tasks_router)
 
 # Export commonly used items
 from .models import (
