@@ -411,6 +411,29 @@ const PipelinePage = () => {
     }
   };
 
+  // Apply AI-drafted SPICED to form (pre-fill, user must still save)
+  const applyAISpicedDraft = (draft) => {
+    if (!draft) return;
+    
+    setSpicedData({
+      situation: draft.situation || '',
+      pain: draft.pain || '',
+      impact: draft.impact || '',
+      critical_event: draft.critical_event || '',
+      economic: draft.economic || '',
+      decision: draft.decision || ''
+    });
+    
+    // Open the SPICED editor with the drafted content
+    setShowSpicedDialog(true);
+    setShowAIPanel(false);
+    
+    toast({
+      title: "AI Draft Applied",
+      description: "Review and save the SPICED summary to commit changes.",
+    });
+  };
+
   // Calculation handlers
   const handleCalcInputChange = (name, value) => {
     setCalcInputs(prev => ({ ...prev, [name]: value }));
