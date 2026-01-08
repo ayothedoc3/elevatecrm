@@ -53,6 +53,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { useToast } from '../hooks/use-toast';
 import { useAuth } from '../contexts/AuthContext';
+import AIAssistantPanel from '../components/AIAssistantPanel';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
