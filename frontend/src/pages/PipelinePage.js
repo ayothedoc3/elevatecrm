@@ -700,6 +700,19 @@ const PipelinePage = () => {
                 </SheetDescription>
               </SheetHeader>
               
+              {/* AI Assistant Button */}
+              <div className="mt-4">
+                <Button 
+                  variant="outline" 
+                  className="w-full bg-purple-50 hover:bg-purple-100 border-purple-200"
+                  onClick={() => setShowAIPanel(true)}
+                >
+                  <Sparkles className="w-4 h-4 mr-2 text-purple-500" />
+                  AI Assistant - Draft SPICED
+                  <Badge variant="secondary" className="ml-2 text-xs">Advisory</Badge>
+                </Button>
+              </div>
+              
               <div className="mt-6 space-y-6">
                 {/* Deal Summary */}
                 <Card>
