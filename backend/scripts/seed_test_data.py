@@ -10,15 +10,18 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
-import hashlib
+from passlib.context import CryptContext
 
 MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 DB_NAME = os.environ.get('DB_NAME', 'crm_db')
 
+# Use bcrypt for password hashing (same as server.py)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 
 def hash_password(password: str) -> str:
-    """Simple password hashing for demo purposes"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password using bcrypt"""
+    return pwd_context.hash(password)
 
 
 async def get_db():
