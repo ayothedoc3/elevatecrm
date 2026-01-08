@@ -251,8 +251,8 @@ const TasksPage = () => {
   };
 
   const filteredTasks = allTasks.filter(task => {
-    if (filters.status && task.status !== filters.status) return false;
-    if (filters.priority && task.priority !== filters.priority) return false;
+    if (filters.status && filters.status !== 'all' && task.status !== filters.status) return false;
+    if (filters.priority && filters.priority !== 'all' && task.priority !== filters.priority) return false;
     if (filters.search) {
       const search = filters.search.toLowerCase();
       return (
