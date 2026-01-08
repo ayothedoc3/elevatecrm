@@ -47,9 +47,10 @@ import {
   ChevronRight, ChevronLeft, GripVertical, MoreHorizontal, Plus, RefreshCw,
   Calculator, Phone, Mail, MessageSquare, Calendar, FileText, 
   TrendingUp, Package, Loader2, AlertCircle, ArrowRight, Target,
-  Users, Building2, Filter, Zap, Star, ClipboardList
+  Users, Building2, Filter, Zap, Star, ClipboardList, Sparkles
 } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import AIAssistantPanel from '../components/AIAssistantPanel';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
