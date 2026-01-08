@@ -30,6 +30,7 @@ class Elev8CRMTester:
         self.test_company_id = None
         self.test_contact_id = None
         self.test_deal_id = None
+        self.test_task_id = None
         
     def log_test(self, test_name, success, details="", error=None):
         """Log test result"""
