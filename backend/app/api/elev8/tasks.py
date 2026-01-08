@@ -518,8 +518,6 @@ async def get_my_tasks(
     """
     db = get_database()
     
-    now = datetime.now(timezone.utc).isoformat()
-    
     query = {
         "tenant_id": user["tenant_id"],
         "assigned_to": user["id"],
@@ -547,7 +545,7 @@ async def get_my_tasks(
                 due_today.append(task)
             else:
                 upcoming.append(task)
-        except:
+        except (ValueError, TypeError):
             upcoming.append(task)
     
     return {
