@@ -43,6 +43,7 @@ import PublicLandingPage from './pages/PublicLandingPage';
 import SettingsPage from './pages/SettingsPage';
 import LeadsPage from './pages/LeadsPage';
 import PartnersPage from './pages/PartnersPage';
+import KPIDashboardPage from './pages/KPIDashboardPage';
 import AffiliateLoginPage from './pages/AffiliatePortal/AffiliateLoginPage';
 import AffiliateDashboard from './pages/AffiliatePortal/AffiliateDashboard';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
