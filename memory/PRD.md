@@ -337,8 +337,24 @@ CRM configuration must reflect this hierarchy.
   - Backend: Task CRUD, SLA configuration, compliance tracking
   - Frontend: TasksPage.js with My Tasks, All Tasks, SLA Monitor tabs
 
+### Code Refactoring ✅ (January 2026)
+- Created `/app/frontend/src/components/leads/` folder with extracted components:
+  - `LeadFilters.js` - Search and filter controls
+  - `LeadTable.js` - Leads table with actions
+  - `ScoringStatsCards.js` - Tier distribution stats
+- Created seed data script at `/app/backend/scripts/seed_test_data.py`
+- Added `/api/elev8/users` endpoint for user selection in forms
+
 ---
 
 ## Test Credentials
 
 - **Admin User:** `admin@demo.com` / `admin123`
+
+## Seed Data Available
+Run `python scripts/seed_test_data.py` from `/app/backend` to populate:
+- Sample tasks (overdue, due today, upcoming)
+- SLA configurations
+- Won deals for handoff testing
+- Partner configurations
+
