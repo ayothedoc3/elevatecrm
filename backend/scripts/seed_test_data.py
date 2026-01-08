@@ -10,14 +10,63 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import hashlib
 
 MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 DB_NAME = os.environ.get('DB_NAME', 'crm_db')
 
 
+def hash_password(password: str) -> str:
+    """Simple password hashing for demo purposes"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
 async def get_db():
     client = AsyncIOMotorClient(MONGO_URL)
     return client[DB_NAME]
+
+
+async def ensure_demo_tenant_and_user(db):
+    """Create demo tenant and admin user if they don't exist"""
+    now = datetime.now(timezone.utc)
+    
+    # Check for tenant
+    tenant = await db.tenants.find_one({"slug": "demo"})
+    if not tenant:
+        tenant = {
+            "id": str(uuid.uuid4()),
+            "name": "Demo Company",
+            "slug": "demo",
+            "created_at": now.isoformat(),
+            "is_active": True
+        }
+        await db.tenants.insert_one(tenant)
+        print(f"✅ Created demo tenant: {tenant['id']}")
+    else:
+        print(f"✅ Demo tenant exists: {tenant['id']}")
+    
+    tenant_id = tenant["id"]
+    
+    # Check for admin user
+    user = await db.users.find_one({"email": "admin@demo.com", "tenant_id": tenant_id})
+    if not user:
+        user = {
+            "id": str(uuid.uuid4()),
+            "email": "admin@demo.com",
+            "hashed_password": hash_password("admin123"),
+            "first_name": "Admin",
+            "last_name": "User",
+            "role": "admin",
+            "is_active": True,
+            "tenant_id": tenant_id,
+            "created_at": now.isoformat()
+        }
+        await db.users.insert_one(user)
+        print(f"✅ Created admin user: admin@demo.com / admin123")
+    else:
+        print(f"✅ Admin user exists: {user['id']}")
+    
+    return tenant_id, user["id"]
 
 
 async def seed_tasks(db, tenant_id: str, user_id: str):
