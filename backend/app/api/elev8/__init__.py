@@ -25,6 +25,7 @@ from .products import router as products_router
 from .companies import router as companies_router
 from .pipelines import router as pipelines_router
 from .ai_assistant import router as ai_assistant_router
+from .kpis import router as kpis_router
 
 # Create main router
 router = APIRouter(prefix="/elev8", tags=["Elev8 CRM"])
@@ -36,6 +37,7 @@ router.include_router(products_router)
 router.include_router(companies_router)
 router.include_router(pipelines_router)
 router.include_router(ai_assistant_router)
+router.include_router(kpis_router)
 
 # Export commonly used items
 from .models import (
