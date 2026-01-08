@@ -102,7 +102,7 @@ async def explain_lead_score(
         
         return await assistant.explain_lead_score(lead_id)
         
-    except AINotConfiguredError as e:
+    except AINotConfiguredError:
         # Fall back to score breakdown without AI
         from app.api.elev8.scoring import get_score_breakdown
         db = get_database()
