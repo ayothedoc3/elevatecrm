@@ -48,6 +48,9 @@ class AIFeatureType(str, Enum):
     CONTACT_ANALYSIS = "contact_analysis"
     WORKFLOW_AI = "workflow_ai"
     GENERAL_ASSISTANT = "general_assistant"
+    # Elev8 AI Assistant features (advisory/draft-only)
+    SPICED_DRAFTING = "spiced_drafting"
+    LEAD_INTELLIGENCE = "lead_intelligence"
 
 
 class AuditAction(str, Enum):
