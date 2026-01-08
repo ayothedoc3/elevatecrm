@@ -556,54 +556,6 @@ async def get_sla_status(
     return results
 
 
-@router.get("/tasks/my-tasks")
-async def get_my_tasks(
-    include_overdue: bool = True,
-    user = Depends(get_current_user)
-):
-    """
-    Get tasks assigned to the current user.
-    """
-    db = get_database()
-    
-    query = {
-        "tenant_id": user["tenant_id"],
-        "assigned_to": user["id"],
-        "status": {"$in": ["pending", "in_progress"]}
-    }
-    
-    tasks = await db.tasks.find(query, {"_id": 0}).sort("due_date", 1).to_list(length=100)
-    
-    # Categorize
-    overdue = []
-    due_today = []
-    upcoming = []
-    
-    today = datetime.now(timezone.utc).date()
-    
-    for task in tasks:
-        due_date_str = task.get("due_date", "")
-        try:
-            due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00")).date()
-            
-            if due_date < today:
-                task["status"] = "overdue"
-                overdue.append(task)
-            elif due_date == today:
-                due_today.append(task)
-            else:
-                upcoming.append(task)
-        except (ValueError, TypeError):
-            upcoming.append(task)
-    
-    return {
-        "overdue": overdue,
-        "due_today": due_today,
-        "upcoming": upcoming[:10],
-        "total_pending": len(overdue) + len(due_today) + len(upcoming)
-    }
-
-
 @router.get("/tasks/deal/{deal_id}")
 async def get_deal_tasks(
     deal_id: str,
