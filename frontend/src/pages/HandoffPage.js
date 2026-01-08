@@ -110,7 +110,7 @@ const HandoffPage = () => {
     try {
       const [handoffsRes, dealsRes, usersRes] = await Promise.all([
         fetch(`${API_URL}/api/elev8/handoffs`, { headers: getAuthHeaders() }),
-        fetch(`${API_URL}/api/elev8/deals?status=won&page_size=100`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/api/deals?status=won&page_size=100`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/elev8/users`, { headers: getAuthHeaders() })
       ]);
       
