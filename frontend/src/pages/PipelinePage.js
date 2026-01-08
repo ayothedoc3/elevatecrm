@@ -92,6 +92,9 @@ const PipelinePage = () => {
   });
   const [savingSpiced, setSavingSpiced] = useState(false);
   
+  // AI Assistant state
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  
   // Stage transition state
   const [showTransitionDialog, setShowTransitionDialog] = useState(false);
   const [pendingTransition, setPendingTransition] = useState(null);
