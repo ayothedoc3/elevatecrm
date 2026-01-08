@@ -827,7 +827,8 @@ class Elev8CRMTester:
                 "task_type": "call",
                 "priority": "high",
                 "due_date": "2024-12-31T10:00:00Z",
-                "deal_id": self.test_deal_id if self.test_deal_id else None
+                "deal_id": self.test_deal_id if self.test_deal_id else None,
+                "assigned_to": self.admin_user_data["id"]  # Assign to current user
             }
             
             response = self.session.post(
