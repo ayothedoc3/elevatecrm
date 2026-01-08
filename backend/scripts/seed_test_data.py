@@ -69,7 +69,257 @@ async def ensure_demo_tenant_and_user(db):
     return tenant_id, user["id"]
 
 
-async def seed_tasks(db, tenant_id: str, user_id: str):
+async def seed_sample_deals(db, tenant_id: str, user_id: str):
+    """Create sample deals if none exist"""
+    now = datetime.now(timezone.utc)
+    
+    count = await db.deals.count_documents({"tenant_id": tenant_id})
+    if count >= 5:
+        print(f"✅ Already have {count} deals")
+        return
+    
+    deals = [
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Enterprise Contract - Acme Corp",
+            "tenant_id": tenant_id,
+            "sales_motion_type": "partnership_sales",
+            "status": "open",
+            "stage_name": "Discovery / Demo Scheduled",
+            "amount": 75000,
+            "owner_id": user_id,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "TechStart Inc Implementation",
+            "tenant_id": tenant_id,
+            "sales_motion_type": "partnership_sales",
+            "status": "open",
+            "stage_name": "Decision Pending",
+            "amount": 45000,
+            "owner_id": user_id,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Global Foods Partnership",
+            "tenant_id": tenant_id,
+            "sales_motion_type": "partner_sales",
+            "status": "open",
+            "stage_name": "Verbal Commitment",
+            "amount": 120000,
+            "owner_id": user_id,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "RetailMax Pilot Program",
+            "tenant_id": tenant_id,
+            "sales_motion_type": "partnership_sales",
+            "status": "won",
+            "stage_name": "Closed Won",
+            "amount": 35000,
+            "spiced_situation": "Customer needed to modernize operations",
+            "spiced_pain": "Manual processes causing delays",
+            "spiced_impact": "30% efficiency improvement expected",
+            "owner_id": user_id,
+            "created_at": (now - timedelta(days=30)).isoformat(),
+            "updated_at": now.isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "QuickServe Expansion",
+            "tenant_id": tenant_id,
+            "sales_motion_type": "partner_sales",
+            "status": "won",
+            "stage_name": "Closed Won",
+            "amount": 95000,
+            "spiced_situation": "Expanding to 50 new locations",
+            "spiced_pain": "No centralized management system",
+            "spiced_impact": "Cost savings of $200k annually",
+            "owner_id": user_id,
+            "created_at": (now - timedelta(days=20)).isoformat(),
+            "updated_at": now.isoformat()
+        }
+    ]
+    
+    for deal in deals:
+        await db.deals.update_one(
+            {"id": deal["id"]},
+            {"$set": deal},
+            upsert=True
+        )
+    
+    print(f"✅ Created {len(deals)} sample deals")
+
+
+async def seed_sample_leads(db, tenant_id: str, user_id: str):
+    """Create sample leads if none exist"""
+    now = datetime.now(timezone.utc)
+    
+    count = await db.leads.count_documents({"tenant_id": tenant_id})
+    if count >= 5:
+        print(f"✅ Already have {count} leads")
+        return
+    
+    leads = [
+        {
+            "id": str(uuid.uuid4()),
+            "first_name": "John",
+            "last_name": "Smith",
+            "email": "john.smith@acme.com",
+            "company_name": "Acme Corporation",
+            "title": "VP Operations",
+            "tenant_id": tenant_id,
+            "sales_motion_type": "partnership_sales",
+            "source": "referral",
+            "status": "working",
+            "lead_score": 85,
+            "tier": "A",
+            "owner_id": user_id,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "first_name": "Sarah",
+            "last_name": "Johnson",
+            "email": "sarah.j@techstart.io",
+            "company_name": "TechStart Inc",
+            "title": "Director of IT",
+            "tenant_id": tenant_id,
+            "sales_motion_type": "partnership_sales",
+            "source": "inbound_demo",
+            "status": "new",
+            "lead_score": 72,
+            "tier": "B",
+            "owner_id": user_id,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "first_name": "Michael",
+            "last_name": "Chen",
+            "email": "mchen@globalfoods.com",
+            "company_name": "Global Foods LLC",
+            "title": "COO",
+            "tenant_id": tenant_id,
+            "sales_motion_type": "partner_sales",
+            "source": "trade_show",
+            "status": "info_collected",
+            "lead_score": 65,
+            "tier": "B",
+            "owner_id": user_id,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "first_name": "Emily",
+            "last_name": "Davis",
+            "email": "emily@retailmax.com",
+            "company_name": "RetailMax",
+            "title": "Operations Manager",
+            "tenant_id": tenant_id,
+            "sales_motion_type": "partnership_sales",
+            "source": "website_demo",
+            "status": "working",
+            "lead_score": 55,
+            "tier": "C",
+            "owner_id": user_id,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "first_name": "Robert",
+            "last_name": "Wilson",
+            "email": "rwilson@quickserve.net",
+            "company_name": "QuickServe Network",
+            "title": "Franchise Director",
+            "tenant_id": tenant_id,
+            "sales_motion_type": "partner_sales",
+            "source": "partner_referral",
+            "status": "new",
+            "lead_score": 78,
+            "tier": "B",
+            "owner_id": user_id,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
+        }
+    ]
+    
+    for lead in leads:
+        await db.leads.update_one(
+            {"id": lead["id"]},
+            {"$set": lead},
+            upsert=True
+        )
+    
+    print(f"✅ Created {len(leads)} sample leads")
+
+
+async def seed_sample_partners(db, tenant_id: str, user_id: str):
+    """Create sample partners if none exist"""
+    now = datetime.now(timezone.utc)
+    
+    count = await db.partners.count_documents({"tenant_id": tenant_id})
+    if count >= 3:
+        print(f"✅ Already have {count} partners")
+        return
+    
+    partners = [
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Frylow",
+            "tenant_id": tenant_id,
+            "partner_type": "strategic",
+            "status": "active",
+            "contact_name": "David Martinez",
+            "contact_email": "david@frylow.com",
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+            "created_by": user_id
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Test Partner Solutions",
+            "tenant_id": tenant_id,
+            "partner_type": "channel",
+            "status": "active",
+            "contact_name": "Lisa Anderson",
+            "contact_email": "lisa@testpartner.com",
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+            "created_by": user_id
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Tech Alliance Group",
+            "tenant_id": tenant_id,
+            "partner_type": "technology",
+            "status": "active",
+            "contact_name": "James Lee",
+            "contact_email": "james@techalliance.io",
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+            "created_by": user_id
+        }
+    ]
+    
+    for partner in partners:
+        await db.partners.update_one(
+            {"id": partner["id"]},
+            {"$set": partner},
+            upsert=True
+        )
+    
+    print(f"✅ Created {len(partners)} sample partners")
     """Create sample tasks with various states"""
     now = datetime.now(timezone.utc)
     
