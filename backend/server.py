@@ -1629,8 +1629,8 @@ api_router.include_router(landing_pages_router)
 from app.api.settings_routes import router as settings_router
 api_router.include_router(settings_router)
 
-# Import and include Elev8 CRM entity routes
-from app.api.elev8_routes import router as elev8_router
+# Import and include Elev8 CRM entity routes (modular structure)
+from app.api.elev8 import router as elev8_router
 api_router.include_router(elev8_router)
 
 app.include_router(api_router)
