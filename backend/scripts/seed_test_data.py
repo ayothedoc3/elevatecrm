@@ -663,26 +663,26 @@ async def main():
     
     db = await get_db()
     
-    # Get default tenant and admin user
-    user = await db.users.find_one({"email": "admin@demo.com"})
-    if not user:
-        print("❌ Admin user not found. Please ensure the app has been initialized.")
-        return
+    # Ensure tenant and user exist
+    tenant_id, user_id = await ensure_demo_tenant_and_user(db)
     
-    tenant_id = user.get("tenant_id")
-    user_id = user.get("id")
-    
-    print(f"Using tenant: {tenant_id}")
+    print(f"\nUsing tenant: {tenant_id}")
     print(f"Using user: {user_id}\n")
     
-    # Seed data
+    # Seed base data first
+    await seed_sample_partners(db, tenant_id, user_id)
+    await seed_sample_leads(db, tenant_id, user_id)
+    await seed_sample_deals(db, tenant_id, user_id)
+    
+    # Seed feature-specific data
     await seed_tasks(db, tenant_id, user_id)
     await seed_sla_configs(db, tenant_id, user_id)
     await create_sla_breach_scenarios(db, tenant_id)
     await seed_won_deals_for_handoff(db, tenant_id, user_id)
     await seed_partner_configs(db, tenant_id, user_id)
     
-    print("\n✅ Seed data creation complete!\n")
+    print("\n✅ Seed data creation complete!")
+    print("\n📝 Login credentials: admin@demo.com / admin123\n")
 
 
 if __name__ == "__main__":
