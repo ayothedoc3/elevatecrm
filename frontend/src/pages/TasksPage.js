@@ -346,88 +346,9 @@ const TasksPage = () => {
     return true;
   });
 
-  const TaskCard = ({ task, showActions = true }) => {
-    const Icon = taskTypeIcons[task.task_type] || CheckSquare;
-    const isOverdue = task.is_overdue || task.status === 'overdue';
-    
-    return (
-      <Card className={`${isOverdue ? 'border-red-300 bg-red-50/50' : ''}`}>
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3 flex-1">
-              <div className={`p-2 rounded-lg ${isOverdue ? 'bg-red-100' : 'bg-slate-100'}`}>
-                <Icon className={`w-4 h-4 ${isOverdue ? 'text-red-600' : 'text-slate-600'}`} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="font-medium text-sm truncate">{task.title}</h4>
-                  <Badge className={priorityColors[task.priority]} variant="secondary">
-                    {task.priority}
-                  </Badge>
-                  <Badge className={statusColors[task.status]} variant="secondary">
-                    {task.status?.replace('_', ' ')}
-                  </Badge>
-                </div>
-                {task.description && (
-                  <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{task.description}</p>
-                )}
-                <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {formatDate(task.due_date)}
-                  </span>
-                  {task.deal_name && (
-                    <span className="flex items-center gap-1">
-                      <Briefcase className="w-3 h-3" />
-                      {task.deal_name}
-                    </span>
-                  )}
-                  {task.lead_name && (
-                    <span className="flex items-center gap-1">
-                      <User className="w-3 h-3" />
-                      {task.lead_name}
-                    </span>
-                  )}
-                  {task.assigned_to_name && (
-                    <span className="flex items-center gap-1">
-                      <User className="w-3 h-3" />
-                      {task.assigned_to_name}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            {showActions && task.status !== 'completed' && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => {
-                    setSelectedTask(task);
-                    setShowCompleteDialog(true);
-                  }}>
-                    <Check className="w-4 h-4 mr-2" />
-                    Mark Complete
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => handleDeleteTask(task.id)}
-                    className="text-red-600"
-                  >
-                    <X className="w-4 h-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    );
+  const handleCompleteClick = (task) => {
+    setSelectedTask(task);
+    setShowCompleteDialog(true);
   };
 
   if (loading) {
