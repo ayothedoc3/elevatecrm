@@ -1046,6 +1046,18 @@ const PipelinePage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI Assistant Panel */}
+      <AIAssistantPanel
+        open={showAIPanel}
+        onOpenChange={setShowAIPanel}
+        context={selectedDeal ? {
+          type: 'deal',
+          id: selectedDeal.id,
+          data: selectedDeal
+        } : null}
+        onApplySpiced={applyAISpicedDraft}
+      />
     </div>
   );
 };
