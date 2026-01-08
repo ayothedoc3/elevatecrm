@@ -209,8 +209,8 @@ async def get_kpis_overview(
     spiced_complete = await db.deals.count_documents({
         "tenant_id": tenant_id,
         "status": "open",
-        "spiced_situation": {"$exists": True, "$ne": None, "$ne": ""},
-        "spiced_pain": {"$exists": True, "$ne": None, "$ne": ""}
+        "spiced_situation": {"$exists": True, "$nin": [None, ""]},
+        "spiced_pain": {"$exists": True, "$nin": [None, ""]}
     })
     spiced_rate = (spiced_complete / max(total_open_deals, 1)) * 100
     
