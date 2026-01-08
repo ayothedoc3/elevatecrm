@@ -13,7 +13,7 @@ import os
 from passlib.context import CryptContext
 
 MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-DB_NAME = os.environ.get('DB_NAME', 'crm_db')
+DB_NAME = os.environ.get('DB_NAME', 'test_database')  # Match backend .env
 
 # Use bcrypt for password hashing (same as server.py)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
