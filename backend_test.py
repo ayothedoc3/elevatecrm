@@ -814,12 +814,542 @@ class Elev8CRMTester:
             self.log_test("Lead Scoring Tier Validation", False, error=e)
             return False
     
+    # ==================== TASK MANAGEMENT TESTS ====================
+    
+    def test_create_task(self):
+        """Test POST /api/elev8/tasks - Create a task"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            task_data = {
+                "title": "Follow up with Test Restaurant Group",
+                "description": "Schedule discovery call to discuss Frylow implementation",
+                "task_type": "call",
+                "priority": "high",
+                "due_date": "2024-12-31T10:00:00Z",
+                "deal_id": self.test_deal_id if self.test_deal_id else None
+            }
+            
+            response = self.session.post(
+                f"{BACKEND_URL}/elev8/tasks",
+                json=task_data,
+                headers=headers
+            )
+            
+            if response.status_code == 200 or response.status_code == 201:
+                data = response.json()
+                self.test_task_id = data.get("id")
+                self.log_test("POST /elev8/tasks", True, f"Created task: {data.get('title')} (ID: {self.test_task_id})")
+                return True
+            else:
+                self.log_test("POST /elev8/tasks", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("POST /elev8/tasks", False, error=e)
+            return False
+    
+    def test_list_tasks(self):
+        """Test GET /api/elev8/tasks - List tasks with filtering"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/elev8/tasks", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                tasks = data.get("tasks", [])
+                total = data.get("total", 0)
+                
+                self.log_test("GET /elev8/tasks", True, f"Retrieved {total} tasks")
+                return True
+            else:
+                self.log_test("GET /elev8/tasks", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /elev8/tasks", False, error=e)
+            return False
+    
+    def test_get_task(self):
+        """Test GET /api/elev8/tasks/{task_id} - Get specific task"""
+        if not hasattr(self, 'test_task_id') or not self.test_task_id:
+            self.log_test("GET /elev8/tasks/{id}", False, "No test task ID available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/elev8/tasks/{self.test_task_id}", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.log_test("GET /elev8/tasks/{id}", True, f"Retrieved task: {data.get('title')}")
+                return True
+            else:
+                self.log_test("GET /elev8/tasks/{id}", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /elev8/tasks/{id}", False, error=e)
+            return False
+    
+    def test_update_task(self):
+        """Test PUT /api/elev8/tasks/{task_id} - Update a task"""
+        if not hasattr(self, 'test_task_id') or not self.test_task_id:
+            self.log_test("PUT /elev8/tasks/{id}", False, "No test task ID available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            update_data = {
+                "priority": "urgent",
+                "description": "Updated: High priority follow-up call needed ASAP"
+            }
+            
+            response = self.session.put(
+                f"{BACKEND_URL}/elev8/tasks/{self.test_task_id}",
+                json=update_data,
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.log_test("PUT /elev8/tasks/{id}", True, f"Updated task priority to: {data.get('priority')}")
+                return True
+            else:
+                self.log_test("PUT /elev8/tasks/{id}", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("PUT /elev8/tasks/{id}", False, error=e)
+            return False
+    
+    def test_complete_task(self):
+        """Test POST /api/elev8/tasks/{task_id}/complete - Complete a task"""
+        if not hasattr(self, 'test_task_id') or not self.test_task_id:
+            self.log_test("POST /elev8/tasks/{id}/complete", False, "No test task ID available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.post(
+                f"{BACKEND_URL}/elev8/tasks/{self.test_task_id}/complete",
+                json={"notes": "Task completed successfully - call scheduled for next week"},
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.log_test("POST /elev8/tasks/{id}/complete", True, f"Task completed at: {data.get('completed_at')}")
+                return True
+            else:
+                self.log_test("POST /elev8/tasks/{id}/complete", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("POST /elev8/tasks/{id}/complete", False, error=e)
+            return False
+    
+    def test_get_my_tasks(self):
+        """Test GET /api/elev8/tasks/my-tasks - Get current user's tasks"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/elev8/tasks/my-tasks", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                overdue = len(data.get("overdue", []))
+                due_today = len(data.get("due_today", []))
+                upcoming = len(data.get("upcoming", []))
+                total = data.get("total_pending", 0)
+                
+                self.log_test("GET /elev8/tasks/my-tasks", True, 
+                            f"My tasks - Overdue: {overdue}, Due today: {due_today}, Upcoming: {upcoming}, Total: {total}")
+                return True
+            else:
+                self.log_test("GET /elev8/tasks/my-tasks", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /elev8/tasks/my-tasks", False, error=e)
+            return False
+    
+    # ==================== SLA MANAGEMENT TESTS ====================
+    
+    def test_get_sla_config(self):
+        """Test GET /api/elev8/sla/config - Get SLA configuration"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/elev8/sla/config", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                configs = data.get("sla_configs", [])
+                self.log_test("GET /elev8/sla/config", True, f"Retrieved {len(configs)} SLA configurations")
+                return True
+            else:
+                self.log_test("GET /elev8/sla/config", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /elev8/sla/config", False, error=e)
+            return False
+    
+    def test_create_sla_config(self):
+        """Test POST /api/elev8/sla/config - Create SLA config (admin only)"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            sla_data = {
+                "name": "High Priority Lead Response",
+                "source": "referral",
+                "max_hours": 2,
+                "escalation_hours": 1,
+                "applies_to": "leads"
+            }
+            
+            response = self.session.post(
+                f"{BACKEND_URL}/elev8/sla/config",
+                json=sla_data,
+                headers=headers
+            )
+            
+            if response.status_code == 200 or response.status_code == 201:
+                data = response.json()
+                self.log_test("POST /elev8/sla/config", True, f"Created SLA config: {data.get('name')}")
+                return True
+            else:
+                self.log_test("POST /elev8/sla/config", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("POST /elev8/sla/config", False, error=e)
+            return False
+    
+    def test_get_sla_status_deals(self):
+        """Test GET /api/elev8/sla/status?entity_type=deals - Get SLA status for deals"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/elev8/sla/status?entity_type=deals", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                total = data.get("total_count", 0)
+                compliant = data.get("compliant_count", 0)
+                at_risk = data.get("at_risk_count", 0)
+                breached = data.get("breached_count", 0)
+                
+                self.log_test("GET /elev8/sla/status (deals)", True, 
+                            f"Deal SLA status - Total: {total}, Compliant: {compliant}, At Risk: {at_risk}, Breached: {breached}")
+                return True
+            else:
+                self.log_test("GET /elev8/sla/status (deals)", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /elev8/sla/status (deals)", False, error=e)
+            return False
+    
+    def test_get_sla_status_leads(self):
+        """Test GET /api/elev8/sla/status?entity_type=leads - Get SLA status for leads"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/elev8/sla/status?entity_type=leads", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                total = data.get("total_count", 0)
+                compliant = data.get("compliant_count", 0)
+                at_risk = data.get("at_risk_count", 0)
+                breached = data.get("breached_count", 0)
+                
+                self.log_test("GET /elev8/sla/status (leads)", True, 
+                            f"Lead SLA status - Total: {total}, Compliant: {compliant}, At Risk: {at_risk}, Breached: {breached}")
+                return True
+            else:
+                self.log_test("GET /elev8/sla/status (leads)", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /elev8/sla/status (leads)", False, error=e)
+            return False
+    
+    # ==================== PARTNER CONFIGURATION TESTS ====================
+    
+    def test_get_partner_config(self):
+        """Test GET /api/elev8/partners/{partner_id}/config - Get partner config"""
+        if not self.test_partner_id:
+            self.log_test("GET /elev8/partners/{id}/config", False, "No test partner ID available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/elev8/partners/{self.test_partner_id}/config", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                partner_name = data.get("partner_name")
+                pipeline_config = data.get("pipeline_config", {})
+                field_config = data.get("field_config", {})
+                kpi_config = data.get("kpi_config", {})
+                
+                self.log_test("GET /elev8/partners/{id}/config", True, 
+                            f"Retrieved config for partner: {partner_name}")
+                return True
+            else:
+                self.log_test("GET /elev8/partners/{id}/config", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /elev8/partners/{id}/config", False, error=e)
+            return False
+    
+    def test_update_partner_config(self):
+        """Test PUT /api/elev8/partners/{partner_id}/config - Update partner config (admin only)"""
+        if not self.test_partner_id:
+            self.log_test("PUT /elev8/partners/{id}/config", False, "No test partner ID available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            config_data = {
+                "kpi_config": {
+                    "target_win_rate": 30.0,
+                    "target_deal_size": 7500.0,
+                    "target_cycle_days": 35,
+                    "target_qualification_rate": 35.0
+                },
+                "field_config": {
+                    "required_at_qualification": ["economic_units", "urgency", "decision_role"],
+                    "required_at_discovery": ["spiced_situation", "spiced_pain", "spiced_impact"]
+                }
+            }
+            
+            response = self.session.put(
+                f"{BACKEND_URL}/elev8/partners/{self.test_partner_id}/config",
+                json=config_data,
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.log_test("PUT /elev8/partners/{id}/config", True, "Partner configuration updated successfully")
+                return True
+            else:
+                self.log_test("PUT /elev8/partners/{id}/config", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("PUT /elev8/partners/{id}/config", False, error=e)
+            return False
+    
+    def test_get_partner_kpis(self):
+        """Test GET /api/elev8/partners/{partner_id}/kpis - Get partner-specific KPIs"""
+        if not self.test_partner_id:
+            self.log_test("GET /elev8/partners/{id}/kpis", False, "No test partner ID available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/elev8/partners/{self.test_partner_id}/kpis", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                metrics = data.get("metrics", {})
+                targets = data.get("targets", {})
+                performance = data.get("performance", {})
+                
+                self.log_test("GET /elev8/partners/{id}/kpis", True, 
+                            f"Partner KPIs - Win Rate: {metrics.get('win_rate', 0)}%, Pipeline: ${metrics.get('pipeline_value', 0)}")
+                return True
+            else:
+                self.log_test("GET /elev8/partners/{id}/kpis", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /elev8/partners/{id}/kpis", False, error=e)
+            return False
+    
+    def test_check_partner_compliance(self):
+        """Test GET /api/elev8/partners/{partner_id}/compliance-check - Check partner compliance"""
+        if not self.test_partner_id:
+            self.log_test("GET /elev8/partners/{id}/compliance-check", False, "No test partner ID available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/elev8/partners/{self.test_partner_id}/compliance-check", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                is_compliant = data.get("is_compliant", True)
+                checks = data.get("checks", [])
+                
+                self.log_test("GET /elev8/partners/{id}/compliance-check", True, 
+                            f"Partner compliance - Compliant: {is_compliant}, Checks: {len(checks)}")
+                return True
+            else:
+                self.log_test("GET /elev8/partners/{id}/compliance-check", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /elev8/partners/{id}/compliance-check", False, error=e)
+            return False
+    
+    def test_get_fields_by_stage(self):
+        """Test GET /api/elev8/config/fields-by-stage?stage=Discovery - Get required fields by stage"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/elev8/config/fields-by-stage?stage=Discovery", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                stage = data.get("stage")
+                required_fields = data.get("required_fields", [])
+                
+                self.log_test("GET /elev8/config/fields-by-stage", True, 
+                            f"Stage '{stage}' requires {len(required_fields)} fields: {', '.join(required_fields[:3])}")
+                return True
+            else:
+                self.log_test("GET /elev8/config/fields-by-stage", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /elev8/config/fields-by-stage", False, error=e)
+            return False
+    
+    # ==================== HANDOFF TO DELIVERY TESTS ====================
+    
+    def test_get_handoff_status(self):
+        """Test GET /api/elev8/deals/{deal_id}/handoff-status - Get handoff status"""
+        if not self.test_deal_id:
+            self.log_test("GET /elev8/deals/{id}/handoff-status", False, "No test deal ID available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/elev8/deals/{self.test_deal_id}/handoff-status", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                deal_name = data.get("deal_name")
+                readiness_percentage = data.get("readiness_percentage", 0)
+                has_spiced = data.get("has_spiced", False)
+                can_complete = data.get("can_complete", False)
+                
+                self.log_test("GET /elev8/deals/{id}/handoff-status", True, 
+                            f"Deal '{deal_name}' handoff readiness: {readiness_percentage}%, SPICED: {has_spiced}")
+                return True
+            else:
+                self.log_test("GET /elev8/deals/{id}/handoff-status", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /elev8/deals/{id}/handoff-status", False, error=e)
+            return False
+    
+    def test_initiate_handoff_validation(self):
+        """Test POST /api/elev8/deals/{deal_id}/handoff/initiate - Should require won deal"""
+        if not self.test_deal_id:
+            self.log_test("POST /elev8/deals/{id}/handoff/initiate (validation)", False, "No test deal ID available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            handoff_data = {
+                "delivery_owner_id": self.admin_user_data["id"],
+                "kickoff_date": "2024-12-31T09:00:00Z",
+                "notes": "Test handoff initiation"
+            }
+            
+            response = self.session.post(
+                f"{BACKEND_URL}/elev8/deals/{self.test_deal_id}/handoff/initiate",
+                json=handoff_data,
+                headers=headers
+            )
+            
+            # Should fail because deal is not won
+            if response.status_code == 400:
+                error_data = response.json()
+                if "Closed Won" in error_data.get("detail", ""):
+                    self.log_test("POST /elev8/deals/{id}/handoff/initiate (validation)", True, 
+                                "Correctly validated that handoff requires Closed Won deal")
+                    return True
+                else:
+                    self.log_test("POST /elev8/deals/{id}/handoff/initiate (validation)", False, 
+                                f"Wrong validation error: {error_data.get('detail')}")
+                    return False
+            else:
+                self.log_test("POST /elev8/deals/{id}/handoff/initiate (validation)", False, 
+                            f"Expected 400 validation error, got {response.status_code}")
+                return False
+                
+        except Exception as e:
+            self.log_test("POST /elev8/deals/{id}/handoff/initiate (validation)", False, error=e)
+            return False
+    
+    def test_update_handoff_artifact(self):
+        """Test PUT /api/elev8/deals/{deal_id}/handoff/artifact - Update handoff artifact"""
+        if not self.test_deal_id:
+            self.log_test("PUT /elev8/deals/{id}/handoff/artifact", False, "No test deal ID available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            artifact_data = {
+                "title": "Test Gap Analysis Document",
+                "content": "Comprehensive gap analysis completed for customer requirements",
+                "completed": True
+            }
+            
+            response = self.session.put(
+                f"{BACKEND_URL}/elev8/deals/{self.test_deal_id}/handoff/artifact?artifact_type=gap_analysis",
+                json=artifact_data,
+                headers=headers
+            )
+            
+            # This should fail because handoff not initiated yet
+            if response.status_code == 404:
+                self.log_test("PUT /elev8/deals/{id}/handoff/artifact", True, 
+                            "Correctly validated that handoff must be initiated first")
+                return True
+            elif response.status_code == 200:
+                data = response.json()
+                self.log_test("PUT /elev8/deals/{id}/handoff/artifact", True, 
+                            f"Updated artifact: {data.get('artifact', {}).get('title')}")
+                return True
+            else:
+                self.log_test("PUT /elev8/deals/{id}/handoff/artifact", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("PUT /elev8/deals/{id}/handoff/artifact", False, error=e)
+            return False
+    
+    def test_list_handoffs(self):
+        """Test GET /api/elev8/handoffs - List all handoffs"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = self.session.get(f"{BACKEND_URL}/elev8/handoffs", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                handoffs = data.get("handoffs", [])
+                total = data.get("total", 0)
+                
+                self.log_test("GET /elev8/handoffs", True, f"Retrieved {total} handoffs")
+                return True
+            else:
+                self.log_test("GET /elev8/handoffs", False, f"Status: {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_test("GET /elev8/handoffs", False, error=e)
+            return False
+
     def run_all_tests(self):
-        """Run all Elev8 CRM Entity Model tests"""
-        print("🚀 Starting Elev8 CRM Entity Model API Tests")
-        print("=" * 70)
-        print("Testing: Lead Scoring + Dual Pipelines + Partner Management + Lead Qualification Flow")
-        print("=" * 70)
+        """Run all Elev8 CRM tests including remaining features"""
+        print("🚀 Starting Comprehensive Elev8 CRM API Tests")
+        print("=" * 80)
+        print("Testing: Task Management + SLA Management + Partner Configuration + Handoff to Delivery")
+        print("=" * 80)
         
         # Authentication is required for all tests
         if not self.authenticate_admin():
@@ -870,10 +1400,41 @@ class Elev8CRMTester:
         print("-" * 50)
         self.test_lead_scoring_tiers()
         
+        print("\n✅ TASK MANAGEMENT TESTS")
+        print("-" * 50)
+        self.test_create_task()
+        self.test_list_tasks()
+        self.test_get_task()
+        self.test_update_task()
+        self.test_complete_task()
+        self.test_get_my_tasks()
+        
+        print("\n⏰ SLA MANAGEMENT TESTS")
+        print("-" * 50)
+        self.test_get_sla_config()
+        self.test_create_sla_config()
+        self.test_get_sla_status_deals()
+        self.test_get_sla_status_leads()
+        
+        print("\n🔧 PARTNER CONFIGURATION TESTS")
+        print("-" * 50)
+        self.test_get_partner_config()
+        self.test_update_partner_config()
+        self.test_get_partner_kpis()
+        self.test_check_partner_compliance()
+        self.test_get_fields_by_stage()
+        
+        print("\n🚚 HANDOFF TO DELIVERY TESTS")
+        print("-" * 50)
+        self.test_get_handoff_status()
+        self.test_initiate_handoff_validation()
+        self.test_update_handoff_artifact()
+        self.test_list_handoffs()
+        
         # Summary
-        print("\n" + "=" * 70)
-        print("📊 TEST SUMMARY")
-        print("=" * 70)
+        print("\n" + "=" * 80)
+        print("📊 COMPREHENSIVE TEST SUMMARY")
+        print("=" * 80)
         
         passed = sum(1 for result in self.test_results if result["success"])
         total = len(self.test_results)
