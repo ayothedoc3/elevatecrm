@@ -4,7 +4,7 @@
 ```
 Email: admin@demo.com
 Password: admin123
-URL: https://elev8crm.preview.emergentagent.com
+URL: https://crmelevate.preview.emergentagent.com
 ```
 
 ---
@@ -14,7 +14,7 @@ URL: https://elev8crm.preview.emergentagent.com
 ### Setup
 ```bash
 # Set your API URL
-export API_URL="https://elev8crm.preview.emergentagent.com"
+export API_URL="https://crmelevate.preview.emergentagent.com"
 
 # Get authentication token
 export TOKEN=$(curl -s -X POST "$API_URL/api/auth/login" \

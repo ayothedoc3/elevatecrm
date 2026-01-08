@@ -11,7 +11,7 @@ import os
 from datetime import datetime
 
 # Configuration
-BACKEND_URL = "https://elev8crm.preview.emergentagent.com/api"
+BACKEND_URL = "https://crmelevate.preview.emergentagent.com/api"
 ADMIN_EMAIL = "admin@demo.com"
 ADMIN_PASSWORD = "admin123"
 TENANT_SLUG = "demo"
