@@ -785,7 +785,7 @@ const HandoffPage = () => {
           <Alert className="border-amber-200 bg-amber-50">
             <AlertTriangle className="w-4 h-4 text-amber-600" />
             <AlertDescription className="text-amber-700">
-              This action will lock the deal's sales stages. This cannot be undone.
+              This action will lock the deal&apos;s sales stages. This cannot be undone.
             </AlertDescription>
           </Alert>
           

@@ -502,7 +502,7 @@ const TasksPage = () => {
           {myTasks.total_pending === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               <CheckSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No pending tasks. You're all caught up!</p>
+              <p>No pending tasks. You&apos;re all caught up!</p>
             </div>
           )}
         </TabsContent>
@@ -525,7 +525,7 @@ const TasksPage = () => {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Status</SelectItem>
+                <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="in_progress">In Progress</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
@@ -537,7 +537,7 @@ const TasksPage = () => {
                 <SelectValue placeholder="Priority" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Priority</SelectItem>
+                <SelectItem value="all">All Priority</SelectItem>
                 <SelectItem value="urgent">Urgent</SelectItem>
                 <SelectItem value="high">High</SelectItem>
                 <SelectItem value="medium">Medium</SelectItem>
@@ -816,7 +816,7 @@ const TasksPage = () => {
           <DialogHeader>
             <DialogTitle>Complete Task</DialogTitle>
             <DialogDescription>
-              Mark "{selectedTask?.title}" as completed
+              Mark &quot;{selectedTask?.title}&quot; as completed
             </DialogDescription>
           </DialogHeader>
           
