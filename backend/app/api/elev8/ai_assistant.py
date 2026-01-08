@@ -461,7 +461,7 @@ async def get_deal_risk_analysis(
                     "severity": "medium",
                     "description": f"No activity in {days_stale} days"
                 })
-        except:
+        except (ValueError, TypeError, AttributeError):
             pass
     
     # Determine risk level
