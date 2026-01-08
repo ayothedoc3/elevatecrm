@@ -108,6 +108,9 @@ const LeadsPage = () => {
   const [saving, setSaving] = useState(false);
   const [qualifying, setQualifying] = useState(false);
   
+  // AI Assistant state
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  
   // New lead form
   const [newLead, setNewLead] = useState({
     first_name: '',
