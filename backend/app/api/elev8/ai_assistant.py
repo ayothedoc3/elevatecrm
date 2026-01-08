@@ -215,7 +215,7 @@ async def get_ai_assistant_status(user = Depends(get_current_user)):
     config = await settings.get_ai_config(workspace_id)
     
     # Get configured providers
-    integrations = await settings.get_integrations_list(workspace_id)
+    integrations = await settings.get_integrations(workspace_id)
     ai_integrations = [i for i in integrations if i.get("category") == "ai"]
     
     enabled_providers = [
