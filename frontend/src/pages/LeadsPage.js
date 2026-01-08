@@ -3,7 +3,8 @@ import {
   Users, Search, Plus, Filter, ChevronLeft, ChevronRight,
   Building, Phone, Mail, Target, TrendingUp, Star, Clock,
   MoreHorizontal, Edit, Trash2, CheckCircle, XCircle,
-  ArrowRight, Zap, AlertCircle, UserPlus, RefreshCw, Loader2
+  ArrowRight, Zap, AlertCircle, UserPlus, RefreshCw, Loader2,
+  Sparkles
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
