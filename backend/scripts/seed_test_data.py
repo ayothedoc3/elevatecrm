@@ -548,21 +548,29 @@ async def create_sla_breach_scenarios(db, tenant_id: str):
     stale_time = (now - timedelta(hours=96)).isoformat()  # 4 days old
     at_risk_time = (now - timedelta(hours=60)).isoformat()  # 2.5 days old
     
-    # Update 2 leads to be breached
-    result = await db.leads.update_many(
-        {"tenant_id": tenant_id, "status": {"$in": ["new", "working"]}},
-        {"$set": {"updated_at": stale_time}},
-        limit=2
-    )
+    # Update 2 leads to be breached (find first, then update)
+    breached_leads = await db.leads.find(
+        {"tenant_id": tenant_id, "status": {"$in": ["new", "working"]}}
+    ).limit(2).to_list(2)
+    
+    for lead in breached_leads:
+        await db.leads.update_one(
+            {"id": lead["id"]},
+            {"$set": {"updated_at": stale_time}}
+        )
     
     # Update 2 deals to be at risk
-    await db.deals.update_many(
-        {"tenant_id": tenant_id, "status": "open"},
-        {"$set": {"updated_at": at_risk_time}},
-        limit=2
-    )
+    at_risk_deals = await db.deals.find(
+        {"tenant_id": tenant_id, "status": "open"}
+    ).limit(2).to_list(2)
     
-    print(f"✅ Created SLA breach/at-risk scenarios")
+    for deal in at_risk_deals:
+        await db.deals.update_one(
+            {"id": deal["id"]},
+            {"$set": {"updated_at": at_risk_time}}
+        )
+    
+    print(f"✅ Created SLA breach/at-risk scenarios ({len(breached_leads)} leads, {len(at_risk_deals)} deals)")
 
 
 async def seed_won_deals_for_handoff(db, tenant_id: str, user_id: str):
