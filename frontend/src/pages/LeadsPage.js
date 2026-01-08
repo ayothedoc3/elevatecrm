@@ -1045,6 +1045,17 @@ const LeadsPage = () => {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* AI Assistant Panel */}
+      <AIAssistantPanel
+        open={showAIPanel}
+        onOpenChange={setShowAIPanel}
+        context={selectedLead ? {
+          type: 'lead',
+          id: selectedLead.id,
+          data: selectedLead
+        } : null}
+      />
     </div>
   );
 };
