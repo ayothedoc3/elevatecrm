@@ -327,14 +327,6 @@ async def get_sales_leaderboard(
     db = get_database()
     tenant_id = user["tenant_id"]
     
-    now = datetime.now(timezone.utc)
-    if period == "week":
-        period_start = now - timedelta(days=7)
-    elif period == "quarter":
-        period_start = now - timedelta(days=90)
-    else:
-        period_start = now - timedelta(days=30)
-    
     # Aggregate deals by owner
     pipeline_agg = await db.deals.aggregate([
         {
