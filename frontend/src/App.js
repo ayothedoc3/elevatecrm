@@ -336,6 +336,7 @@ const AppRoutes = () => {
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       <Route path="/leads" element={<ProtectedRoute><LeadsPage /></ProtectedRoute>} />
       <Route path="/partners" element={<ProtectedRoute><PartnersPage /></ProtectedRoute>} />
+      <Route path="/kpis" element={<ProtectedRoute><KPIDashboardPage /></ProtectedRoute>} />
       {/* Affiliate Portal Routes - No Auth Required */}
       <Route path="/affiliate-portal/login" element={<AffiliateLoginPage />} />
       <Route path="/affiliate-portal/dashboard" element={<AffiliateDashboard />} />
