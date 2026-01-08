@@ -409,3 +409,35 @@ async def list_handoffs(
         "page": page,
         "page_size": page_size
     }
+
+
+
+# ==================== USERS ENDPOINT ====================
+
+@router.get("/users")
+async def list_users(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    user = Depends(get_current_user)
+):
+    """
+    List users for the tenant (for delivery owner selection).
+    """
+    db = get_database()
+    
+    query = {"tenant_id": user["tenant_id"], "is_active": True}
+    
+    total = await db.users.count_documents(query)
+    skip = (page - 1) * page_size
+    
+    users = await db.users.find(
+        query,
+        {"_id": 0, "id": 1, "first_name": 1, "last_name": 1, "email": 1, "role": 1}
+    ).skip(skip).limit(page_size).to_list(length=page_size)
+    
+    return {
+        "users": users,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
