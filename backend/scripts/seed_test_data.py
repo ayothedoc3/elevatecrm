@@ -320,6 +320,9 @@ async def seed_sample_partners(db, tenant_id: str, user_id: str):
         )
     
     print(f"✅ Created {len(partners)} sample partners")
+
+
+async def seed_tasks(db, tenant_id: str, user_id: str):
     """Create sample tasks with various states"""
     now = datetime.now(timezone.utc)
     
