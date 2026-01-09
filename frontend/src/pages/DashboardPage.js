@@ -245,6 +245,12 @@ const DashboardPage = () => {
 
         {/* Tasks & SLA Widget */}
         <DashboardTasksWidget />
+      </div>
+
+      {/* Pipeline Overview Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Sales Workflow */}
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Flame className="w-5 h-5 text-orange-500" />
