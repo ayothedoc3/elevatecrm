@@ -337,11 +337,29 @@ CRM configuration must reflect this hierarchy.
   - Backend: Task CRUD, SLA configuration, compliance tracking
   - Frontend: TasksPage.js with My Tasks, All Tasks, SLA Monitor tabs
 
-### Code Refactoring ✅ (January 2026)
-- Created `/app/frontend/src/components/leads/` folder with extracted components:
-  - `LeadFilters.js` - Search and filter controls
-  - `LeadTable.js` - Leads table with actions
-  - `ScoringStatsCards.js` - Tier distribution stats
+### Code Refactoring & Enhancements ✅ (January 2026)
+- **Dashboard Tasks Widget:**
+  - `DashboardTasksWidget.js` - Shows today's tasks, overdue count, SLA breaches
+  - Real-time updates every 5 minutes
+  - "View All" navigation to Tasks page
+
+- **SLA Notification Service:**
+  - `SLANotificationService.js` - Background service for real-time notifications
+  - Toast alerts for SLA breaches and at-risk items
+  - Toast alerts for overdue and high-priority tasks
+
+- **Component Extraction:**
+  - `/app/frontend/src/components/leads/`:
+    - `LeadFilters.js` - Search and filter controls
+    - `LeadTable.js` - Leads table with actions
+    - `ScoringStatsCards.js` - Tier distribution stats
+    - `LeadFormDialog.js` - Create/edit lead dialog
+  - `/app/frontend/src/components/pipeline/`:
+    - `PipelineKanbanCard.js` - Draggable deal card
+    - `PipelineKanbanColumn.js` - Droppable kanban column
+  - `/app/frontend/src/components/dashboard/`:
+    - `DashboardTasksWidget.js` - Tasks summary widget
+
 - Created seed data script at `/app/backend/scripts/seed_test_data.py`
 - Added `/api/elev8/users` endpoint for user selection in forms
 
@@ -357,4 +375,5 @@ Run `python scripts/seed_test_data.py` from `/app/backend` to populate:
 - SLA configurations
 - Won deals for handoff testing
 - Partner configurations
+
 
