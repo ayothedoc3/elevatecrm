@@ -123,28 +123,6 @@ const DashboardTasksWidget = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const TaskItem = ({ task }) => {
-    const Icon = taskTypeIcons[task.task_type] || CheckSquare;
-    const isOverdue = task.status === 'overdue';
-
-    return (
-      <div className={`flex items-center gap-3 p-3 rounded-lg transition-colors hover:bg-muted/50 ${isOverdue ? 'bg-red-50' : ''}`}>
-        <div className={`p-2 rounded-lg ${isOverdue ? 'bg-red-100' : 'bg-slate-100'}`}>
-          <Icon className={`w-4 h-4 ${isOverdue ? 'text-red-600' : 'text-slate-600'}`} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm truncate">{task.title}</p>
-          <p className="text-xs text-muted-foreground">
-            {task.deal_name || task.lead_name || formatDate(task.due_date)}
-          </p>
-        </div>
-        <Badge className={priorityColors[task.priority]} variant="secondary">
-          {task.priority}
-        </Badge>
-      </div>
-    );
-  };
-
   if (loading) {
     return (
       <Card>
