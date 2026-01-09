@@ -10,6 +10,8 @@ import {
   Calendar, Clock, CheckCircle2, AlertCircle, Flame, Phone, Mail,
   Calculator, ArrowRight
 } from 'lucide-react';
+import { DashboardTasksWidget } from '../components/dashboard';
+import { slaNotificationService } from '../services/SLANotificationService';
 
 const DashboardPage = () => {
   const { api, currentWorkspace } = useAuth();
