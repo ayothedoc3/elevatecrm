@@ -243,8 +243,8 @@ const DashboardPage = () => {
           </CardContent>
         </Card>
 
-        {/* Sales Workflow */}
-        <Card>
+        {/* Tasks & SLA Widget */}
+        <DashboardTasksWidget />
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Flame className="w-5 h-5 text-orange-500" />
