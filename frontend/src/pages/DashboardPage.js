@@ -27,6 +27,13 @@ const DashboardPage = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    
+    // Start SLA notifications
+    slaNotificationService.start(5); // Check every 5 minutes
+    
+    return () => {
+      slaNotificationService.stop();
+    };
   }, [currentWorkspace]);
 
   const fetchDashboardData = async () => {
