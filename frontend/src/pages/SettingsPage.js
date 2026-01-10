@@ -3,7 +3,8 @@ import {
   Settings, Key, Bot, Globe, Users, Shield, AlertCircle,
   CheckCircle, XCircle, Eye, EyeOff, RefreshCw, Trash2,
   Plus, Save, ExternalLink, Zap, MessageSquare, CreditCard,
-  Clock, Activity, ChevronRight, Info, Loader2
+  Clock, Activity, ChevronRight, Info, Loader2, Copy, 
+  ArrowDownCircle, ArrowUpCircle, FileText
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -13,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Switch } from '../components/ui/switch';
 import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
+import { Separator } from '../components/ui/separator';
 import {
   Select,
   SelectContent,
