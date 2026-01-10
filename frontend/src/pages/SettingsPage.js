@@ -127,7 +127,8 @@ const SettingsPage = () => {
         loadIntegrations(),
         loadProviders(),
         loadAffiliateSettings(),
-        loadAuditLogs()
+        loadAuditLogs(),
+        loadExternalApiData()
       ]);
     } catch (error) {
       console.error('Error loading settings:', error);
