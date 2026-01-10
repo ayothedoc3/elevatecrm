@@ -363,6 +363,28 @@ CRM configuration must reflect this hierarchy.
 - Created seed data script at `/app/backend/scripts/seed_test_data.py`
 - Added `/api/elev8/users` endpoint for user selection in forms
 
+### External API for Labyrinth OS ✅ (January 2026)
+- **Pull API Endpoints:**
+  - GET /api/external/deals - Fetch deals with filters
+  - GET /api/external/leads - Fetch leads with filters
+  - GET /api/external/tasks - Fetch tasks
+  - GET /api/external/kpis - Get KPI metrics
+  - GET /api/external/pipeline - Get pipeline/funnel data
+  - GET /api/external/activity - Get activity logs
+  - GET /api/external/partners - Get partners
+
+- **Push API (Webhooks):**
+  - Event triggers: deal.created, deal.won, lead.qualified, sla.breach, etc.
+  - Signature verification with HMAC-SHA256
+  - Configurable webhook URLs and events
+
+- **API Key Management:**
+  - Create/revoke API keys via Settings UI
+  - Keys prefixed with `elk_` (Elevate Labyrinth Key)
+  - Permissions: read, write, webhook
+
+- **Documentation:** `/app/memory/EXTERNAL_API_DOCS.md`
+
 ---
 
 ## Test Credentials
