@@ -88,6 +88,15 @@ const SettingsPage = () => {
   const [auditPage, setAuditPage] = useState(1);
   const [auditTotal, setAuditTotal] = useState(0);
   
+  // External API state
+  const [apiKeys, setApiKeys] = useState([]);
+  const [webhooks, setWebhooks] = useState([]);
+  const [showCreateApiKey, setShowCreateApiKey] = useState(false);
+  const [showCreateWebhook, setShowCreateWebhook] = useState(false);
+  const [newApiKeyName, setNewApiKeyName] = useState('');
+  const [createdApiKey, setCreatedApiKey] = useState(null);
+  const [newWebhook, setNewWebhook] = useState({ url: '', events: [] });
+  
   // Dialog state
   const [showAddIntegration, setShowAddIntegration] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState(null);
