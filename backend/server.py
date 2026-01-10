@@ -1633,6 +1633,10 @@ api_router.include_router(settings_router)
 from app.api.elev8 import router as elev8_router
 api_router.include_router(elev8_router)
 
+# Import and include External API for Labyrinth OS integration
+from app.api.external_api import router as external_router
+api_router.include_router(external_router)
+
 app.include_router(api_router)
 
 
