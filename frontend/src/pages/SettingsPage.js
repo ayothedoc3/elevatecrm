@@ -1125,6 +1125,158 @@ const SettingsPage = () => {
           </Card>
         </TabsContent>
         
+        {/* External API Tab */}
+        <TabsContent value="external-api" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="w-5 h-5" />
+                External API Access
+              </CardTitle>
+              <CardDescription>
+                Manage API keys for external integrations like Labyrinth OS
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Create API Key Section */}
+              <div className="space-y-4">
+                <div className="flex items-end gap-4">
+                  <div className="flex-1 space-y-2">
+                    <Label>Create New API Key</Label>
+                    <Input
+                      placeholder="Key name (e.g., Labyrinth OS Production)"
+                      value={newApiKeyName}
+                      onChange={(e) => setNewApiKeyName(e.target.value)}
+                    />
+                  </div>
+                  <Button onClick={createApiKey} disabled={saving}>
+                    {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+                    Create Key
+                  </Button>
+                </div>
+                
+                {/* Show created key */}
+                {createdApiKey && (
+                  <Alert className="border-green-200 bg-green-50">
+                    <Key className="w-4 h-4 text-green-600" />
+                    <div className="ml-2">
+                      <p className="font-medium text-green-800">API Key Created!</p>
+                      <p className="text-sm text-green-700 mb-2">Copy this key now - it won&apos;t be shown again:</p>
+                      <code className="block p-2 bg-white rounded border text-sm font-mono break-all">
+                        {createdApiKey.key}
+                      </code>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="mt-2"
+                        onClick={() => {
+                          navigator.clipboard.writeText(createdApiKey.key);
+                          toast({ title: "Copied!", description: "API key copied to clipboard" });
+                        }}
+                      >
+                        <Copy className="w-3 h-3 mr-1" />
+                        Copy
+                      </Button>
+                    </div>
+                  </Alert>
+                )}
+              </div>
+              
+              <Separator />
+              
+              {/* API Keys List */}
+              <div className="space-y-4">
+                <h4 className="font-medium">Active API Keys</h4>
+                {apiKeys.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    No API keys created yet
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {apiKeys.map(key => (
+                      <div key={key.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <p className="font-medium text-sm">{key.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {key.key_prefix}... • Created: {new Date(key.created_at).toLocaleDateString()}
+                            {key.last_used && ` • Last used: ${new Date(key.last_used).toLocaleDateString()}`}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={key.is_active ? 'default' : 'secondary'}>
+                            {key.is_active ? 'Active' : 'Revoked'}
+                          </Badge>
+                          {key.is_active && (
+                            <Button 
+                              size="sm" 
+                              variant="destructive"
+                              onClick={() => revokeApiKey(key.id)}
+                            >
+                              Revoke
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* API Documentation Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>API Documentation</CardTitle>
+              <CardDescription>Quick reference for integrating with external systems</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="p-4 border rounded-lg">
+                  <h4 className="font-medium mb-2 flex items-center gap-2">
+                    <ArrowDownCircle className="w-4 h-4" />
+                    Pull API (Fetch Data)
+                  </h4>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Request data from the CRM on demand
+                  </p>
+                  <code className="text-xs block p-2 bg-muted rounded">
+                    GET /api/external/deals<br/>
+                    GET /api/external/leads<br/>
+                    GET /api/external/kpis<br/>
+                    GET /api/external/tasks
+                  </code>
+                </div>
+                
+                <div className="p-4 border rounded-lg">
+                  <h4 className="font-medium mb-2 flex items-center gap-2">
+                    <ArrowUpCircle className="w-4 h-4" />
+                    Push API (Webhooks)
+                  </h4>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Receive real-time events from the CRM
+                  </p>
+                  <code className="text-xs block p-2 bg-muted rounded">
+                    deal.created, deal.won<br/>
+                    lead.created, lead.qualified<br/>
+                    task.completed, sla.breach
+                  </code>
+                </div>
+              </div>
+              
+              <Alert>
+                <FileText className="w-4 h-4" />
+                <div className="ml-2">
+                  <p className="font-medium">Full Documentation</p>
+                  <p className="text-sm text-muted-foreground">
+                    See /app/memory/EXTERNAL_API_DOCS.md for complete API reference including webhook setup and signature verification.
+                  </p>
+                </div>
+              </Alert>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
         {/* Security & Audit Tab */}
         <TabsContent value="security" className="space-y-6">
           <Card>
