@@ -230,6 +230,77 @@ const SettingsPage = () => {
     }
   };
   
+  const loadExternalApiData = async () => {
+    if (!user?.tenant_id) return;
+    try {
+      const [keysRes, webhooksRes] = await Promise.all([
+        fetch(`${API_URL}/api/external/api-keys?tenant_id=${user.tenant_id}`, {
+          headers: getAuthHeaders()
+        }),
+        fetch(`${API_URL}/api/external/webhooks`, {
+          headers: { 'X-API-Key': 'skip' } // Will fail but we need proper auth
+        }).catch(() => ({ ok: false }))
+      ]);
+      
+      if (keysRes.ok) {
+        const data = await keysRes.json();
+        setApiKeys(data.api_keys || []);
+      }
+    } catch (error) {
+      console.error('Error loading external API data:', error);
+    }
+  };
+  
+  const createApiKey = async () => {
+    if (!newApiKeyName.trim()) {
+      toast({ title: "Error", description: "Please enter a name for the API key", variant: "destructive" });
+      return;
+    }
+    
+    setSaving(true);
+    try {
+      const response = await fetch(`${API_URL}/api/external/api-keys?tenant_id=${user.tenant_id}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          name: newApiKeyName,
+          permissions: ['read', 'write', 'webhook']
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setCreatedApiKey(data);
+        setNewApiKeyName('');
+        loadExternalApiData();
+        toast({ title: "API Key Created", description: "Save the key now - it won't be shown again!" });
+      } else {
+        const error = await response.json();
+        toast({ title: "Error", description: error.detail || "Failed to create API key", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to create API key", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+  const revokeApiKey = async (keyId) => {
+    try {
+      const response = await fetch(`${API_URL}/api/external/api-keys/${keyId}?tenant_id=${user.tenant_id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        toast({ title: "API Key Revoked", description: "The API key has been deactivated" });
+        loadExternalApiData();
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to revoke API key", variant: "destructive" });
+    }
+  };
+  
   const saveWorkspaceSettings = async () => {
     setSaving(true);
     try {
