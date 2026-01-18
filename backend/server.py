@@ -15,6 +15,12 @@ import os
 import uuid
 import logging
 import json
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB imports
 from app.db.mongodb import init_db, close_db, get_database, serialize_doc
@@ -1842,6 +1848,10 @@ api_router.include_router(landing_pages_router)
 # Import and include settings routes
 from app.api.settings_routes import router as settings_router
 api_router.include_router(settings_router)
+
+# Import and include lists routes
+from app.api.lists_routes import router as lists_router
+api_router.include_router(lists_router)
 
 app.include_router(api_router)
 
