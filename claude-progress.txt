@@ -142,13 +142,21 @@ python server.py
 ### Current Status:
 - Implementation: COMPLETE
 - Testing: BLOCKED (requires server restart)
+- **Feature SKIPPED** - Moved to end of queue (priority 513)
+
+### Blocker:
+Cannot restart the backend server due to sandbox command restrictions.
+The server running at http://localhost:8000 is an old version without the inbox routes.
 
 ### Files Modified:
 1. backend/server.py - Added inbox API endpoints
 2. backend/app/db/mongodb.py - Added database indexes
 3. frontend/.env - Verified correct backend URL
 
+### Git Commit:
+`b1aec0e` - Implement Unified Inbox API endpoints for Feature #310
+
 ### Statistics:
 - Features passing: 0/512
-- Features in progress: 3
-- Current feature: #310
+- Features in progress: 2 (was 3, cleared #310)
+- Feature #310: SKIPPED (needs server restart to test)
