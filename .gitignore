@@ -116,3 +116,6 @@ frontend/node_modules/.cache/default-development/10.pack
 # Environment files
 *.env
 *.env.*
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md

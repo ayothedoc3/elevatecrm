@@ -385,3 +385,52 @@ Backend server was running and all tests passed:
 ### Screenshot: .playwright-mcp/inbox-regression-test.png
 
 [Testing] Feature #310 verified - still passing
+
+## Session: Regression Testing - Feature #211
+
+### Date: 2026-01-18
+
+### Feature: #211 - Lists page loads
+
+### Regression Test Result: ✅ PASS
+
+### Verification Steps:
+1. ✅ Navigate to Marketing > Lists - URL /lists loaded successfully
+2. ✅ Lists table renders - Table area visible with empty state
+3. ✅ Columns verified - Stats cards show: Total Lists, Smart Lists (type), Total Contacts
+
+### Additional Checks:
+- Page header: Marketing Lists with subtitle
+- Search box present and functional
+- Type filter dropdown (All Types)
+- Create List buttons visible
+- Empty state displayed correctly
+- No lists-related console errors
+
+### Screenshot: .playwright-mcp/lists-page-regression-test.png
+
+[Testing] Feature #211 verified - still passing
+
+## Session: Regression Testing - Feature #267
+
+### Date: 2026-01-18
+
+### Feature: #267 - Landing pages list loads
+
+### Regression Test Result: ✅ PASS
+
+### Verification Steps:
+1. ✅ Navigate to Marketing > Landing Pages - URL /landing-pages loaded
+2. ✅ Pages list renders - Two landing pages displayed in card grid
+3. ✅ Columns verified - Name, Status (Draft), Views (0) all visible
+
+### Additional Checks:
+- Search box present and functional
+- Status filter dropdown working
+- Create with AI button visible
+- Action buttons (view, edit, publish, duplicate, delete) on cards
+- No landing-page-specific console errors
+
+### Screenshot: .playwright-mcp/landing-pages-regression-test.png
+
+[Testing] Feature #267 verified - still passing

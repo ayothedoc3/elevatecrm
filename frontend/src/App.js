@@ -23,12 +23,13 @@ import {
 import {
   LayoutDashboard, Users, Target, GitBranch, MessageSquare,
   FileText, Settings, LogOut, ChevronLeft, ChevronRight,
-  Flame, Bell, Search, Menu, Plus, Sun, Moon, Box, BarChart3, Activity, UserPlus, LayoutTemplate, List
+  Flame, Bell, Search, Menu, Plus, Sun, Moon, Box, BarChart3, Activity, UserPlus, LayoutTemplate, List, Mail
 } from 'lucide-react';
 
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import ContactsPage from './pages/ContactsPage';
+import LeadsPage from './pages/LeadsPage';
 import PipelinePage from './pages/PipelinePage';
 import BlueprintPage from './pages/BlueprintPage';
 import InboxPage from './pages/InboxPage';
@@ -40,6 +41,7 @@ import ReportsPage from './pages/ReportsPage';
 import AffiliatesPage from './pages/AffiliatesPage';
 import LandingPagesPage from './pages/LandingPagesPage';
 import ListsPage from './pages/ListsPage';
+import CampaignsPage from './pages/CampaignsPage';
 import PublicLandingPage from './pages/PublicLandingPage';
 import SettingsPage from './pages/SettingsPage';
 import AffiliateLoginPage from './pages/AffiliatePortal/AffiliateLoginPage';
@@ -49,12 +51,14 @@ import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/contacts', icon: Users, label: 'Contacts' },
-  { path: '/pipeline', icon: Target, label: 'Pipeline' },
+  { path: '/leads', icon: Target, label: 'Leads' },
+  { path: '/pipeline', icon: GitBranch, label: 'Pipeline' },
   { path: '/activity', icon: Activity, label: 'Activity' },
   { path: '/reports', icon: BarChart3, label: 'Reports' },
   { path: '/affiliates', icon: UserPlus, label: 'Affiliates' },
   { path: '/landing-pages', icon: LayoutTemplate, label: 'AI Page Builder' },
   { path: '/lists', icon: List, label: 'Lists' },
+  { path: '/campaigns', icon: Mail, label: 'Campaigns' },
   { path: '/inbox', icon: MessageSquare, label: 'Inbox' },
   { path: '/workflows', icon: GitBranch, label: 'Workflows' },
   { path: '/forms', icon: FileText, label: 'Forms' },
@@ -320,6 +324,7 @@ const AppRoutes = () => {
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
       <Route path="/contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
+      <Route path="/leads" element={<ProtectedRoute><LeadsPage /></ProtectedRoute>} />
       <Route path="/pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
       <Route path="/blueprints" element={<ProtectedRoute><BlueprintPage /></ProtectedRoute>} />
       <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
@@ -331,6 +336,7 @@ const AppRoutes = () => {
       <Route path="/affiliates" element={<ProtectedRoute><AffiliatesPage /></ProtectedRoute>} />
       <Route path="/landing-pages" element={<ProtectedRoute><LandingPagesPage /></ProtectedRoute>} />
       <Route path="/lists" element={<ProtectedRoute><ListsPage /></ProtectedRoute>} />
+      <Route path="/campaigns" element={<ProtectedRoute><CampaignsPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       {/* Affiliate Portal Routes - No Auth Required */}
       <Route path="/affiliate-portal/login" element={<AffiliateLoginPage />} />

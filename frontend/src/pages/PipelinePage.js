@@ -64,8 +64,21 @@ const PipelinePage = () => {
   const [calcInputs, setCalcInputs] = useState({});
   const [calcSaving, setCalcSaving] = useState(false);
 
+  // Add Deal state
+  const [showAddDealDialog, setShowAddDealDialog] = useState(false);
+  const [addingDeal, setAddingDeal] = useState(false);
+  const [contacts, setContacts] = useState([]);
+  const [newDeal, setNewDeal] = useState({
+    name: '',
+    amount: '',
+    contact_id: '',
+    pipeline_id: '',
+    stage_id: ''
+  });
+
   useEffect(() => {
     fetchPipelines();
+    fetchContacts();
   }, [currentWorkspace]);
 
   useEffect(() => {
@@ -95,6 +108,63 @@ const PipelinePage = () => {
       console.error('Error fetching kanban data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchContacts = async () => {
+    try {
+      const response = await api.get('/contacts?page_size=100');
+      setContacts(response.data.contacts || []);
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+    }
+  };
+
+  const openAddDealDialog = () => {
+    // Set default pipeline and stage
+    if (selectedPipeline && kanbanData?.columns?.length > 0) {
+      setNewDeal({
+        name: '',
+        amount: '',
+        contact_id: '',
+        pipeline_id: selectedPipeline,
+        stage_id: kanbanData.columns[0].id // First stage
+      });
+    }
+    setShowAddDealDialog(true);
+  };
+
+  const handleAddDeal = async () => {
+    if (!newDeal.name.trim() || !newDeal.pipeline_id || !newDeal.stage_id) {
+      return;
+    }
+
+    setAddingDeal(true);
+    try {
+      await api.post('/deals', {
+        name: newDeal.name.trim(),
+        amount: parseFloat(newDeal.amount) || 0,
+        contact_id: newDeal.contact_id || null,
+        pipeline_id: newDeal.pipeline_id,
+        stage_id: newDeal.stage_id
+      });
+
+      // Refresh kanban data
+      await fetchKanbanData(selectedPipeline);
+
+      // Reset form and close dialog
+      setNewDeal({
+        name: '',
+        amount: '',
+        contact_id: '',
+        pipeline_id: '',
+        stage_id: ''
+      });
+      setShowAddDealDialog(false);
+    } catch (error) {
+      console.error('Error creating deal:', error);
+    } finally {
+      setAddingDeal(false);
     }
   };
 
@@ -336,6 +406,11 @@ const PipelinePage = () => {
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
+
+          <Button onClick={openAddDealDialog}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Deal
+          </Button>
         </div>
 
         {kanbanData && (
@@ -471,6 +546,136 @@ const PipelinePage = () => {
           ))}
         </div>
       </ScrollArea>
+
+      {/* Add Deal Dialog */}
+      <AlertDialog open={showAddDealDialog} onOpenChange={setShowAddDealDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Create New Deal</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <Label htmlFor="deal-name">Deal Name <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="deal-name"
+                    value={newDeal.name}
+                    onChange={(e) => setNewDeal({ ...newDeal, name: e.target.value })}
+                    placeholder="Enter deal name..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="deal-amount">Deal Value</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="deal-amount"
+                      type="number"
+                      value={newDeal.amount}
+                      onChange={(e) => setNewDeal({ ...newDeal, amount: e.target.value })}
+                      placeholder="0.00"
+                      className="pl-9"
+                      step="0.01"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Pipeline <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={newDeal.pipeline_id}
+                    onValueChange={(value) => {
+                      const pipeline = pipelines.find(p => p.id === value);
+                      setNewDeal({
+                        ...newDeal,
+                        pipeline_id: value,
+                        stage_id: '' // Reset stage when pipeline changes
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select pipeline..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pipelines.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Stage <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={newDeal.stage_id}
+                    onValueChange={(value) => setNewDeal({ ...newDeal, stage_id: value })}
+                    disabled={!newDeal.pipeline_id}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select stage..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {kanbanData?.columns?.map(stage => (
+                        <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Associated Contact</Label>
+                  <Select
+                    value={newDeal.contact_id || "none"}
+                    onValueChange={(value) => setNewDeal({ ...newDeal, contact_id: value === "none" ? "" : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select contact (optional)..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No contact</SelectItem>
+                      {contacts.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.first_name} {c.last_name} {c.email && `(${c.email})`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowAddDealDialog(false);
+              setNewDeal({
+                name: '',
+                amount: '',
+                contact_id: '',
+                pipeline_id: '',
+                stage_id: ''
+              });
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleAddDeal}
+              disabled={!newDeal.name.trim() || !newDeal.pipeline_id || !newDeal.stage_id || addingDeal}
+            >
+              {addingDeal ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Deal
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Deal Detail Sheet */}
       <Sheet open={showDealSheet} onOpenChange={setShowDealSheet}>

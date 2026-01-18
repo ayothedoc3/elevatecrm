@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "Bash(node --version:*)",
+      "Bash(yarn:*)",
+      "Bash(npm --version:*)",
+      "Bash(mongod --version:*)",
+      "Bash(mongo:*)",
+      "Bash(docker --version:*)",
+      "Bash(python -m venv:*)",
+      "Bash(source venv/Scripts/activate)",
+      "Bash(pip install:*)",
+      "Bash(venv/Scripts/python.exe -m pip:*)",
+      "Bash(npm install:*)",
+      "Bash(venv/Scripts/python.exe:*)",
+      "Bash(choco:*)",
+      "Bash(mongosh --version:*)",
+      "Bash(sc query:*)",
+      "Bash(net start:*)",
+      "Bash(curl:*)",
+      "Bash(npm start)",
+      "Bash(mongosh:*)"
+    ]
+  }
+}

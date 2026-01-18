@@ -1827,6 +1827,286 @@ async def send_message(
     }
 
 
+# ==================== CAMPAIGNS API ====================
+
+class CampaignCreate(BaseModel):
+    name: str
+    subject: Optional[str] = None
+    content: str = ""
+    campaign_type: str = "email"
+    list_id: Optional[str] = None
+    scheduled_at: Optional[str] = None
+
+
+class CampaignUpdate(BaseModel):
+    name: Optional[str] = None
+    subject: Optional[str] = None
+    content: Optional[str] = None
+    status: Optional[str] = None
+    list_id: Optional[str] = None
+    scheduled_at: Optional[str] = None
+
+
+@api_router.get("/campaigns")
+async def list_campaigns(
+    campaign_type: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    user: dict = Depends(get_current_user)
+):
+    """List all campaigns"""
+    db = get_database()
+    tenant_id = user["tenant_id"]
+
+    query = {"tenant_id": tenant_id}
+
+    if campaign_type:
+        query["campaign_type"] = campaign_type
+    if status:
+        query["status"] = status
+    if search:
+        query["$or"] = [
+            {"name": {"$regex": search, "$options": "i"}},
+            {"subject": {"$regex": search, "$options": "i"}}
+        ]
+
+    total = await db.campaigns.count_documents(query)
+    skip = (page - 1) * page_size
+
+    cursor = db.campaigns.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(page_size)
+    campaigns = await cursor.to_list(length=page_size)
+
+    return {
+        "campaigns": campaigns,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
+
+
+@api_router.post("/campaigns", status_code=201)
+async def create_campaign(
+    data: CampaignCreate,
+    user: dict = Depends(get_current_user)
+):
+    """Create a new campaign"""
+    db = get_database()
+
+    campaign = {
+        "id": str(uuid.uuid4()),
+        "tenant_id": user["tenant_id"],
+        "name": data.name,
+        "subject": data.subject,
+        "content": data.content,
+        "campaign_type": data.campaign_type,
+        "status": "draft",
+        "list_id": data.list_id,
+        "scheduled_at": data.scheduled_at,
+        "sent_at": None,
+        "sent_count": 0,
+        "delivered_count": 0,
+        "open_count": 0,
+        "click_count": 0,
+        "bounce_count": 0,
+        "unsubscribe_count": 0,
+        "created_by": user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+
+    await db.campaigns.insert_one(campaign)
+
+    return {k: v for k, v in campaign.items() if k != "_id"}
+
+
+@api_router.get("/campaigns/stats/overview")
+async def get_campaigns_stats(
+    user: dict = Depends(get_current_user)
+):
+    """Get overall campaign statistics"""
+    db = get_database()
+    tenant_id = user["tenant_id"]
+
+    query = {"tenant_id": tenant_id}
+
+    total = await db.campaigns.count_documents(query)
+    draft = await db.campaigns.count_documents({**query, "status": "draft"})
+    scheduled = await db.campaigns.count_documents({**query, "status": "scheduled"})
+    sent = await db.campaigns.count_documents({**query, "status": "sent"})
+
+    # Aggregate totals
+    pipeline = [
+        {"$match": query},
+        {"$group": {
+            "_id": None,
+            "total_sent": {"$sum": "$sent_count"},
+            "total_opens": {"$sum": "$open_count"},
+            "total_clicks": {"$sum": "$click_count"}
+        }}
+    ]
+    agg_result = await db.campaigns.aggregate(pipeline).to_list(length=1)
+    totals = agg_result[0] if agg_result else {"total_sent": 0, "total_opens": 0, "total_clicks": 0}
+
+    return {
+        "total_campaigns": total,
+        "draft_count": draft,
+        "scheduled_count": scheduled,
+        "sent_count": sent,
+        "total_emails_sent": totals.get("total_sent", 0),
+        "total_opens": totals.get("total_opens", 0),
+        "total_clicks": totals.get("total_clicks", 0)
+    }
+
+
+@api_router.get("/campaigns/{campaign_id}")
+async def get_campaign(
+    campaign_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Get a specific campaign"""
+    db = get_database()
+
+    campaign = await db.campaigns.find_one(
+        {"id": campaign_id, "tenant_id": user["tenant_id"]},
+        {"_id": 0}
+    )
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    return campaign
+
+
+@api_router.put("/campaigns/{campaign_id}")
+async def update_campaign(
+    campaign_id: str,
+    data: CampaignUpdate,
+    user: dict = Depends(get_current_user)
+):
+    """Update a campaign"""
+    db = get_database()
+
+    campaign = await db.campaigns.find_one(
+        {"id": campaign_id, "tenant_id": user["tenant_id"]}
+    )
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    update_data = {k: v for k, v in data.dict().items() if v is not None}
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {"$set": update_data}
+    )
+
+    return {"success": True}
+
+
+@api_router.delete("/campaigns/{campaign_id}")
+async def delete_campaign(
+    campaign_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Delete a campaign"""
+    db = get_database()
+
+    result = await db.campaigns.delete_one(
+        {"id": campaign_id, "tenant_id": user["tenant_id"]}
+    )
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    return {"success": True}
+
+
+@api_router.post("/campaigns/{campaign_id}/send")
+async def send_campaign(
+    campaign_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Send a campaign immediately"""
+    db = get_database()
+
+    campaign = await db.campaigns.find_one(
+        {"id": campaign_id, "tenant_id": user["tenant_id"]}
+    )
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    if campaign["status"] == "sent":
+        raise HTTPException(status_code=400, detail="Campaign already sent")
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Simulate sending - count contacts in list
+    sent_count = 0
+    if campaign.get("list_id"):
+        sent_count = await db.list_members.count_documents({"list_id": campaign["list_id"]})
+
+    # Mark as sent
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {"$set": {
+            "status": "sent",
+            "sent_at": now,
+            "sent_count": sent_count,
+            "updated_at": now
+        }}
+    )
+
+    logger.info(f"[SIMULATED] Campaign '{campaign['name']}' sent to {sent_count} recipients")
+
+    return {
+        "success": True,
+        "message": f"Campaign sent to {sent_count} recipients"
+    }
+
+
+@api_router.post("/campaigns/{campaign_id}/duplicate")
+async def duplicate_campaign(
+    campaign_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Duplicate a campaign"""
+    db = get_database()
+
+    campaign = await db.campaigns.find_one(
+        {"id": campaign_id, "tenant_id": user["tenant_id"]},
+        {"_id": 0}
+    )
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    new_campaign = {
+        **campaign,
+        "id": str(uuid.uuid4()),
+        "name": f"{campaign['name']} (Copy)",
+        "status": "draft",
+        "scheduled_at": None,
+        "sent_at": None,
+        "sent_count": 0,
+        "delivered_count": 0,
+        "open_count": 0,
+        "click_count": 0,
+        "bounce_count": 0,
+        "unsubscribe_count": 0,
+        "created_by": user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+
+    await db.campaigns.insert_one(new_campaign)
+
+    return {k: v for k, v in new_campaign.items() if k != "_id"}
+
+
 # ==================== INCLUDE ROUTERS ====================
 
 # Import and include affiliate routes
@@ -1852,6 +2132,14 @@ api_router.include_router(settings_router)
 # Import and include lists routes
 from app.api.lists_routes import router as lists_router
 api_router.include_router(lists_router)
+
+# Import and include campaigns routes
+from app.api.campaigns_routes import router as campaigns_router
+api_router.include_router(campaigns_router)
+
+# Import and include leads routes
+from app.api.leads_routes import router as leads_router
+api_router.include_router(leads_router)
 
 app.include_router(api_router)
 

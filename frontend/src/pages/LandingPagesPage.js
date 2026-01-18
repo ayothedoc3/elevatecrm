@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -52,12 +51,13 @@ const AI_MODELS = [
 ];
 
 const LandingPagesPage = () => {
-  const { token } = useAuth();
+  const { api } = useAuth();
   const [loading, setLoading] = useState(true);
   const [pages, setPages] = useState([]);
   const [programs, setPrograms] = useState([]);
   const [total, setTotal] = useState(0);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showQuickCreateDialog, setShowQuickCreateDialog] = useState(false);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedPage, setSelectedPage] = useState(null);
@@ -69,6 +69,7 @@ const LandingPagesPage = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [generatedSchema, setGeneratedSchema] = useState(null);
   const [activeTab, setActiveTab] = useState('pages');
+  const [quickCreateName, setQuickCreateName] = useState('');
 
   // Generation form
   const [genForm, setGenForm] = useState({
@@ -93,11 +94,6 @@ const LandingPagesPage = () => {
     affiliate_program_id: ''
   });
 
-  const api = axios.create({
-    baseURL: process.env.REACT_APP_BACKEND_URL + '/api',
-    headers: { Authorization: `Bearer ${token}` }
-  });
-
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -114,7 +110,7 @@ const LandingPagesPage = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [api]);
 
   useEffect(() => {
     fetchData();
@@ -218,6 +214,50 @@ const LandingPagesPage = () => {
       ai_model: 'gpt-4o'
     });
     setCreateForm({ name: '', page_type: 'generic', affiliate_program_id: '' });
+  };
+
+  // Quick create - simple page creation with just a name
+  const handleQuickCreate = async () => {
+    if (!quickCreateName.trim()) {
+      toast.error('Please enter a page name');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Create a blank page schema with a placeholder hero section
+      const blankSchema = {
+        page_title: quickCreateName,
+        meta_description: `Landing page for ${quickCreateName}`,
+        sections: [
+          {
+            type: 'hero',
+            order: 1,
+            headline: quickCreateName,
+            subheadline: 'Your compelling subheadline goes here',
+            body_text: 'Add your main content here. Describe your offer, product, or service.',
+            cta_text: 'Get Started',
+            cta_url: '#'
+          }
+        ]
+      };
+
+      await api.post('/landing-pages', {
+        name: quickCreateName,
+        page_type: 'generic',
+        page_schema: blankSchema,
+        affiliate_program_id: null
+      });
+
+      toast.success('Landing page created!');
+      setShowQuickCreateDialog(false);
+      setQuickCreateName('');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to create page');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const copySlug = async (slug) => {
@@ -418,6 +458,53 @@ const LandingPagesPage = () => {
           <Button variant="outline" size="icon" onClick={fetchData} disabled={loading}>
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
+          {/* Quick Create Dialog */}
+          <Dialog open={showQuickCreateDialog} onOpenChange={setShowQuickCreateDialog}>
+            <DialogTrigger asChild>
+              <Button variant="outline" onClick={() => setQuickCreateName('')}>
+                <Plus className="w-4 h-4 mr-2" />
+                Create Page
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Create Landing Page
+                </DialogTitle>
+                <DialogDescription>Create a new blank landing page that you can edit later.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pageName">Page Name *</Label>
+                  <Input
+                    id="pageName"
+                    value={quickCreateName}
+                    onChange={(e) => setQuickCreateName(e.target.value)}
+                    placeholder="e.g., Summer Sale Landing Page"
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleQuickCreate(); }}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowQuickCreateDialog(false)}>Cancel</Button>
+                <Button onClick={handleQuickCreate} disabled={saving || !quickCreateName.trim()}>
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4 mr-2" />
+                      Create Page
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          {/* AI Create Dialog */}
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
               <Button onClick={() => { resetForms(); setGeneratedSchema(null); setActiveTab('generate'); }}>
@@ -729,11 +816,17 @@ const LandingPagesPage = () => {
           <CardContent className="py-12 text-center">
             <LayoutTemplate className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="font-semibold mb-2">No Landing Pages</h3>
-            <p className="text-muted-foreground mb-4">Create your first AI-powered landing page</p>
-            <Button onClick={() => { resetForms(); setGeneratedSchema(null); setActiveTab('generate'); setShowCreateDialog(true); }}>
-              <Wand2 className="w-4 h-4 mr-2" />
-              Create with AI
-            </Button>
+            <p className="text-muted-foreground mb-4">Create your first landing page</p>
+            <div className="flex items-center justify-center gap-2">
+              <Button variant="outline" onClick={() => { setQuickCreateName(''); setShowQuickCreateDialog(true); }}>
+                <Plus className="w-4 h-4 mr-2" />
+                Create Page
+              </Button>
+              <Button onClick={() => { resetForms(); setGeneratedSchema(null); setActiveTab('generate'); setShowCreateDialog(true); }}>
+                <Wand2 className="w-4 h-4 mr-2" />
+                Create with AI
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (

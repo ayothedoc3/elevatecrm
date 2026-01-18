@@ -16,6 +16,13 @@ from pydantic import BaseModel, Field
 from enum import Enum
 import uuid
 import json
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file to ensure SECRET_KEY is available
+ROOT_DIR = Path(__file__).parent.parent.parent
+load_dotenv(ROOT_DIR / '.env')
 
 from app.db.mongodb import get_database
 from app.services.ai_service import get_ai_service, LandingPageSchema, LandingPageSection, AIModel
@@ -91,12 +98,11 @@ class RewriteSectionRequest(BaseModel):
 async def get_current_user_from_token(request: Request):
     """Extract user from request"""
     from jose import jwt
-    import os
-    
+
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
+
     token = auth_header.replace("Bearer ", "")
     try:
         SECRET_KEY = os.environ.get("SECRET_KEY", "elevate-crm-secret-key-change-in-production")
@@ -104,7 +110,7 @@ async def get_current_user_from_token(request: Request):
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
-        
+
         db = get_database()
         user = await db.users.find_one({"id": user_id}, {"_id": 0})
         if not user:
