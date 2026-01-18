@@ -1,5 +1,64 @@
 # Claude Progress Notes - Elevate CRM
 
+## Session: Feature #211 - Marketing Lists page loads
+
+### Date: 2026-01-18
+
+### Feature Details:
+- **ID:** 211
+- **Category:** Marketing Lists
+- **Name:** Lists page loads
+- **Description:** Marketing lists index displays
+- **Steps:**
+  1. Navigate to Marketing > Lists
+  2. Verify lists table renders
+  3. Verify columns (name, type, contact count)
+
+### Implementation Completed:
+
+1. **Frontend Implementation (ListsPage.js) - NEW FILE:**
+   - Created `/frontend/src/pages/ListsPage.js`
+   - Lists grid view with ListCard components
+   - Stats cards: Total Lists, Smart Lists, Total Contacts
+   - Search and filter functionality (by name, type)
+   - Create list dialog (name, description, type selection)
+   - Delete list with confirmation
+   - Empty state with CTA
+
+2. **Backend Implementation (lists_routes.py) - NEW FILE:**
+   - Created `/backend/app/api/lists_routes.py`
+   - GET /api/lists - List all marketing lists with pagination
+   - POST /api/lists - Create new list (static or smart)
+   - GET /api/lists/:id - Get single list
+   - PUT /api/lists/:id - Update list
+   - DELETE /api/lists/:id - Delete list
+   - GET /api/lists/:id/contacts - Get contacts in list
+   - POST /api/lists/:id/contacts - Add contacts to static list
+   - DELETE /api/lists/:id/contacts/:contactId - Remove contact
+
+3. **Routing and Navigation:**
+   - Added `/lists` route in App.js
+   - Added "Lists" navigation item with List icon
+
+### Verification Completed (Browser Automation):
+- ✅ Navigate to /lists via sidebar
+- ✅ Lists table/grid renders (empty state and with data)
+- ✅ Columns display: name, type (Static/Smart badge), contact count
+- ✅ Created test list "TEST_LIST_211_VERIFY" - verified displays
+- ✅ Deleted test list - verified removed
+- ✅ No console errors related to Lists functionality
+
+### Screenshots:
+- `.playwright-mcp/lists-page-empty-state.png`
+- `.playwright-mcp/lists-page-with-data.png`
+
+### Git Commit:
+`bf423bc` - Implement Marketing Lists page - Feature #211
+
+### Feature Status: ✅ PASSING
+
+---
+
 ## Session: Feature #267 - Landing pages list loads
 
 ### Date: 2025-01-18
@@ -249,3 +308,55 @@ Backend server was running and all tests passed:
   - More deal-related features (create, edit, delete deals)
   - Contact management features
   - Pipeline configuration features
+
+---
+
+## Session: Regression Test - Feature #310
+
+### Date: 2025-01-18
+
+### Regression Test Result: ✅ PASSED
+
+**Feature Details:**
+- Feature ID: 310
+- Category: Unified Inbox
+- Name: Unified inbox page loads
+
+**Verification Steps:**
+1. ✅ Navigate to Inbox - URL /inbox loaded successfully
+2. ✅ Conversation list renders - Search box and empty state visible
+3. ✅ Message preview visible - Placeholder text displayed
+
+**Additional Verified:**
+- Stats cards: All (0), Email (0), SMS (0), Unread (0)
+- Action buttons: Refresh, Compose
+- No inbox-related console errors
+
+**Screenshot:** .playwright-mcp/inbox-regression-test.png
+
+**Conclusion:** No regression detected. Feature still passing.
+
+---
+
+## Session: Regression Testing - Feature #310
+
+### Date: 2026-01-18
+
+### Feature: #310 - Unified inbox page loads
+
+### Regression Test Result: ✅ PASS
+
+### Verification Steps:
+1. ✅ Navigate to Inbox - Successfully navigated via sidebar
+2. ✅ Conversation list renders - List area visible with search and empty state
+3. ✅ Message preview visible - Preview shows 'Select a conversation' placeholder
+
+### Additional Checks:
+- Stats cards (All, Email, SMS, Unread) rendering correctly
+- Refresh and Compose buttons visible
+- Search box present and functional
+- No inbox-related console errors
+
+### Screenshot: .playwright-mcp/inbox-regression-test.png
+
+[Testing] Feature #310 verified - still passing
