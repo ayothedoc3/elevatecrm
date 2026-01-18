@@ -434,3 +434,92 @@ Backend server was running and all tests passed:
 ### Screenshot: .playwright-mcp/landing-pages-regression-test.png
 
 [Testing] Feature #267 verified - still passing
+
+---
+
+## Session: Feature #268 - Create landing page
+
+### Date: 2026-01-18
+
+### Feature Details:
+- **ID:** 268
+- **Category:** Landing Pages
+- **Name:** Create landing page
+- **Description:** New landing page can be created
+- **Steps:**
+  1. Click 'Create Landing Page'
+  2. Enter page name
+  3. Save draft
+  4. Verify page created
+- **Dependencies:** Feature #267 (Landing pages list loads) - passing
+
+### Implementation Completed:
+
+1. **Added Quick Create Dialog (LandingPagesPage.js):**
+   - Added `showQuickCreateDialog` state for simple create dialog
+   - Added `quickCreateName` state for page name input
+   - Added `handleQuickCreate()` function that creates a blank page with placeholder content
+   - Creates draft page with single hero section placeholder
+
+2. **UI Updates:**
+   - Added "Create Page" button (outline variant) before "Create with AI" button
+   - Dialog with simple page name input field
+   - Enter key submits form
+   - Button disabled until name is entered
+   - Success toast on creation
+
+3. **Empty State Updated:**
+   - Shows both "Create Page" and "Create with AI" options
+   - Users can choose simple or AI-powered creation
+
+### API Used:
+- `POST /api/landing-pages` - Create new landing page with blank schema
+
+### Blank Schema Structure:
+```json
+{
+  "page_title": "<page_name>",
+  "meta_description": "Landing page for <page_name>",
+  "sections": [{
+    "type": "hero",
+    "order": 1,
+    "headline": "<page_name>",
+    "subheadline": "Your compelling subheadline goes here",
+    "body_text": "Add your main content here...",
+    "cta_text": "Get Started",
+    "cta_url": "#"
+  }]
+}
+```
+
+### Verification Completed (Browser Automation):
+
+1. ✅ **Click 'Create Landing Page'** - "Create Page" button visible and clickable
+2. ✅ **Enter page name** - Dialog appears with "Page Name" input field
+3. ✅ **Save draft** - Created "TEST_268_FEATURE_VERIFY" as draft
+4. ✅ **Verify page created** - Page appears in list with:
+   - Name: "TEST_268_FEATURE_VERIFY"
+   - Status: "Draft" badge
+   - Version: v1
+   - Slug: /test-268-feature-verify-dc5c24
+   - Views: 0, Conversions: 0
+
+### Data Persistence Verified:
+- Page refresh shows created page still in list
+- Delete operation works (soft delete to "Archived" status)
+
+### Console Errors:
+- No landing-pages-related errors
+- Only unrelated /api/workspaces 404 errors (separate feature)
+
+### Screenshot:
+- `.playwright-mcp/feature-268-create-landing-page.png`
+
+### Git Commit:
+`bcf4ed0` - Implement Create Landing Page feature - Feature #268
+
+### Feature Status: ✅ PASSING
+
+### Current Statistics:
+- **Features passing: 5/512** (~1.0%)
+- Feature #268: ✅ PASSING
