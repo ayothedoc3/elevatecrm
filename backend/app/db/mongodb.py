@@ -111,7 +111,16 @@ async def create_indexes():
     await db.settings_audit_logs.create_index([("workspace_id", 1), ("timestamp", -1)])
     await db.settings_audit_logs.create_index([("workspace_id", 1), ("action", 1)])
     await db.affiliate_settings.create_index("workspace_id", unique=True)
-    
+
+    # Conversations and Messages indexes (Inbox)
+    await db.conversations.create_index("tenant_id")
+    await db.conversations.create_index("contact_id")
+    await db.conversations.create_index([("tenant_id", 1), ("channel", 1)])
+    await db.conversations.create_index([("tenant_id", 1), ("last_message_at", -1)])
+    await db.messages.create_index("conversation_id")
+    await db.messages.create_index("tenant_id")
+    await db.messages.create_index([("conversation_id", 1), ("created_at", 1)])
+
     logger.info("Database indexes created")
 
 

@@ -1607,6 +1607,220 @@ async def seed_demo_data():
     logger.info("Demo data seeded successfully!")
 
 
+# ==================== INBOX / CONVERSATIONS ====================
+
+@api_router.get("/inbox")
+async def list_conversations(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    channel: Optional[str] = None,
+    user: dict = Depends(get_current_user)
+):
+    """List conversations in inbox"""
+    db = get_database()
+
+    # Build query
+    query = {"tenant_id": user["tenant_id"]}
+    if channel:
+        query["channel"] = channel
+
+    # Count total
+    total = await db.conversations.count_documents(query)
+
+    # Get conversations
+    skip = (page - 1) * page_size
+    cursor = db.conversations.find(query, {"_id": 0}).sort("last_message_at", -1).skip(skip).limit(page_size)
+    conversations = await cursor.to_list(length=page_size)
+
+    # Enrich with contact info
+    conv_responses = []
+    for conv in conversations:
+        # Get contact info
+        contact = await db.contacts.find_one({"id": conv.get("contact_id")}, {"_id": 0})
+        conv_responses.append({
+            **conv,
+            "contact_name": f"{contact['first_name']} {contact['last_name']}" if contact else "Unknown",
+            "contact_email": contact.get("email") if contact else None,
+            "contact_phone": contact.get("phone") if contact else None
+        })
+
+    return {
+        "conversations": conv_responses,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
+
+
+@api_router.get("/inbox/stats")
+async def get_inbox_stats(user: dict = Depends(get_current_user)):
+    """Get inbox statistics"""
+    db = get_database()
+    tenant_id = user["tenant_id"]
+
+    total = await db.conversations.count_documents({"tenant_id": tenant_id})
+    unread = await db.conversations.count_documents({"tenant_id": tenant_id, "is_read": False})
+    email_count = await db.conversations.count_documents({"tenant_id": tenant_id, "channel": "email"})
+    sms_count = await db.conversations.count_documents({"tenant_id": tenant_id, "channel": "sms"})
+
+    return {
+        "total_conversations": total,
+        "unread_conversations": unread,
+        "email_count": email_count,
+        "sms_count": sms_count
+    }
+
+
+@api_router.get("/inbox/{conversation_id}")
+async def get_conversation(
+    conversation_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Get a conversation with all messages"""
+    db = get_database()
+
+    conv = await db.conversations.find_one(
+        {"id": conversation_id, "tenant_id": user["tenant_id"]},
+        {"_id": 0}
+    )
+
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Mark as read
+    await db.conversations.update_one(
+        {"id": conversation_id},
+        {"$set": {"is_read": True, "unread_count": 0}}
+    )
+
+    # Get messages
+    cursor = db.messages.find({"conversation_id": conversation_id}, {"_id": 0}).sort("created_at", 1)
+    messages = await cursor.to_list(length=1000)
+
+    # Get contact info
+    contact = await db.contacts.find_one({"id": conv.get("contact_id")}, {"_id": 0})
+
+    return {
+        **conv,
+        "contact_name": f"{contact['first_name']} {contact['last_name']}" if contact else "Unknown",
+        "contact_email": contact.get("email") if contact else None,
+        "contact_phone": contact.get("phone") if contact else None,
+        "messages": messages
+    }
+
+
+class SendMessageRequest(BaseModel):
+    contact_id: str
+    channel: str = "email"
+    to_address: str
+    subject: Optional[str] = None
+    body: str
+    body_html: Optional[str] = None
+
+
+@api_router.post("/inbox/send", status_code=201)
+async def send_message(
+    data: SendMessageRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Send a new message (email or SMS)"""
+    db = get_database()
+    tenant_id = user["tenant_id"]
+
+    # Verify contact exists
+    contact = await db.contacts.find_one(
+        {"id": data.contact_id, "tenant_id": tenant_id},
+        {"_id": 0}
+    )
+
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    # Find or create conversation
+    conv = await db.conversations.find_one({
+        "tenant_id": tenant_id,
+        "contact_id": data.contact_id,
+        "channel": data.channel
+    }, {"_id": 0})
+
+    if not conv:
+        conv_id = str(uuid.uuid4())
+        conv = {
+            "id": conv_id,
+            "tenant_id": tenant_id,
+            "contact_id": data.contact_id,
+            "channel": data.channel,
+            "subject": data.subject,
+            "is_open": True,
+            "is_read": True,
+            "message_count": 0,
+            "unread_count": 0,
+            "last_message_preview": None,
+            "last_message_at": None,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.conversations.insert_one(conv)
+    else:
+        conv_id = conv["id"]
+
+    # Create message
+    message_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    message = {
+        "id": message_id,
+        "tenant_id": tenant_id,
+        "conversation_id": conv_id,
+        "channel": data.channel,
+        "direction": "outbound",
+        "status": "sent",  # In production, would be pending until actually sent
+        "from_address": user.get("email"),
+        "to_address": data.to_address,
+        "subject": data.subject,
+        "body": data.body,
+        "body_html": data.body_html,
+        "sent_by_user_id": user["id"],
+        "sent_by_name": f"{user['first_name']} {user['last_name']}",
+        "sent_at": now,
+        "created_at": now
+    }
+    await db.messages.insert_one(message)
+
+    # Update conversation
+    preview = data.body[:100] + "..." if len(data.body) > 100 else data.body
+    await db.conversations.update_one(
+        {"id": conv_id},
+        {
+            "$set": {
+                "last_message_preview": preview,
+                "last_message_at": now,
+                "updated_at": now
+            },
+            "$inc": {"message_count": 1}
+        }
+    )
+
+    # Log message sending (simulated - in production would use SendGrid/Twilio)
+    logger.info(f"[SIMULATED] Sending {data.channel} to {data.to_address}: {data.body[:50]}...")
+
+    return {
+        "id": message_id,
+        "tenant_id": tenant_id,
+        "conversation_id": conv_id,
+        "channel": data.channel,
+        "direction": "outbound",
+        "status": "sent",
+        "from_address": user.get("email"),
+        "to_address": data.to_address,
+        "subject": data.subject,
+        "body": data.body,
+        "sent_by_user_id": user["id"],
+        "sent_by_name": f"{user['first_name']} {user['last_name']}",
+        "sent_at": now,
+        "created_at": now
+    }
+
+
 # ==================== INCLUDE ROUTERS ====================
 
 # Import and include affiliate routes
@@ -1634,4 +1848,4 @@ app.include_router(api_router)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

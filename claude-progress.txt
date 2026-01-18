@@ -1,0 +1,154 @@
+# Claude Progress Notes - Elevate CRM
+
+## Session: Feature #267 - Landing pages list loads
+
+### Date: 2025-01-18
+
+### Feature Details:
+- **ID:** 267
+- **Category:** Landing Pages
+- **Name:** Landing pages list loads
+- **Description:** Landing pages index displays
+- **Steps:**
+  1. Navigate to Marketing > Landing Pages
+  2. Verify pages list renders
+  3. Verify columns (name, status, views)
+
+### Code Review Completed:
+
+1. **Frontend Implementation (LandingPagesPage.js):**
+   - ✅ Page component exists at `/frontend/src/pages/LandingPagesPage.js`
+   - ✅ Routing configured at `/landing-pages` in App.js (line 330)
+   - ✅ Navigation item exists in sidebar (line 55) as "AI Page Builder"
+   - ✅ Page list renders in grid layout (lines 740-792)
+   - ✅ Name column: Displayed in card header (line 744)
+   - ✅ Status column: Badge component showing draft/published/archived (lines 362-369, 748)
+   - ✅ Views column: Eye icon with view_count (lines 752-755)
+   - ✅ Loading state with skeletons (lines 723-726)
+   - ✅ Empty state with CTA to create page (lines 727-738)
+   - ✅ Search and filter functionality (lines 694-720)
+
+2. **Backend Implementation (landing_pages_routes.py):**
+   - ✅ API route exists at `/api/landing-pages`
+   - ✅ GET endpoint returns pages with pagination
+   - ✅ Response includes: pages, total, page, page_size
+   - ✅ Each page object includes: id, name, slug, status, view_count, conversion_count, version
+
+3. **API Integration:**
+   - ✅ Frontend calls `api.get('/landing-pages')` in fetchData()
+   - ✅ Response mapped to state: `setPages(pagesRes.data.pages || [])`
+
+### Blocker:
+- **Backend server is not running** - Cannot start due to sandbox command restrictions
+- Need to manually start backend server on port 8001
+
+### To Start Backend Manually:
+```cmd
+cd C:\Users\ayoth\Downloads\elevatecrm\elevatecrm\backend
+venv\Scripts\activate
+python server.py
+```
+
+Or use the init.bat:
+```cmd
+C:\Users\ayoth\Downloads\elevatecrm\elevatecrm\init.bat --backend
+```
+
+### Next Steps:
+1. Start backend server manually
+2. Navigate to http://localhost:3000
+3. Login with demo credentials (admin@demo.com / admin123)
+4. Go to Landing Pages (AI Page Builder in sidebar)
+5. Verify the list renders with name, status, views columns
+6. Mark feature #267 as passing
+
+### Current Status:
+- Feature #267: IN PROGRESS (waiting for backend server)
+- Code implementation: COMPLETE
+- Browser verification: PENDING (needs backend)
+
+---
+
+## Session: Feature #310 - Unified Inbox Page Loads
+
+### Date: 2025-01-18
+
+### Feature Details:
+- **Feature ID**: 310
+- **Category**: Unified Inbox
+- **Name**: Unified inbox page loads
+- **Description**: Inbox displays all conversations
+- **Steps**:
+  1. Navigate to Inbox
+  2. Verify conversation list renders
+  3. Verify message preview visible
+
+### Implementation Completed:
+
+#### 1. Backend API Endpoints Added (server.py)
+Added MongoDB-compatible inbox endpoints:
+- `GET /api/inbox` - List all conversations with pagination and channel filtering
+- `GET /api/inbox/stats` - Get inbox statistics (total, unread, email count, sms count)
+- `GET /api/inbox/{conversation_id}` - Get single conversation with all messages
+- `POST /api/inbox/send` - Send new message (email or SMS)
+
+Location: Lines 1610-1821 in backend/server.py
+
+#### 2. MongoDB Indexes Added (mongodb.py)
+Added indexes for conversations and messages collections:
+- conversations: tenant_id, contact_id, channel, last_message_at
+- messages: conversation_id, tenant_id, created_at
+
+Location: Lines 115-122 in backend/app/db/mongodb.py
+
+#### 3. Frontend Already Exists (InboxPage.js)
+The InboxPage component was already implemented with:
+- Conversation list with search and filtering
+- Stats cards (All, Email, SMS, Unread)
+- Message thread view with sent/received indicators
+- Compose new message modal
+- Real-time status indicators
+
+Location: frontend/src/pages/InboxPage.js
+
+#### 4. Configuration Fix
+- Fixed backend port from 8001 to 8000 in server.py (line 1851)
+- Updated frontend .env to ensure REACT_APP_BACKEND_URL=http://localhost:8000
+
+### IMPORTANT - Server Restart Required:
+The backend server needs to be restarted to pick up the new inbox API routes.
+
+To restart:
+1. Stop the current backend server (Ctrl+C in the terminal running it)
+2. Run: `init.bat --backend` (Windows) or `./init.sh --backend` (Mac/Linux)
+
+Or manually:
+```bash
+cd backend
+source venv/Scripts/activate  # Windows: venv\Scripts\activate
+python server.py
+```
+
+### Testing Steps After Restart:
+1. Navigate to http://localhost:3000
+2. Login with admin@demo.com / admin123
+3. Click "Inbox" in the sidebar navigation
+4. Verify the inbox page loads with:
+   - Stats cards showing counts (likely 0 initially)
+   - Empty state message "No conversations yet"
+   - "Compose" button visible
+5. Click "Compose" to test sending a message
+
+### Current Status:
+- Implementation: COMPLETE
+- Testing: BLOCKED (requires server restart)
+
+### Files Modified:
+1. backend/server.py - Added inbox API endpoints
+2. backend/app/db/mongodb.py - Added database indexes
+3. frontend/.env - Verified correct backend URL
+
+### Statistics:
+- Features passing: 0/512
+- Features in progress: 3
+- Current feature: #310
