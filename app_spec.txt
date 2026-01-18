@@ -1,0 +1,1426 @@
+<project_specification>
+  <project_name>Elevate CRM</project_name>
+
+  <overview>
+    A full-scale, multi-tenant Sales and Marketing CRM platform that replaces GHL and HubSpot. Built for Elevate clients, the platform enables sales teams and marketing teams to run their complete workflows without leaving the app. Features include Elev8 Playbook-driven pipelines, universal lead scoring, AI-powered landing page builder, unified communications inbox, automation engine, and comprehensive integrations.
+  </overview>
+
+  <technology_stack>
+    <frontend>
+      <framework>React 19</framework>
+      <styling>Tailwind CSS + shadcn/ui</styling>
+      <state_management>React Context + hooks</state_management>
+      <routing>React Router</routing>
+    </frontend>
+    <backend>
+      <runtime>Node.js</runtime>
+      <framework>Express.js</framework>
+      <database>SQLite (upgradeable to PostgreSQL)</database>
+      <orm>Prisma or Sequelize</orm>
+    </backend>
+    <communication>
+      <api>REST API</api>
+      <realtime>WebSockets for live updates</realtime>
+    </communication>
+    <ai>
+      <provider>OpenAI API</provider>
+      <features>Content generation, lead scoring, chatbot, sales coaching</features>
+    </ai>
+  </technology_stack>
+
+  <prerequisites>
+    <environment_setup>
+      - Node.js 20+
+      - npm or yarn
+      - SQLite (included) or PostgreSQL 15+ for production
+      - OpenAI API key for AI features
+      - Stripe API keys for payment processing
+      - Twilio API keys for SMS
+      - SendGrid API keys for email
+    </environment_setup>
+  </prerequisites>
+
+  <feature_count>512</feature_count>
+
+  <security_and_access_control>
+    <user_roles>
+      <role name="Sales Advisor (Admin)">
+        <permissions>
+          - Full system access and configuration
+          - User management and role assignment
+          - Tenant configuration
+          - Approval workflows
+          - System diagnostics
+          - Override blocked stage movements
+          - Access all sales and marketing features
+          - Export audit logs
+          - GDPR data management
+        </permissions>
+        <protected_routes>
+          - /admin/* (full access)
+          - /settings/* (full access)
+          - /audit/* (full access)
+        </protected_routes>
+      </role>
+      <role name="Sales Manager (Manager)">
+        <permissions>
+          - Team pipeline oversight
+          - Forecasting and reporting
+          - Coaching and review
+          - Assign leads to team members
+          - View team KPIs
+          - Create and manage pipelines
+          - Cannot delete contacts/companies (Admin only)
+        </permissions>
+        <protected_routes>
+          - /team/* (team management)
+          - /reports/* (reporting)
+          - /forecasting/* (forecasts)
+        </protected_routes>
+      </role>
+      <role name="SDR / AE / Partnership Seller (Sales Rep)">
+        <permissions>
+          - Own and manage assigned leads/deals
+          - Execute pipeline stages
+          - Log activities and tasks
+          - Send emails and SMS
+          - Schedule meetings
+          - View personal KPIs
+          - Cannot delete contacts (request only)
+          - Cannot access team-wide reports
+        </permissions>
+        <protected_routes>
+          - /my-pipeline (personal pipeline)
+          - /my-deals (assigned deals)
+          - /inbox (personal inbox)
+        </protected_routes>
+      </role>
+      <role name="Sales Coordinator (Viewer+)">
+        <permissions>
+          - Pipeline hygiene oversight
+          - Task enforcement
+          - Read access to all sales data
+          - Limited edit (notes, tasks)
+          - Cannot create or delete records
+          - Cannot move deal stages
+        </permissions>
+        <protected_routes>
+          - /pipeline (read-only view)
+          - /tasks (task management)
+        </protected_routes>
+      </role>
+      <role name="Marketing Admin">
+        <permissions>
+          - Full marketing module access
+          - Campaign management
+          - Landing page and form builder
+          - List and segment management
+          - Marketing analytics
+          - Automation workflows
+          - Cannot access sales admin settings
+        </permissions>
+        <protected_routes>
+          - /marketing/* (full marketing access)
+          - /campaigns/* (campaign management)
+          - /automations/* (automation builder)
+        </protected_routes>
+      </role>
+      <role name="Marketing Manager">
+        <permissions>
+          - Campaign creation and management
+          - List and segment management
+          - View marketing analytics
+          - Email and SMS campaigns
+          - Cannot delete automations
+          - Cannot access billing
+        </permissions>
+        <protected_routes>
+          - /campaigns/* (campaign management)
+          - /lists/* (list management)
+          - /analytics/marketing (marketing analytics)
+        </protected_routes>
+      </role>
+      <role name="Marketing Rep">
+        <permissions>
+          - Execute campaigns
+          - Manage content and assets
+          - Build landing pages and forms
+          - Cannot delete campaigns
+          - Cannot access analytics
+        </permissions>
+        <protected_routes>
+          - /campaigns/execute (campaign execution)
+          - /content/* (content management)
+          - /builder/* (page/form builder)
+        </protected_routes>
+      </role>
+    </user_roles>
+    <authentication>
+      <method>JWT token-based authentication</method>
+      <session_timeout>60 minutes (configurable per tenant)</session_timeout>
+      <password_requirements>Minimum 8 characters, 1 uppercase, 1 number, 1 special character</password_requirements>
+      <multi_tenant>Tenant slug required for login</multi_tenant>
+    </authentication>
+    <sensitive_operations>
+      - Delete account requires password confirmation
+      - Bulk delete requires admin approval
+      - Stage override requires mandatory reason
+      - GDPR data export requires identity verification
+      - Payment configuration requires admin role
+    </sensitive_operations>
+  </security_and_access_control>
+
+  <core_features>
+    <authentication_and_roles>
+      - User registration with tenant association
+      - Login with email/password
+      - JWT token management
+      - Role-based access control (7 roles)
+      - Password reset flow
+      - Session management
+      - Remember me functionality
+      - Logout and token invalidation
+      - User profile management
+      - Avatar upload
+      - Notification preferences
+      - Multi-tenant isolation
+      - Tenant-specific configuration
+      - User invitation system
+      - Role assignment and changes
+    </authentication_and_roles>
+
+    <multi_tenant_foundation>
+      - Tenant creation and management
+      - Database-level isolation
+      - Tenant-specific settings
+      - Custom branding per tenant
+      - Tenant admin dashboard
+      - User management per tenant
+      - Billing and subscription (future)
+      - Tenant templates (NLA demo)
+      - Data export per tenant
+      - Tenant deactivation/archival
+      - Cross-tenant admin view (super admin)
+      - Tenant onboarding wizard
+    </multi_tenant_foundation>
+
+    <contacts_management>
+      - Create contact with required fields
+      - Edit contact details
+      - Delete contact (soft delete)
+      - Recover deleted contacts
+      - Search contacts by name/email/phone
+      - Filter contacts by lifecycle stage
+      - Filter contacts by owner
+      - Filter contacts by tags
+      - Filter contacts by date range
+      - Contact detail view
+      - Contact timeline (all activities)
+      - Contact notes
+      - Contact tasks
+      - Contact deals association
+      - Contact company association
+      - Duplicate detection on create
+      - Merge duplicate contacts
+      - Bulk import from CSV
+      - Bulk export to CSV
+      - Custom fields per tenant
+      - Contact lifecycle stages
+      - Contact source tracking
+      - GDPR consent tracking
+      - Right to be forgotten
+      - Data export request
+    </contacts_management>
+
+    <companies_management>
+      - Create company
+      - Edit company details
+      - Delete company (soft delete)
+      - Recover deleted companies
+      - Search companies
+      - Filter companies by industry
+      - Filter companies by size
+      - Company detail view
+      - Company contacts list
+      - Company deals list
+      - Company timeline
+      - Company notes
+      - Duplicate detection
+      - Merge duplicate companies
+      - Custom fields
+      - Bulk import/export
+    </companies_management>
+
+    <leads_management>
+      - Create lead
+      - Convert lead to contact
+      - Lead assignment (manual)
+      - Lead assignment (auto by rules)
+      - Lead source tracking
+      - Lead scoring (0-100)
+      - Lead tier assignment (A-D)
+      - Lead scoring categories (Size, Urgency, Source, Motivation, Decision)
+      - Scoring weight configuration
+      - AI lead scoring suggestions
+      - Lead qualification fields
+      - Lead status tracking
+      - Speed-to-lead SLA tracking
+      - Lead distribution rules
+      - Lead recycling (return to pool)
+      - Lead nurture sequences
+      - Bulk lead import
+      - Lead deduplication
+      - Lead source attribution
+    </leads_management>
+
+    <deals_opportunities>
+      - Create deal
+      - Edit deal details
+      - Delete deal (soft delete)
+      - Deal owner assignment
+      - Deal value tracking
+      - Deal probability
+      - Expected close date
+      - Deal timeline/activities
+      - Deal notes
+      - Deal tasks
+      - Deal contact association
+      - Deal company association
+      - Deal partner association (Partner Sales)
+      - Deal product association
+      - Sales motion type (Partnership/Partner)
+      - Stage progression
+      - Stage requirements enforcement
+      - Blocked stage movement (missing fields)
+      - Admin override with reason
+      - Stage regression on data change
+      - Deal won/lost reasons
+      - Deal handoff to delivery
+      - Deal history/changelog
+      - Bulk deal operations
+      - Deal forecasting
+      - Weighted pipeline value
+    </deals_opportunities>
+
+    <pipelines_and_stages>
+      - Qualification Pipeline
+        - New / Assigned stage
+        - Working (Contact Attempts) stage
+        - Info Collected stage
+        - Unresponsive stage
+        - Disqualified stage
+        - Qualified (push to Sales) stage
+      - Sales Pipeline
+        - Calculations / Analysis In Progress stage
+        - Discovery / Demo Scheduled stage
+        - Discovery / Demo Completed stage
+        - Decision Pending stage
+        - Trial / Pilot stage
+        - Verbal Commitment stage
+        - Closed Won stage
+        - Closed Lost stage
+        - Handoff to Delivery stage
+      - Custom pipeline creation
+      - Pipeline stage configuration
+      - Required fields per stage
+      - Entry/exit automations per stage
+      - Stage SLAs
+      - Pipeline KPIs
+      - Partner-specific pipeline variants
+    </pipelines_and_stages>
+
+    <kanban_board>
+      - Visual Kanban view
+      - Drag and drop deals between stages
+      - Stage columns with deal count
+      - Stage columns with deal value
+      - Quick actions (Next/Back stage)
+      - Deal card preview
+      - Deal card customization
+      - Filter Kanban by owner
+      - Filter Kanban by tier
+      - Filter Kanban by partner
+      - Filter Kanban by date
+      - Kanban real-time updates
+      - Kanban compact/expanded view
+      - Stage requirement badges
+      - Compliance status indicators
+    </kanban_board>
+
+    <tasks_and_slas>
+      - Create task
+      - Edit task
+      - Complete task
+      - Delete task
+      - Task assignment
+      - Task due date
+      - Task priority
+      - Task reminders
+      - Task linked to contact
+      - Task linked to deal
+      - Task types (call, email, meeting, todo)
+      - Automatic task creation (after interaction)
+      - Follow-up SLA by stage
+      - Speed-to-lead SLA by source
+      - SLA breach alerts
+      - SLA compliance tracking
+      - Overdue task notifications
+      - Task completion KPIs
+      - Task templates
+      - Recurring tasks
+    </tasks_and_slas>
+
+    <partner_sales>
+      - Partner entity management
+      - Create partner
+      - Edit partner
+      - Partner products
+      - Partner-specific pipelines
+      - Partner-specific required fields
+      - Partner-specific KPIs
+      - Partner-specific compliance rules
+      - Partner deal association
+      - Partner reporting
+      - Partner performance dashboard
+      - Sales motion type selection
+      - Partner product selection (required for Partner Sales)
+    </partner_sales>
+
+    <handoff_to_delivery>
+      - Handoff trigger on Closed Won
+      - Required artifacts checklist
+        - SPICED summary
+        - Gap analysis
+        - Proposal
+        - Contract
+        - Risk notes
+        - Kickoff readiness checklist
+      - Delivery owner assignment
+      - Kickoff scheduling
+      - Stage locking post-handoff
+      - Handoff completion timestamp
+      - Handoff notes
+      - Delivery team notification
+    </handoff_to_delivery>
+
+    <marketing_lists_and_segments>
+      - Create static list
+      - Create smart list (dynamic)
+      - Edit list
+      - Delete list
+      - Add contacts to list
+      - Remove contacts from list
+      - List filters (AND/OR logic)
+      - Segment by lifecycle stage
+      - Segment by lead score
+      - Segment by source
+      - Segment by activity
+      - Segment by tags
+      - Segment by custom fields
+      - Segment by engagement
+      - List export
+      - List import
+      - List analytics
+      - List subscription management
+      - Suppression lists
+      - Unsubscribe management
+    </marketing_lists_and_segments>
+
+    <email_campaigns>
+      - Create email campaign
+      - Edit email campaign
+      - Email template builder (drag and drop)
+      - HTML email editor
+      - Plain text option
+      - Email personalization tokens
+      - Email preview
+      - Send test email
+      - Schedule email send
+      - Send immediately
+      - A/B testing (subject, content)
+      - Email analytics (opens, clicks)
+      - Click tracking
+      - Unsubscribe handling
+      - Bounce handling
+      - Campaign to list targeting
+      - Campaign to segment targeting
+      - Email templates library
+      - Template categories
+      - Clone campaign
+      - Campaign archive
+      - SendGrid integration
+    </email_campaigns>
+
+    <sms_campaigns>
+      - Create SMS campaign
+      - Edit SMS campaign
+      - SMS character count
+      - SMS personalization
+      - Send test SMS
+      - Schedule SMS send
+      - Send immediately
+      - SMS analytics (delivery, clicks)
+      - SMS opt-out handling
+      - Two-way SMS
+      - SMS templates
+      - Twilio integration
+      - SMS compliance (TCPA)
+      - SMS cost tracking
+    </sms_campaigns>
+
+    <ai_landing_page_builder>
+      - Create landing page
+      - Natural language page generation
+      - Image-to-landing-page AI
+      - Drag and drop page builder
+      - Pre-built templates
+      - Custom sections
+      - Mobile responsive preview
+      - Desktop preview
+      - Tablet preview
+      - Page SEO settings
+      - Meta tags
+      - Custom URL/slug
+      - Publish page
+      - Unpublish page
+      - Page versioning
+      - Page analytics (views, conversions)
+      - Form integration on pages
+      - Thank you page redirect
+      - A/B testing pages
+      - Clone page
+      - Page templates library
+      - Custom CSS/JS injection
+      - Image and media upload
+      - Stock image integration
+    </ai_landing_page_builder>
+
+    <forms_and_lead_capture>
+      - Create form
+      - Edit form
+      - Form field types (text, email, phone, dropdown, checkbox, etc.)
+      - Required field validation
+      - Form styling
+      - Form embed code
+      - Form popup trigger
+      - Form submission handling
+      - Form to list mapping
+      - Form to pipeline mapping
+      - Auto-create lead on submit
+      - Auto-assign lead on submit
+      - Form analytics
+      - Form A/B testing
+      - Anti-spam (honeypot, captcha)
+      - Form confirmation message
+      - Form redirect URL
+    </forms_and_lead_capture>
+
+    <unified_inbox>
+      - Unified inbox view
+      - Email conversations
+      - SMS conversations
+      - Live chat conversations
+      - Conversation threading
+      - Conversation assignment
+      - Conversation status (open, pending, closed)
+      - Reply to email
+      - Reply to SMS
+      - Reply to chat
+      - Conversation search
+      - Conversation filters
+      - Canned responses
+      - AI-generated replies
+      - Conversation notes
+      - Conversation history
+      - Contact context sidebar
+      - Deal context sidebar
+      - Bulk conversation actions
+      - Conversation SLAs
+    </unified_inbox>
+
+    <live_chat_widget>
+      - Embeddable chat widget
+      - Widget customization (colors, position)
+      - Pre-chat form
+      - Offline message handling
+      - Chat routing rules
+      - Chat assignment
+      - Chat to lead conversion
+      - Chat transcripts
+      - Chat analytics
+      - Typing indicators
+      - Read receipts
+      - File sharing in chat
+      - Chat rating/feedback
+      - AI chatbot mode
+      - Chatbot to human handoff
+    </live_chat_widget>
+
+    <automation_engine>
+      - Create automation workflow
+      - Edit automation
+      - Automation triggers
+        - Contact created
+        - Deal stage changed
+        - Form submitted
+        - Tag added/removed
+        - Score threshold reached
+        - Date-based trigger
+        - Inactivity trigger
+      - Automation conditions
+        - If/else branching
+        - AND/OR logic
+        - Field value conditions
+      - Automation actions
+        - Send email
+        - Send SMS
+        - Create task
+        - Assign owner
+        - Add tag
+        - Remove tag
+        - Update field
+        - Move to pipeline stage
+        - Add to list
+        - Remove from list
+        - Webhook call
+        - Wait/delay
+        - Notify user
+      - Automation testing
+      - Automation analytics
+      - Automation logs
+      - Pause/resume automation
+      - Clone automation
+      - Automation templates
+    </automation_engine>
+
+    <drip_sequences>
+      - Create drip sequence
+      - Edit sequence
+      - Sequence steps (email, SMS, wait)
+      - Step timing (delay in days/hours)
+      - Conditional branching
+      - Exit conditions
+        - Reply received
+        - Link clicked
+        - Goal achieved
+        - Unsubscribed
+      - Sequence enrollment
+      - Manual enrollment
+      - Auto-enrollment via automation
+      - Sequence analytics
+      - Step performance
+      - Sequence pause/resume
+      - Contact removal from sequence
+      - Sequence templates
+    </drip_sequences>
+
+    <ai_features>
+      - AI email content generation
+      - AI SMS content generation
+      - AI subject line suggestions
+      - AI lead scoring suggestions
+      - AI tier recommendations
+      - AI sales coaching tips
+      - AI deal risk alerts
+      - AI next best action
+      - AI chatbot for website
+      - AI chatbot qualification flow
+      - AI chatbot FAQ handling
+      - AI chatbot human handoff
+      - AI landing page generation
+      - AI image-to-page conversion
+      - AI form suggestions
+      - AI segment recommendations
+    </ai_features>
+
+    <calendar_integration>
+      - Google Calendar sync
+      - Outlook Calendar sync
+      - View calendar in CRM
+      - Create meeting from CRM
+      - Meeting scheduling links
+      - Calendar availability
+      - Meeting reminders
+      - Meeting linked to contact
+      - Meeting linked to deal
+      - Calendar conflict detection
+    </calendar_integration>
+
+    <payment_processing>
+      - Stripe integration
+      - Create payment link
+      - Payment in deal
+      - Invoice generation
+      - Payment status tracking
+      - Payment notifications
+      - Refund processing
+      - Payment analytics
+      - Revenue reporting
+      - Subscription payments (future)
+      - Multiple payment methods
+      - Payment receipts
+    </payment_processing>
+
+    <e_signature>
+      - Document upload for signing
+      - Signature request creation
+      - Signing order
+      - Signature fields placement
+      - Send for signature
+      - Signature status tracking
+      - Signed document storage
+      - Signature reminders
+      - Signature completion notification
+      - Signature audit trail
+      - Template documents
+      - Bulk signature requests
+    </e_signature>
+
+    <api_and_webhooks>
+      - REST API endpoints
+      - API authentication
+      - API rate limiting
+      - API documentation
+      - Webhook creation
+      - Webhook triggers
+      - Webhook logs
+      - Webhook retry logic
+      - API key management
+      - OAuth support (future)
+      - API usage analytics
+      - Sandbox environment
+      - Developer portal
+      - API versioning
+      - Webhook signature verification
+    </api_and_webhooks>
+
+    <dashboards_and_kpis>
+      - Sales Rep dashboard
+        - My pipeline
+        - My deals
+        - My tasks
+        - My KPIs
+        - My activities
+      - Sales Manager dashboard
+        - Team pipeline
+        - Team performance
+        - Forecast view
+        - Team KPIs
+        - Coaching insights
+      - Admin dashboard
+        - Company-wide metrics
+        - All pipelines
+        - User activity
+        - System health
+        - Audit logs
+      - Marketing dashboard
+        - Campaign performance
+        - Email analytics
+        - SMS analytics
+        - Landing page analytics
+        - Form analytics
+        - List growth
+      - KPI tracking
+        - Outreach and activity
+        - Qualification and discovery
+        - Conversion and close rates
+        - Pipeline health
+        - Forecast accuracy
+        - SLA compliance
+        - CRM hygiene
+      - Custom dashboard widgets
+      - Dashboard date range selector
+      - Dashboard export
+      - Real-time updates
+    </dashboards_and_kpis>
+
+    <settings_and_preferences>
+      - User profile settings
+      - Password change
+      - Notification preferences
+      - Email signature
+      - Light/dark mode toggle
+      - Language preference
+      - Timezone setting
+      - Calendar preferences
+      - Default pipeline view
+      - Custom field management
+      - Tag management
+      - Lifecycle stage configuration
+      - Pipeline configuration
+      - Stage configuration
+      - SLA configuration
+      - Automation settings
+      - Integration settings
+      - Billing settings (Admin)
+      - Tenant branding
+    </settings_and_preferences>
+
+    <audit_and_compliance>
+      - Full audit logging
+      - Create/update/delete tracking
+      - Stage movement logging
+      - Actor tracking (who did what)
+      - Before/after state capture
+      - Timestamp on all actions
+      - Audit log search
+      - Audit log filters
+      - Audit log export
+      - GDPR consent tracking
+      - Data export requests
+      - Right to be forgotten
+      - Data retention policies
+      - Compliance status badges
+      - Override reason logging
+    </audit_and_compliance>
+
+    <error_handling_and_ux>
+      - Duplicate detection warnings
+      - Network failure retry
+      - Auto-save drafts
+      - Empty state messaging
+      - Loading states
+      - Error notifications
+      - Success notifications
+      - Confirmation dialogs
+      - Undo actions
+      - Validation messages
+      - Help tooltips
+      - Onboarding tour
+      - Keyboard shortcuts
+      - Accessibility compliance
+      - Push notifications (browser)
+    </error_handling_and_ux>
+
+    <demo_template>
+      - NLA Tax Filing Workflow (15-step blueprint)
+      - Pre-configured stages
+      - Stage requirements
+      - Sample automations
+      - Demo data
+      - Template cloning
+    </demo_template>
+  </core_features>
+
+  <database_schema>
+    <tables>
+      <tenants>
+        - id, name, slug, settings, branding, created_at, updated_at, status
+      </tenants>
+      <users>
+        - id, tenant_id, email, password_hash, first_name, last_name, role, avatar, preferences, created_at, updated_at, last_login
+      </users>
+      <contacts>
+        - id, tenant_id, owner_id, email, phone, first_name, last_name, lifecycle_stage, source, lead_score, lead_tier, company_id, tags, custom_fields, consent, created_at, updated_at, deleted_at
+      </contacts>
+      <companies>
+        - id, tenant_id, name, industry, size, website, address, custom_fields, created_at, updated_at, deleted_at
+      </companies>
+      <leads>
+        - id, tenant_id, contact_id, owner_id, source, status, score, tier, scoring_data, assigned_at, converted_at, created_at, updated_at
+      </leads>
+      <deals>
+        - id, tenant_id, owner_id, contact_id, company_id, partner_id, product_id, pipeline_id, stage_id, name, value, probability, expected_close_date, sales_motion_type, status, won_reason, lost_reason, handoff_status, created_at, updated_at, deleted_at
+      </deals>
+      <partners>
+        - id, tenant_id, name, type, settings, created_at, updated_at
+      </partners>
+      <products>
+        - id, tenant_id, partner_id, name, description, price, created_at, updated_at
+      </products>
+      <pipelines>
+        - id, tenant_id, name, type, is_default, created_at, updated_at
+      </pipelines>
+      <pipeline_stages>
+        - id, pipeline_id, name, order, required_fields, entry_automation, exit_automation, sla_hours, created_at, updated_at
+      </pipeline_stages>
+      <tasks>
+        - id, tenant_id, owner_id, contact_id, deal_id, type, title, description, due_date, priority, status, completed_at, created_at, updated_at
+      </tasks>
+      <timeline_events>
+        - id, tenant_id, contact_id, deal_id, user_id, event_type, title, description, metadata, created_at
+      </timeline_events>
+      <notes>
+        - id, tenant_id, user_id, contact_id, deal_id, content, created_at, updated_at
+      </notes>
+      <lists>
+        - id, tenant_id, name, type, filters, created_at, updated_at
+      </lists>
+      <list_members>
+        - id, list_id, contact_id, added_at
+      </list_members>
+      <campaigns>
+        - id, tenant_id, name, type, status, content, settings, scheduled_at, sent_at, created_at, updated_at
+      </campaigns>
+      <campaign_recipients>
+        - id, campaign_id, contact_id, status, sent_at, opened_at, clicked_at
+      </campaign_recipients>
+      <landing_pages>
+        - id, tenant_id, name, slug, content, settings, status, created_at, updated_at, published_at
+      </landing_pages>
+      <forms>
+        - id, tenant_id, name, fields, settings, list_id, pipeline_id, created_at, updated_at
+      </forms>
+      <form_submissions>
+        - id, form_id, contact_id, data, created_at
+      </form_submissions>
+      <conversations>
+        - id, tenant_id, contact_id, channel, status, assigned_to, created_at, updated_at
+      </conversations>
+      <messages>
+        - id, conversation_id, direction, content, metadata, created_at
+      </messages>
+      <automations>
+        - id, tenant_id, name, trigger, conditions, actions, status, created_at, updated_at
+      </automations>
+      <automation_logs>
+        - id, automation_id, contact_id, status, executed_at, result
+      </automation_logs>
+      <drip_sequences>
+        - id, tenant_id, name, steps, exit_conditions, status, created_at, updated_at
+      </drip_sequences>
+      <sequence_enrollments>
+        - id, sequence_id, contact_id, current_step, status, enrolled_at, completed_at
+      </sequence_enrollments>
+      <signatures>
+        - id, tenant_id, deal_id, document, signers, status, created_at, completed_at
+      </signatures>
+      <payments>
+        - id, tenant_id, deal_id, contact_id, amount, currency, status, stripe_id, created_at
+      </payments>
+      <audit_logs>
+        - id, tenant_id, user_id, entity_type, entity_id, action, before_state, after_state, reason, created_at
+      </audit_logs>
+      <api_keys>
+        - id, tenant_id, name, key_hash, permissions, created_at, last_used_at
+      </api_keys>
+      <webhooks>
+        - id, tenant_id, url, events, secret, status, created_at
+      </webhooks>
+    </tables>
+  </database_schema>
+
+  <api_endpoints_summary>
+    <authentication>
+      - POST /api/auth/register
+      - POST /api/auth/login
+      - POST /api/auth/logout
+      - POST /api/auth/refresh
+      - POST /api/auth/forgot-password
+      - POST /api/auth/reset-password
+      - GET /api/auth/me
+      - PUT /api/auth/me
+    </authentication>
+    <users>
+      - GET /api/users
+      - POST /api/users
+      - GET /api/users/:id
+      - PUT /api/users/:id
+      - DELETE /api/users/:id
+      - POST /api/users/:id/invite
+    </users>
+    <contacts>
+      - GET /api/contacts
+      - POST /api/contacts
+      - GET /api/contacts/:id
+      - PUT /api/contacts/:id
+      - DELETE /api/contacts/:id
+      - POST /api/contacts/:id/restore
+      - GET /api/contacts/:id/timeline
+      - GET /api/contacts/:id/deals
+      - GET /api/contacts/:id/tasks
+      - POST /api/contacts/import
+      - POST /api/contacts/export
+      - POST /api/contacts/merge
+    </contacts>
+    <companies>
+      - GET /api/companies
+      - POST /api/companies
+      - GET /api/companies/:id
+      - PUT /api/companies/:id
+      - DELETE /api/companies/:id
+      - GET /api/companies/:id/contacts
+      - GET /api/companies/:id/deals
+    </companies>
+    <leads>
+      - GET /api/leads
+      - POST /api/leads
+      - GET /api/leads/:id
+      - PUT /api/leads/:id
+      - POST /api/leads/:id/convert
+      - POST /api/leads/:id/assign
+      - POST /api/leads/:id/score
+    </leads>
+    <deals>
+      - GET /api/deals
+      - POST /api/deals
+      - GET /api/deals/:id
+      - PUT /api/deals/:id
+      - DELETE /api/deals/:id
+      - POST /api/deals/:id/move-stage
+      - POST /api/deals/:id/override-stage
+      - GET /api/deals/:id/timeline
+      - POST /api/deals/:id/handoff
+    </deals>
+    <pipelines>
+      - GET /api/pipelines
+      - POST /api/pipelines
+      - GET /api/pipelines/:id
+      - PUT /api/pipelines/:id
+      - DELETE /api/pipelines/:id
+      - GET /api/pipelines/:id/kanban
+      - GET /api/pipelines/:id/stages
+    </pipelines>
+    <partners>
+      - GET /api/partners
+      - POST /api/partners
+      - GET /api/partners/:id
+      - PUT /api/partners/:id
+      - DELETE /api/partners/:id
+      - GET /api/partners/:id/products
+      - GET /api/partners/:id/deals
+    </partners>
+    <tasks>
+      - GET /api/tasks
+      - POST /api/tasks
+      - GET /api/tasks/:id
+      - PUT /api/tasks/:id
+      - DELETE /api/tasks/:id
+      - POST /api/tasks/:id/complete
+    </tasks>
+    <lists>
+      - GET /api/lists
+      - POST /api/lists
+      - GET /api/lists/:id
+      - PUT /api/lists/:id
+      - DELETE /api/lists/:id
+      - POST /api/lists/:id/contacts
+      - DELETE /api/lists/:id/contacts/:contactId
+    </lists>
+    <campaigns>
+      - GET /api/campaigns
+      - POST /api/campaigns
+      - GET /api/campaigns/:id
+      - PUT /api/campaigns/:id
+      - DELETE /api/campaigns/:id
+      - POST /api/campaigns/:id/send
+      - POST /api/campaigns/:id/schedule
+      - GET /api/campaigns/:id/analytics
+    </campaigns>
+    <landing_pages>
+      - GET /api/landing-pages
+      - POST /api/landing-pages
+      - GET /api/landing-pages/:id
+      - PUT /api/landing-pages/:id
+      - DELETE /api/landing-pages/:id
+      - POST /api/landing-pages/:id/publish
+      - POST /api/landing-pages/:id/unpublish
+      - POST /api/landing-pages/generate
+    </landing_pages>
+    <forms>
+      - GET /api/forms
+      - POST /api/forms
+      - GET /api/forms/:id
+      - PUT /api/forms/:id
+      - DELETE /api/forms/:id
+      - POST /api/forms/:id/submit
+      - GET /api/forms/:id/submissions
+    </forms>
+    <conversations>
+      - GET /api/conversations
+      - GET /api/conversations/:id
+      - PUT /api/conversations/:id
+      - POST /api/conversations/:id/messages
+      - POST /api/conversations/:id/assign
+      - POST /api/conversations/:id/close
+    </conversations>
+    <automations>
+      - GET /api/automations
+      - POST /api/automations
+      - GET /api/automations/:id
+      - PUT /api/automations/:id
+      - DELETE /api/automations/:id
+      - POST /api/automations/:id/activate
+      - POST /api/automations/:id/pause
+      - GET /api/automations/:id/logs
+    </automations>
+    <sequences>
+      - GET /api/sequences
+      - POST /api/sequences
+      - GET /api/sequences/:id
+      - PUT /api/sequences/:id
+      - DELETE /api/sequences/:id
+      - POST /api/sequences/:id/enroll
+      - POST /api/sequences/:id/unenroll
+    </sequences>
+    <ai>
+      - POST /api/ai/generate-email
+      - POST /api/ai/generate-sms
+      - POST /api/ai/generate-landing-page
+      - POST /api/ai/score-lead
+      - POST /api/ai/coaching-tip
+      - POST /api/ai/chatbot
+    </ai>
+    <payments>
+      - GET /api/payments
+      - POST /api/payments
+      - GET /api/payments/:id
+      - POST /api/payments/:id/refund
+      - POST /api/payments/create-link
+    </payments>
+    <signatures>
+      - GET /api/signatures
+      - POST /api/signatures
+      - GET /api/signatures/:id
+      - POST /api/signatures/:id/remind
+    </signatures>
+    <calendar>
+      - GET /api/calendar/events
+      - POST /api/calendar/events
+      - PUT /api/calendar/events/:id
+      - DELETE /api/calendar/events/:id
+      - POST /api/calendar/sync
+      - GET /api/calendar/availability
+    </calendar>
+    <dashboards>
+      - GET /api/dashboards/sales-rep
+      - GET /api/dashboards/sales-manager
+      - GET /api/dashboards/admin
+      - GET /api/dashboards/marketing
+      - GET /api/kpis
+      - GET /api/forecast
+    </dashboards>
+    <audit>
+      - GET /api/audit-logs
+      - GET /api/audit-logs/export
+    </audit>
+    <webhooks>
+      - GET /api/webhooks
+      - POST /api/webhooks
+      - PUT /api/webhooks/:id
+      - DELETE /api/webhooks/:id
+      - GET /api/webhooks/:id/logs
+    </webhooks>
+    <settings>
+      - GET /api/settings
+      - PUT /api/settings
+      - GET /api/settings/custom-fields
+      - POST /api/settings/custom-fields
+      - PUT /api/settings/custom-fields/:id
+      - DELETE /api/settings/custom-fields/:id
+    </settings>
+  </api_endpoints_summary>
+
+  <ui_layout>
+    <main_structure>
+      Responsive sidebar navigation with collapsible menu on mobile. Main content area with header showing user profile, notifications, and quick actions. Dashboard-first experience with role-based default views.
+    </main_structure>
+    <navigation>
+      - Dashboard (role-based)
+      - Contacts
+      - Companies
+      - Leads
+      - Deals (Kanban + List views)
+      - Tasks
+      - Inbox (Conversations)
+      - Marketing (submenu)
+        - Campaigns
+        - Lists
+        - Landing Pages
+        - Forms
+        - Sequences
+      - Automations
+      - Reports
+      - Settings
+      - Admin (Admin only)
+    </navigation>
+    <key_views>
+      - Dashboard: KPI cards, charts, activity feed, quick actions
+      - Contacts List: Table with search, filters, bulk actions
+      - Contact Detail: Profile header, timeline, tabs (deals, tasks, notes)
+      - Deals Kanban: Drag-drop columns, deal cards with key info
+      - Deals List: Table view with sorting and filters
+      - Unified Inbox: Conversation list, message thread, contact sidebar
+      - Campaign Builder: Template selector, editor, preview, schedule
+      - Landing Page Builder: AI prompt, drag-drop editor, preview
+      - Automation Builder: Visual flow editor, triggers, conditions, actions
+      - Reports: Charts, tables, date pickers, export options
+    </key_views>
+  </ui_layout>
+
+  <design_system>
+    <color_palette>
+      - Primary: Blue (#3B82F6) - actions, links, CTAs
+      - Secondary: Slate (#64748B) - secondary text, icons
+      - Success: Green (#22C55E) - success states, won deals
+      - Warning: Amber (#F59E0B) - warnings, pending states
+      - Error: Red (#EF4444) - errors, lost deals, overdue
+      - Background: White (#FFFFFF) / Dark (#0F172A)
+      - Surface: Gray-50 (#F8FAFC) / Dark (#1E293B)
+    </color_palette>
+    <typography>
+      - Font Family: Inter (headings and body)
+      - Headings: 600 weight, sizes 24px-14px
+      - Body: 400 weight, 14px-16px
+      - Monospace: JetBrains Mono (code, IDs)
+    </typography>
+    <components>
+      - shadcn/ui component library
+      - Consistent 8px spacing grid
+      - Rounded corners (6px default)
+      - Subtle shadows for elevation
+      - Smooth transitions (150ms)
+    </components>
+  </design_system>
+
+  <implementation_steps>
+    <step number="1">
+      <title>Foundation & Authentication</title>
+      <tasks>
+        - Project setup (React, Node.js, SQLite)
+        - Database schema and migrations
+        - Multi-tenant architecture
+        - JWT authentication
+        - Role-based access control
+        - User management
+        - Basic UI shell and navigation
+      </tasks>
+    </step>
+    <step number="2">
+      <title>Core CRM Entities</title>
+      <tasks>
+        - Contacts CRUD with search and filters
+        - Companies CRUD
+        - Contact-Company relationships
+        - Timeline events
+        - Notes system
+        - Tags and custom fields
+        - Duplicate detection
+      </tasks>
+    </step>
+    <step number="3">
+      <title>Leads & Lead Scoring</title>
+      <tasks>
+        - Leads management
+        - Lead scoring system (0-100)
+        - Tier assignment (A-D)
+        - Scoring categories and weights
+        - Lead source tracking
+        - Lead conversion to contact
+        - Lead assignment rules
+      </tasks>
+    </step>
+    <step number="4">
+      <title>Deals & Pipelines</title>
+      <tasks>
+        - Pipeline configuration
+        - Stage management with requirements
+        - Deals CRUD
+        - Stage progression with enforcement
+        - Admin override with reasons
+        - Kanban board view
+        - Deal forecasting
+      </tasks>
+    </step>
+    <step number="5">
+      <title>Tasks, SLAs & Activities</title>
+      <tasks>
+        - Tasks management
+        - SLA configuration and tracking
+        - Task reminders and notifications
+        - Activity logging
+        - Speed-to-lead tracking
+        - Overdue alerts
+      </tasks>
+    </step>
+    <step number="6">
+      <title>Partner Sales</title>
+      <tasks>
+        - Partner entity management
+        - Products per partner
+        - Sales motion type selection
+        - Partner-specific pipeline variants
+        - Partner KPIs and reporting
+      </tasks>
+    </step>
+    <step number="7">
+      <title>Marketing - Lists & Segments</title>
+      <tasks>
+        - Static lists
+        - Smart lists with filters
+        - Segmentation engine
+        - List management UI
+        - Subscription management
+      </tasks>
+    </step>
+    <step number="8">
+      <title>Marketing - Email Campaigns</title>
+      <tasks>
+        - Email campaign builder
+        - Template editor
+        - Personalization tokens
+        - SendGrid integration
+        - Campaign scheduling
+        - Email analytics
+      </tasks>
+    </step>
+    <step number="9">
+      <title>Marketing - SMS Campaigns</title>
+      <tasks>
+        - SMS campaign builder
+        - Twilio integration
+        - Two-way SMS
+        - SMS analytics
+        - Opt-out handling
+      </tasks>
+    </step>
+    <step number="10">
+      <title>Unified Inbox</title>
+      <tasks>
+        - Conversation management
+        - Email integration
+        - SMS integration
+        - Conversation assignment
+        - Canned responses
+        - Contact context sidebar
+      </tasks>
+    </step>
+    <step number="11">
+      <title>Live Chat Widget</title>
+      <tasks>
+        - Embeddable widget
+        - Widget customization
+        - Real-time messaging
+        - Chat routing
+        - Chat to lead conversion
+      </tasks>
+    </step>
+    <step number="12">
+      <title>AI Features</title>
+      <tasks>
+        - OpenAI integration
+        - AI email/SMS generation
+        - AI lead scoring suggestions
+        - AI sales coaching
+        - AI chatbot
+      </tasks>
+    </step>
+    <step number="13">
+      <title>AI Landing Page & Form Builder</title>
+      <tasks>
+        - Landing page builder UI
+        - Natural language generation
+        - Image-to-page AI
+        - Form builder
+        - Lead capture flow
+        - Page analytics
+      </tasks>
+    </step>
+    <step number="14">
+      <title>Automation Engine</title>
+      <tasks>
+        - Workflow builder UI
+        - Trigger system
+        - Condition logic
+        - Action execution
+        - Automation logs
+      </tasks>
+    </step>
+    <step number="15">
+      <title>Drip Sequences</title>
+      <tasks>
+        - Sequence builder
+        - Step configuration
+        - Enrollment management
+        - Exit conditions
+        - Sequence analytics
+      </tasks>
+    </step>
+    <step number="16">
+      <title>Integrations</title>
+      <tasks>
+        - Google Calendar sync
+        - Outlook Calendar sync
+        - Stripe payments
+        - E-signature system
+        - API endpoints
+        - Webhook system
+      </tasks>
+    </step>
+    <step number="17">
+      <title>Dashboards & Reporting</title>
+      <tasks>
+        - Role-based dashboards
+        - KPI tracking
+        - Forecast views
+        - Custom reports
+        - Export functionality
+      </tasks>
+    </step>
+    <step number="18">
+      <title>Handoff & Compliance</title>
+      <tasks>
+        - Handoff to delivery workflow
+        - Required artifacts checklist
+        - Audit logging
+        - GDPR compliance
+        - Data export/deletion
+      </tasks>
+    </step>
+    <step number="19">
+      <title>Settings & Configuration</title>
+      <tasks>
+        - User preferences
+        - Tenant settings
+        - Custom field management
+        - Pipeline configuration UI
+        - Integration settings
+      </tasks>
+    </step>
+    <step number="20">
+      <title>Polish & Demo</title>
+      <tasks>
+        - NLA demo template
+        - Empty states
+        - Error handling
+        - Loading states
+        - Onboarding tour
+        - Mobile responsiveness
+        - Dark mode
+        - Performance optimization
+      </tasks>
+    </step>
+  </implementation_steps>
+
+  <success_criteria>
+    <functionality>
+      - Sales teams can run their full workflow without leaving the app
+      - Marketing teams can build and launch campaigns end-to-end
+      - All pipeline stages enforce required data
+      - Lead scoring and forecasting work automatically
+      - AI features enhance productivity
+      - Integrations connect external tools seamlessly
+    </functionality>
+    <user_experience>
+      - Intuitive navigation for all user roles
+      - Fast, responsive interface
+      - Clear visual feedback for all actions
+      - Helpful empty states and onboarding
+      - Mobile-friendly on all screen sizes
+    </user_experience>
+    <technical_quality>
+      - Secure multi-tenant data isolation
+      - Reliable API with proper error handling
+      - Audit trail for compliance
+      - Scalable architecture
+      - Clean, maintainable code
+    </technical_quality>
+    <design_polish>
+      - Consistent visual language
+      - Smooth animations and transitions
+      - Professional, modern appearance
+      - Accessible to all users
+      - Light and dark mode support
+    </design_polish>
+  </success_criteria>
+</project_specification>
