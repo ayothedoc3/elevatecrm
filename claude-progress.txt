@@ -121,10 +121,35 @@ C:\Users\ayoth\Downloads\elevatecrm\elevatecrm\init.bat --backend
 5. Verify the list renders with name, status, views columns
 6. Mark feature #267 as passing
 
-### Current Status:
-- Feature #267: IN PROGRESS (waiting for backend server)
-- Code implementation: COMPLETE
-- Browser verification: PENDING (needs backend)
+### Browser Verification Completed:
+- ✅ Navigated to `/landing-pages` via "AI Page Builder" in sidebar
+- ✅ Pages list renders as grid of cards (2 existing pages found):
+  - "Product Launch Page"
+  - "Test Landing Page"
+- ✅ Columns verified:
+  - **Name**: Displayed in card header with gradient background
+  - **Status**: "Draft" badge visible on both cards
+  - **Views**: Eye icon with view count (0) visible
+- ✅ Additional elements verified:
+  - Version indicator (v1)
+  - Conversion count (0)
+  - Slug URL displayed
+  - Action buttons (preview, edit, publish, copy, delete)
+  - Search input and status filter dropdown
+  - "Create with AI" button
+
+### API Verification:
+- `GET /api/landing-pages` => 200 OK
+- `GET /api/affiliates/programs` => 200 OK
+
+### Console Errors:
+- No landing-pages-related errors
+- Only unrelated `/api/workspaces` 404 errors (separate feature)
+
+### Screenshot:
+- `.playwright-mcp/feature-267-landing-pages-list.png`
+
+### Feature Status: ✅ PASSING
 
 ---
 
