@@ -3,7 +3,7 @@ import {
   Settings, Key, Bot, Globe, Users, Shield, AlertCircle,
   CheckCircle, XCircle, Eye, EyeOff, RefreshCw, Trash2,
   Plus, Save, ExternalLink, Zap, MessageSquare, CreditCard,
-  Clock, Activity, ChevronRight, Info, Loader2
+  Clock, Activity, ChevronRight, Info, Loader2, UserPlus, Pencil
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -88,6 +88,14 @@ const SettingsPage = () => {
   const [auditPage, setAuditPage] = useState(1);
   const [auditTotal, setAuditTotal] = useState(0);
   
+  // Team management state
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [editingMember, setEditingMember] = useState(null);
+  const [newMember, setNewMember] = useState({
+    email: '', password: '', first_name: '', last_name: '', role: 'viewer', phone: ''
+  });
+
   // Dialog state
   const [showAddIntegration, setShowAddIntegration] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState(null);
@@ -118,7 +126,8 @@ const SettingsPage = () => {
         loadIntegrations(),
         loadProviders(),
         loadAffiliateSettings(),
-        loadAuditLogs()
+        loadAuditLogs(),
+        loadTeamMembers()
       ]);
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -219,7 +228,87 @@ const SettingsPage = () => {
       console.error('Error loading audit logs:', error);
     }
   };
-  
+
+  const loadTeamMembers = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/users`, {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setTeamMembers(data.users || []);
+      }
+    } catch (error) {
+      console.error('Error loading team members:', error);
+    }
+  };
+
+  const createTeamMember = async () => {
+    setSaving(true);
+    try {
+      const response = await fetch(`${API_URL}/api/users`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(newMember)
+      });
+      if (response.ok) {
+        toast({ title: "Success", description: "Team member added successfully" });
+        setShowAddMember(false);
+        setNewMember({ email: '', password: '', first_name: '', last_name: '', role: 'viewer', phone: '' });
+        loadTeamMembers();
+      } else {
+        const error = await response.json();
+        toast({ title: "Error", description: error.detail || "Failed to add team member", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to add team member", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateTeamMember = async (userId, updates) => {
+    setSaving(true);
+    try {
+      const response = await fetch(`${API_URL}/api/users/${userId}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(updates)
+      });
+      if (response.ok) {
+        toast({ title: "Updated", description: "Team member updated successfully" });
+        setEditingMember(null);
+        loadTeamMembers();
+      } else {
+        const error = await response.json();
+        toast({ title: "Error", description: error.detail || "Failed to update", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to update team member", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleMemberActive = async (userId, isActive) => {
+    try {
+      const response = await fetch(`${API_URL}/api/users/${userId}/active`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ is_active: isActive })
+      });
+      if (response.ok) {
+        toast({ title: "Updated", description: `Account ${isActive ? 'activated' : 'deactivated'}` });
+        loadTeamMembers();
+      } else {
+        const error = await response.json();
+        toast({ title: "Error", description: error.detail || "Failed to update", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to update team member", variant: "destructive" });
+    }
+  };
+
   const saveWorkspaceSettings = async () => {
     setSaving(true);
     try {
@@ -438,7 +527,7 @@ const SettingsPage = () => {
       
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+        <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
           <TabsTrigger value="workspace" className="flex items-center gap-2">
             <Globe className="w-4 h-4" />
             <span className="hidden sm:inline">Workspace</span>
@@ -455,6 +544,12 @@ const SettingsPage = () => {
             <Users className="w-4 h-4" />
             <span className="hidden sm:inline">Affiliates</span>
           </TabsTrigger>
+          {(user?.role === 'admin' || user?.role === 'manager') && (
+            <TabsTrigger value="team" className="flex items-center gap-2">
+              <UserPlus className="w-4 h-4" />
+              <span className="hidden sm:inline">Team</span>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="security" className="flex items-center gap-2">
             <Shield className="w-4 h-4" />
             <span className="hidden sm:inline">Security</span>
@@ -1040,6 +1135,96 @@ const SettingsPage = () => {
           </Card>
         </TabsContent>
         
+        {/* Team Management Tab */}
+        {(user?.role === 'admin' || user?.role === 'manager') && (
+        <TabsContent value="team" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-semibold">Team Members</h2>
+              <p className="text-sm text-muted-foreground">
+                Manage your team's accounts and permissions
+              </p>
+            </div>
+            <Button onClick={() => setShowAddMember(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Member
+            </Button>
+          </div>
+
+          <Card>
+            <CardContent className="pt-6">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {teamMembers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        No team members yet
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    teamMembers.map(member => (
+                      <TableRow key={member.id}>
+                        <TableCell className="font-medium">
+                          {member.full_name || `${member.first_name} ${member.last_name}`}
+                        </TableCell>
+                        <TableCell>{member.email}</TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            member.role === 'admin' ? 'default' :
+                            member.role === 'manager' ? 'secondary' :
+                            'outline'
+                          }>
+                            {member.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={member.is_active ? 'secondary' : 'destructive'}>
+                            {member.is_active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{formatTimestamp(member.created_at)}</TableCell>
+                        <TableCell className="text-right">
+                          {member.id !== user?.id && (
+                            <div className="flex justify-end items-center gap-2">
+                              <Button
+                                variant="ghost" size="sm"
+                                onClick={() => setEditingMember({...member})}
+                              >
+                                <Pencil className="w-3 h-3 mr-1" />
+                                Edit
+                              </Button>
+                              <Switch
+                                checked={member.is_active}
+                                onCheckedChange={(checked) =>
+                                  toggleMemberActive(member.id, checked)
+                                }
+                              />
+                            </div>
+                          )}
+                          {member.id === user?.id && (
+                            <span className="text-xs text-muted-foreground">You</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        )}
+
         {/* Security & Audit Tab */}
         <TabsContent value="security" className="space-y-6">
           <Card>
@@ -1233,6 +1418,137 @@ const SettingsPage = () => {
             <Button onClick={addIntegration} disabled={saving || !selectedProvider || !newApiKey}>
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
               Save Integration
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Team Member Dialog */}
+      <Dialog open={showAddMember} onOpenChange={setShowAddMember}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Team Member</DialogTitle>
+            <DialogDescription>
+              Create a new account for a team member
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid gap-4 grid-cols-2">
+              <div className="space-y-2">
+                <Label>First Name</Label>
+                <Input value={newMember.first_name}
+                  onChange={(e) => setNewMember({...newMember, first_name: e.target.value})}
+                  placeholder="Jane" />
+              </div>
+              <div className="space-y-2">
+                <Label>Last Name</Label>
+                <Input value={newMember.last_name}
+                  onChange={(e) => setNewMember({...newMember, last_name: e.target.value})}
+                  placeholder="Doe" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input type="email" value={newMember.email}
+                onChange={(e) => setNewMember({...newMember, email: e.target.value})}
+                placeholder="jane@company.com" />
+            </div>
+            <div className="space-y-2">
+              <Label>Password</Label>
+              <Input type="password" value={newMember.password}
+                onChange={(e) => setNewMember({...newMember, password: e.target.value})}
+                placeholder="Minimum 6 characters" />
+            </div>
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Select value={newMember.role}
+                onValueChange={(v) => setNewMember({...newMember, role: v})}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="sales">Sales</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Phone (optional)</Label>
+              <Input value={newMember.phone}
+                onChange={(e) => setNewMember({...newMember, phone: e.target.value})}
+                placeholder="+1 (555) 000-0000" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddMember(false)}>Cancel</Button>
+            <Button onClick={createTeamMember} disabled={saving ||
+              !newMember.email || !newMember.password ||
+              !newMember.first_name || !newMember.last_name}>
+              {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+              Add Member
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Team Member Dialog */}
+      <Dialog open={!!editingMember} onOpenChange={(open) => !open && setEditingMember(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Team Member</DialogTitle>
+            <DialogDescription>
+              Update {editingMember?.full_name || 'team member'}'s account
+            </DialogDescription>
+          </DialogHeader>
+          {editingMember && (
+            <div className="space-y-4 py-4">
+              <div className="grid gap-4 grid-cols-2">
+                <div className="space-y-2">
+                  <Label>First Name</Label>
+                  <Input value={editingMember.first_name}
+                    onChange={(e) => setEditingMember({...editingMember, first_name: e.target.value})} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Last Name</Label>
+                  <Input value={editingMember.last_name}
+                    onChange={(e) => setEditingMember({...editingMember, last_name: e.target.value})} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input value={editingMember.email} disabled className="bg-muted" />
+                <p className="text-xs text-muted-foreground">Email cannot be changed</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select value={editingMember.role}
+                  onValueChange={(v) => setEditingMember({...editingMember, role: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="sales">Sales</SelectItem>
+                    <SelectItem value="viewer">Viewer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input value={editingMember.phone || ''}
+                  onChange={(e) => setEditingMember({...editingMember, phone: e.target.value})} />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingMember(null)}>Cancel</Button>
+            <Button onClick={() => updateTeamMember(editingMember.id, {
+              first_name: editingMember.first_name,
+              last_name: editingMember.last_name,
+              role: editingMember.role,
+              phone: editingMember.phone
+            })} disabled={saving}>
+              {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
