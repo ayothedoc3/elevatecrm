@@ -183,7 +183,7 @@ async def create_timeline_event(
         deal_id=deal_id,
         contact_id=contact_id,
         visibility=visibility,
-        metadata=metadata or {},
+        meta=metadata or {},
         created_at=now_utc(),
     )
     db.add(event)
@@ -199,7 +199,7 @@ async def create_timeline_event(
         "deal_id": event.deal_id,
         "contact_id": event.contact_id,
         "visibility": event.visibility,
-        "metadata": event.metadata or {},
+        "metadata": event.meta or {},
         "created_at": event.created_at.isoformat(),
     }
 
@@ -269,7 +269,7 @@ async def upsert_open_next_step_task_for_deal(
         related_type="deal",
         related_id=deal_id,
         created_by=created_by,
-        metadata={},
+        meta={},
         created_at=now,
         updated_at=now,
     )

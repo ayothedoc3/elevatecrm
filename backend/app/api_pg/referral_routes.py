@@ -52,7 +52,7 @@ async def public_referral_redirect(
         payment_id=None,
         ip_address=ip_address,
         user_agent=user_agent,
-        metadata={"referral_code": referral_code, "referer": referer},
+        meta={"referral_code": referral_code, "referer": referer},
         created_at=now,
     )
     db.add(event)

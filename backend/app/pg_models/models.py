@@ -328,7 +328,7 @@ class Task(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
     completed_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
-    metadata = Column(JSONB, default=dict, nullable=False)
+    meta = Column("metadata", JSONB, default=dict, nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=_now, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)
@@ -379,7 +379,7 @@ class TimelineEvent(Base):
     contact_id = Column(String(36), ForeignKey("contacts.id", ondelete="CASCADE"), nullable=True, index=True)
 
     visibility = Column(String(30), default="internal_only", nullable=False)
-    metadata = Column(JSONB, default=dict, nullable=False)
+    meta = Column("metadata", JSONB, default=dict, nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=_now, nullable=False, index=True)
 
@@ -535,7 +535,7 @@ class AIUsageLog(Base):
     requests = Column(Integer, default=1, nullable=False)
     tokens_in = Column(Integer, default=0, nullable=False)
     tokens_out = Column(Integer, default=0, nullable=False)
-    metadata = Column(JSONB, default=dict, nullable=False)
+    meta = Column("metadata", JSONB, default=dict, nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=_now, nullable=False, index=True)
 
@@ -554,7 +554,7 @@ class SettingsAuditLog(Base):
 
     action = Column(String(50), nullable=False, index=True)
     provider_type = Column(String(50), nullable=True, index=True)
-    metadata = Column(JSONB, default=dict, nullable=False)
+    meta = Column("metadata", JSONB, default=dict, nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=_now, nullable=False, index=True)
 
@@ -639,7 +639,7 @@ class LandingPageEvent(Base):
     affiliate_ref = Column(String(50), nullable=True, index=True)
     ip_address = Column(String(100), nullable=True)
     user_agent = Column(Text, nullable=True)
-    metadata = Column(JSONB, default=dict, nullable=False)
+    meta = Column("metadata", JSONB, default=dict, nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=_now, nullable=False, index=True)
 
@@ -933,7 +933,7 @@ class AffiliateEvent(Base):
     commission_id = Column(String(36), ForeignKey("affiliate_commissions.id", ondelete="SET NULL"), nullable=True, index=True)
     payment_id = Column(String(100), nullable=True, index=True)
 
-    metadata = Column(JSONB, default=dict, nullable=False)
+    meta = Column("metadata", JSONB, default=dict, nullable=False)
     ip_address = Column(String(100), nullable=True)
     user_agent = Column(Text, nullable=True)
 
@@ -985,7 +985,7 @@ class AffiliateNotification(Base):
     title = Column(String(255), nullable=False)
     message = Column(Text, nullable=False)
     is_read = Column(Boolean, default=False, nullable=False, index=True)
-    metadata = Column(JSONB, default=dict, nullable=False)
+    meta = Column("metadata", JSONB, default=dict, nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=_now, nullable=False)
     read_at = Column(DateTime(timezone=True), nullable=True)
@@ -1006,7 +1006,7 @@ class AffiliateSetting(Base):
     default_attribution_window_days = Column(Integer, default=30, nullable=False)
     approval_mode = Column(String(20), default="manual", nullable=False)
     min_payout_threshold = Column(Float, default=50.0, nullable=False)
-    metadata = Column(JSONB, default=dict, nullable=False)
+    meta = Column("metadata", JSONB, default=dict, nullable=False)
 
     updated_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=_now, nullable=False)

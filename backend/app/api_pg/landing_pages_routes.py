@@ -601,7 +601,7 @@ async def get_public_page(
         affiliate_ref=ref,
         ip_address=request.client.host if request and request.client else None,
         user_agent=request.headers.get("user-agent", "") if request else "",
-        metadata={},
+        meta={},
         created_at=now,
     )
     db.add(event)

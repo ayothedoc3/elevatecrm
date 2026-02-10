@@ -48,7 +48,7 @@ async def _log_audit(
         actor_email=actor.get("email"),
         action=action,
         provider_type=provider_type,
-        metadata=metadata or {},
+        meta=metadata or {},
         created_at=now_utc(),
     )
     db.add(log)
@@ -593,7 +593,7 @@ async def update_affiliate_settings(
             default_attribution_window_days=int(updates.get("default_attribution_window_days") or 30),
             approval_mode=updates.get("approval_mode") or "manual",
             min_payout_threshold=float(updates.get("min_payout_threshold") or 50),
-            metadata={},
+            meta={},
             updated_by=user["id"],
             created_at=now,
             updated_at=now,
@@ -649,7 +649,7 @@ async def list_audit_logs(
                 "actor_email": l.actor_email,
                 "action": l.action,
                 "provider_type": l.provider_type,
-                "metadata": l.metadata or {},
+                "metadata": l.meta or {},
                 "created_at": dt_to_iso(l.created_at),
             }
             for l in logs

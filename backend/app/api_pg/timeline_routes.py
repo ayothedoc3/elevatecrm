@@ -69,7 +69,7 @@ async def list_timeline(
                 "deal_id": e.deal_id,
                 "contact_id": e.contact_id,
                 "visibility": e.visibility,
-                "metadata": e.metadata or {},
+                "metadata": e.meta or {},
                 "created_at": dt_to_iso(e.created_at),
             }
             for e in events

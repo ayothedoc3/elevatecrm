@@ -169,7 +169,7 @@ async def create_task(
         related_id=data.related_id,
         completed_at=None,
         completed_by=None,
-        metadata={},
+        meta={},
         created_at=now,
         updated_at=now,
     )

@@ -464,7 +464,7 @@ async def seed_demo_data(db: AsyncSession) -> None:
                 default_attribution_window_days=30,
                 approval_mode="manual",
                 min_payout_threshold=50.0,
-                metadata={},
+                meta={},
                 updated_by=admin_user_id,
                 created_at=now,
                 updated_at=now,
