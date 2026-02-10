@@ -49,7 +49,10 @@ const AddCRMModal = ({ open, onClose, onSuccess }) => {
 
   const fetchBlueprints = async () => {
     try {
-      const response = await fetch(`${backendUrl}/api/workspaces/blueprints`);
+      const token = localStorage.getItem('crm_token');
+      const response = await fetch(`${backendUrl}/api/workspaces/blueprints`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (response.ok) {
         const data = await response.json();
         setBlueprints(data.blueprints);
@@ -75,7 +78,7 @@ const AddCRMModal = ({ open, onClose, onSuccess }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('crm_token')}`
         },
         body: JSON.stringify({
           name: workspaceName.trim(),
@@ -102,7 +105,10 @@ const AddCRMModal = ({ open, onClose, onSuccess }) => {
   const pollProvisioningStatus = async (workspaceId) => {
     const poll = async () => {
       try {
-        const response = await fetch(`${backendUrl}/api/workspaces/${workspaceId}/provisioning`);
+        const token = localStorage.getItem('crm_token');
+        const response = await fetch(`${backendUrl}/api/workspaces/${workspaceId}/provisioning`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         if (response.ok) {
           const status = await response.json();
           setProvisioningStatus(status);

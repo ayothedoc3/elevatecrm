@@ -40,7 +40,7 @@ export const WorkspaceProvider = ({ children }) => {
       setLoading(true);
       const response = await fetch(`${backendUrl}/api/workspaces`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('crm_token')}`
         }
       });
       
@@ -67,7 +67,7 @@ export const WorkspaceProvider = ({ children }) => {
       const response = await fetch(`${backendUrl}/api/workspaces/${workspaceId}/switch`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('crm_token')}`
         }
       });
       
@@ -93,7 +93,7 @@ export const WorkspaceProvider = ({ children }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('crm_token')}`
         },
         body: JSON.stringify({
           name,
@@ -119,7 +119,7 @@ export const WorkspaceProvider = ({ children }) => {
     try {
       const response = await fetch(`${backendUrl}/api/workspaces/${workspaceId}/provisioning`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('crm_token')}`
         }
       });
       
