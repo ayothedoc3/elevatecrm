@@ -17,8 +17,11 @@ from enum import Enum
 import uuid
 import json
 import os
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 # Load .env file to ensure SECRET_KEY is available
 ROOT_DIR = Path(__file__).parent.parent.parent
@@ -91,6 +94,23 @@ class RewriteSectionRequest(BaseModel):
     section_index: int
     instruction: str = Field(..., min_length=10)
     tone: str = "professional"
+
+
+class ChatMessageRequest(BaseModel):
+    conversation_id: str
+    message: str = Field(..., min_length=1)
+    current_schema: Optional[Dict[str, Any]] = None
+    selected_section_index: Optional[int] = None
+    page_context: Optional[Dict[str, str]] = None
+    ai_model: str = "gpt-4o"
+
+
+class ChatMessageResponse(BaseModel):
+    conversation_id: str
+    response_text: str
+    updated_schema: Optional[Dict[str, Any]] = None
+    action: str = "message"  # message | generate | modify | error
+    modified_sections: List[int] = []
 
 
 # ==================== HELPER FUNCTIONS ====================
@@ -201,6 +221,135 @@ async def generate_landing_page(
         await db.landing_page_generations.insert_one(generation_log)
         
         raise HTTPException(status_code=500, detail=f"Failed to generate page: {str(e)}")
+
+
+# ==================== CHAT BUILDER ENDPOINTS ====================
+
+@router.post("/chat")
+async def chat_with_builder(
+    data: ChatMessageRequest,
+    request: Request
+):
+    """Conversational page builder - send a message, get page updates"""
+    user = await get_current_user_from_token(request)
+    db = get_database()
+
+    ai_service = get_ai_service(provider="openai", model=data.ai_model)
+
+    # Load or create conversation
+    conversation = await db.landing_page_conversations.find_one(
+        {"conversation_id": data.conversation_id, "tenant_id": user["tenant_id"]},
+        {"_id": 0}
+    )
+
+    if not conversation:
+        conversation = {
+            "id": str(uuid.uuid4()),
+            "conversation_id": data.conversation_id,
+            "tenant_id": user["tenant_id"],
+            "user_id": user["id"],
+            "messages": [],
+            "current_schema": data.current_schema,
+            "page_context": data.page_context,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.landing_page_conversations.insert_one(conversation)
+
+    # Append user message
+    user_msg = {
+        "role": "user",
+        "content": data.message,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+    try:
+        result = await ai_service.chat_with_context(
+            conversation_history=conversation.get("messages", []),
+            current_schema=data.current_schema,
+            user_message=data.message,
+            selected_section_index=data.selected_section_index,
+            page_context=data.page_context
+        )
+
+        # Append assistant message
+        assistant_msg = {
+            "role": "assistant",
+            "content": result["response_text"],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "had_schema_update": result["updated_schema"] is not None
+        }
+
+        # Update conversation in DB
+        await db.landing_page_conversations.update_one(
+            {"conversation_id": data.conversation_id, "tenant_id": user["tenant_id"]},
+            {
+                "$push": {"messages": {"$each": [user_msg, assistant_msg]}},
+                "$set": {
+                    "current_schema": result["updated_schema"] or data.current_schema,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+            }
+        )
+
+        return ChatMessageResponse(
+            conversation_id=data.conversation_id,
+            response_text=result["response_text"],
+            updated_schema=result["updated_schema"],
+            action=result["action"],
+            modified_sections=result["modified_sections"]
+        )
+
+    except ValueError as e:
+        # Missing API key
+        raise HTTPException(
+            status_code=503,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Chat error: {e}")
+        raise HTTPException(status_code=500, detail=f"AI chat failed: {str(e)}")
+
+
+@router.get("/chat/{conversation_id}/history")
+async def get_chat_history(
+    conversation_id: str,
+    request: Request
+):
+    """Get conversation history for a builder session"""
+    user = await get_current_user_from_token(request)
+    db = get_database()
+
+    conversation = await db.landing_page_conversations.find_one(
+        {"conversation_id": conversation_id, "tenant_id": user["tenant_id"]},
+        {"_id": 0}
+    )
+
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    return {
+        "conversation_id": conversation_id,
+        "messages": conversation.get("messages", []),
+        "current_schema": conversation.get("current_schema"),
+        "page_context": conversation.get("page_context")
+    }
+
+
+@router.delete("/chat/{conversation_id}")
+async def delete_chat(
+    conversation_id: str,
+    request: Request
+):
+    """Delete a builder conversation"""
+    user = await get_current_user_from_token(request)
+    db = get_database()
+
+    await db.landing_page_conversations.delete_one(
+        {"conversation_id": conversation_id, "tenant_id": user["tenant_id"]}
+    )
+
+    return {"success": True}
 
 
 @router.post("/{page_id}/rewrite-section")

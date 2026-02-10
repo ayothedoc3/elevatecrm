@@ -2,6 +2,12 @@
 
 A full-stack CRM platform that replaces GoHighLevel for day-to-day operations, combining HubSpot-style CRM data modeling with GHL-style execution speed.
 
+## Phase 1 Core (Sales) - Quickstart
+
+- End-to-end Phase 1 QA: `PHASE1_CORE_TESTING.md`
+- Postgres backend entrypoint: `backend/server.py`
+- Legacy Mongo backend (fallback/reference): `backend/server_mongo.py`
+
 ## 🚀 Features
 
 ### Core CRM
@@ -168,9 +174,9 @@ yarn start
 ### Backend (.env)
 ```env
 DATABASE_URL=postgresql://crm_user:crm_password@localhost:5432/crm_os
-JWT_SECRET_KEY=your-super-secret-key-change-in-production
+SECRET_KEY=your-super-secret-key-change-in-production
 JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=60
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
 CORS_ORIGINS=*
 ```
 

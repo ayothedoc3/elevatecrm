@@ -40,31 +40,39 @@ import ActivityPage from './pages/ActivityPage';
 import ReportsPage from './pages/ReportsPage';
 import AffiliatesPage from './pages/AffiliatesPage';
 import LandingPagesPage from './pages/LandingPagesPage';
+import PageBuilderPage from './pages/PageBuilderPage';
 import ListsPage from './pages/ListsPage';
 import CampaignsPage from './pages/CampaignsPage';
 import PublicLandingPage from './pages/PublicLandingPage';
+import ComingSoonPage from './pages/ComingSoonPage';
 import SettingsPage from './pages/SettingsPage';
 import AffiliateLoginPage from './pages/AffiliatePortal/AffiliateLoginPage';
 import AffiliateDashboard from './pages/AffiliatePortal/AffiliateDashboard';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 
+const APP_PHASE = Number.parseInt(process.env.REACT_APP_APP_PHASE || '1', 10) || 1;
+const isFeatureEnabled = (minPhase = 1) => APP_PHASE >= minPhase;
+
 const navItems = [
-  { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { path: '/contacts', icon: Users, label: 'Contacts' },
-  { path: '/leads', icon: Target, label: 'Leads' },
-  { path: '/pipeline', icon: GitBranch, label: 'Pipeline' },
-  { path: '/activity', icon: Activity, label: 'Activity' },
-  { path: '/reports', icon: BarChart3, label: 'Reports' },
-  { path: '/affiliates', icon: UserPlus, label: 'Affiliates' },
-  { path: '/landing-pages', icon: LayoutTemplate, label: 'AI Page Builder' },
-  { path: '/lists', icon: List, label: 'Lists' },
-  { path: '/campaigns', icon: Mail, label: 'Campaigns' },
-  { path: '/inbox', icon: MessageSquare, label: 'Inbox' },
-  { path: '/workflows', icon: GitBranch, label: 'Workflows' },
-  { path: '/forms', icon: FileText, label: 'Forms' },
-  { path: '/custom-objects', icon: Box, label: 'Objects' },
-  { path: '/blueprints', icon: GitBranch, label: 'Blueprints' },
-  { path: '/settings', icon: Settings, label: 'Settings', bottom: true },
+  // Phase 1 core (go-live for Sales)
+  { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', minPhase: 1 },
+  { path: '/contacts', icon: Users, label: 'Contacts', minPhase: 1 },
+  { path: '/leads', icon: Target, label: 'Leads', minPhase: 1 },
+  { path: '/pipeline', icon: GitBranch, label: 'Pipeline', minPhase: 1 },
+  { path: '/activity', icon: Activity, label: 'Activity', minPhase: 1 },
+  { path: '/reports', icon: BarChart3, label: 'Reports', minPhase: 1 },
+
+  // Phase 2+ (execution layer / additional modules; enable once backend supports Postgres for these)
+  { path: '/affiliates', icon: UserPlus, label: 'Affiliates', minPhase: 2 },
+  { path: '/landing-pages', icon: LayoutTemplate, label: 'AI Page Builder', minPhase: 2 },
+  { path: '/lists', icon: List, label: 'Lists', minPhase: 2 },
+  { path: '/campaigns', icon: Mail, label: 'Campaigns', minPhase: 2 },
+  { path: '/inbox', icon: MessageSquare, label: 'Inbox', minPhase: 2 },
+  { path: '/workflows', icon: GitBranch, label: 'Workflows', minPhase: 2 },
+  { path: '/forms', icon: FileText, label: 'Forms', minPhase: 3 },
+  { path: '/custom-objects', icon: Box, label: 'Objects', minPhase: 2 },
+  { path: '/blueprints', icon: GitBranch, label: 'Blueprints', minPhase: 2 },
+  { path: '/settings', icon: Settings, label: 'Settings', bottom: true, minPhase: 2 },
 ];
 
 const Sidebar = ({ collapsed, setCollapsed }) => {
@@ -97,7 +105,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         <TooltipProvider>
-          {navItems.filter(item => !item.bottom).map(item => {
+          {navItems.filter(item => !item.bottom && isFeatureEnabled(item.minPhase)).map(item => {
             const isActive = location.pathname === item.path;
             return (
               <Tooltip key={item.path} delayDuration={0}>
@@ -129,7 +137,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       {/* Settings at bottom */}
       <div className={`p-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
         <TooltipProvider>
-          {navItems.filter(item => item.bottom).map(item => {
+          {navItems.filter(item => item.bottom && isFeatureEnabled(item.minPhase)).map(item => {
             const isActive = location.pathname === item.path;
             return (
               <Tooltip key={item.path} delayDuration={0}>
@@ -307,6 +315,11 @@ const ProtectedRoute = ({ children }) => {
 
 const AppRoutes = () => {
   const { user, loading } = useAuth();
+  const gate = (minPhase, enabledEl, title, description) => (
+    isFeatureEnabled(minPhase)
+      ? enabledEl
+      : <ComingSoonPage title={title} description={description} />
+  );
   
   if (loading) {
     return (
@@ -326,24 +339,27 @@ const AppRoutes = () => {
       <Route path="/contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
       <Route path="/leads" element={<ProtectedRoute><LeadsPage /></ProtectedRoute>} />
       <Route path="/pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
-      <Route path="/blueprints" element={<ProtectedRoute><BlueprintPage /></ProtectedRoute>} />
-      <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
-      <Route path="/workflows" element={<ProtectedRoute><WorkflowsPage /></ProtectedRoute>} />
-      <Route path="/forms" element={<ProtectedRoute><FormsPage /></ProtectedRoute>} />
-      <Route path="/custom-objects" element={<ProtectedRoute><CustomObjectsPage /></ProtectedRoute>} />
       <Route path="/activity" element={<ProtectedRoute><ActivityPage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
-      <Route path="/affiliates" element={<ProtectedRoute><AffiliatesPage /></ProtectedRoute>} />
-      <Route path="/landing-pages" element={<ProtectedRoute><LandingPagesPage /></ProtectedRoute>} />
-      <Route path="/lists" element={<ProtectedRoute><ListsPage /></ProtectedRoute>} />
-      <Route path="/campaigns" element={<ProtectedRoute><CampaignsPage /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+
+      <Route path="/blueprints" element={<ProtectedRoute>{gate(2, <BlueprintPage />, 'Blueprints')}</ProtectedRoute>} />
+      <Route path="/inbox" element={<ProtectedRoute>{gate(2, <InboxPage />, 'Inbox')}</ProtectedRoute>} />
+      <Route path="/workflows" element={<ProtectedRoute>{gate(2, <WorkflowsPage />, 'Workflows')}</ProtectedRoute>} />
+      <Route path="/forms" element={<ProtectedRoute>{gate(3, <FormsPage />, 'Forms')}</ProtectedRoute>} />
+      <Route path="/custom-objects" element={<ProtectedRoute>{gate(2, <CustomObjectsPage />, 'Objects')}</ProtectedRoute>} />
+      <Route path="/affiliates" element={<ProtectedRoute>{gate(2, <AffiliatesPage />, 'Affiliates')}</ProtectedRoute>} />
+      <Route path="/landing-pages/builder/:pageId" element={<ProtectedRoute>{gate(2, <PageBuilderPage />, 'Landing Pages')}</ProtectedRoute>} />
+      <Route path="/landing-pages/builder" element={<ProtectedRoute>{gate(2, <PageBuilderPage />, 'Landing Pages')}</ProtectedRoute>} />
+      <Route path="/landing-pages" element={<ProtectedRoute>{gate(2, <LandingPagesPage />, 'Landing Pages')}</ProtectedRoute>} />
+      <Route path="/lists" element={<ProtectedRoute>{gate(2, <ListsPage />, 'Lists')}</ProtectedRoute>} />
+      <Route path="/campaigns" element={<ProtectedRoute>{gate(2, <CampaignsPage />, 'Campaigns')}</ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute>{gate(2, <SettingsPage />, 'Settings')}</ProtectedRoute>} />
       {/* Affiliate Portal Routes - No Auth Required */}
-      <Route path="/affiliate-portal/login" element={<AffiliateLoginPage />} />
-      <Route path="/affiliate-portal/dashboard" element={<AffiliateDashboard />} />
+      <Route path="/affiliate-portal/login" element={gate(2, <AffiliateLoginPage />, 'Affiliate Portal')} />
+      <Route path="/affiliate-portal/dashboard" element={gate(2, <AffiliateDashboard />, 'Affiliate Portal')} />
       <Route path="/affiliate-portal" element={<Navigate to="/affiliate-portal/login" replace />} />
       {/* Public Landing Pages - No Auth Required */}
-      <Route path="/pages/:slug" element={<PublicLandingPage />} />
+      <Route path="/pages/:slug" element={gate(2, <PublicLandingPage />, 'Public Landing Pages')} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

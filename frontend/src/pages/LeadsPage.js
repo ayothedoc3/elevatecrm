@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -49,12 +50,13 @@ import {
 import {
   Search, Plus, Mail, Phone, Building, User, MoreHorizontal,
   ChevronLeft, ChevronRight, Filter, Download, Target, RefreshCw,
-  TrendingUp, Users, Zap, Star, Edit, Trash2, UserPlus, ArrowRight
+  TrendingUp, Users, Zap, Star, Edit, Trash2, UserPlus, ArrowRight, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const LeadsPage = () => {
   const { api } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [leads, setLeads] = useState([]);
   const [total, setTotal] = useState(0);
@@ -71,6 +73,33 @@ const LeadsPage = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [workflowOwnerId, setWorkflowOwnerId] = useState('');
+  const [workflowStatus, setWorkflowStatus] = useState('');
+  const [workflowNotes, setWorkflowNotes] = useState('');
+  const [savingWorkflow, setSavingWorkflow] = useState(false);
+  const [scoringData, setScoringData] = useState({
+    economic_units: '',
+    usage_volume: '',
+    urgency: '3',
+    trigger_event: '',
+    primary_motivation: '',
+    decision_role: 'decision_maker',
+    decision_process_clarity: '3',
+  });
+  const [savingScore, setSavingScore] = useState(false);
+  const [showPushDialog, setShowPushDialog] = useState(false);
+  const [pushForm, setPushForm] = useState({
+    deal_name: '',
+    amount: '',
+    next_step_at: '',
+    next_step_note: ''
+  });
+  const [pushingToSales, setPushingToSales] = useState(false);
+  const [touchpointType, setTouchpointType] = useState('call');
+  const [touchpointNotes, setTouchpointNotes] = useState('');
+  const [loggingTouchpoint, setLoggingTouchpoint] = useState(false);
   const [newLead, setNewLead] = useState({
     first_name: '',
     last_name: '',
@@ -78,7 +107,10 @@ const LeadsPage = () => {
     phone: '',
     company_name: '',
     source: 'manual',
-    score: 50,
+    sales_motion_type: 'partnership_sales',
+    partner_name: '',
+    product_name: '',
+    score: 0,
     notes: ''
   });
 
@@ -86,6 +118,10 @@ const LeadsPage = () => {
     fetchLeads();
     fetchStats();
   }, [page, search, filterTier, filterStatus]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   const fetchLeads = async () => {
     setLoading(true);
@@ -118,20 +154,85 @@ const LeadsPage = () => {
     }
   };
 
-  const handleLeadClick = (lead) => {
-    setSelectedLead(lead);
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const response = await api.get('/users');
+      setUsers(response.data.users || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleLeadClick = async (lead) => {
     setShowDetailSheet(true);
+    try {
+      const response = await api.get(`/leads/${lead.id}`);
+      const fullLead = response.data;
+      setSelectedLead(fullLead);
+
+      setWorkflowOwnerId(fullLead.owner_id || '');
+      setWorkflowStatus(fullLead.status || 'new');
+      setWorkflowNotes(fullLead.notes || '');
+
+      const sd = fullLead.scoring_data || {};
+      setScoringData({
+        economic_units: sd.economic_units ?? '',
+        usage_volume: sd.usage_volume ?? '',
+        urgency: String(sd.urgency ?? '3'),
+        trigger_event: sd.trigger_event ?? '',
+        primary_motivation: sd.primary_motivation ?? '',
+        decision_role: sd.decision_role ?? 'decision_maker',
+        decision_process_clarity: String(sd.decision_process_clarity ?? '3'),
+      });
+
+      setTouchpointType('call');
+      setTouchpointNotes('');
+
+      const defaultNextStep = toDateTimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
+      setPushForm({
+        deal_name: (fullLead.company_name || fullLead.full_name || '').trim(),
+        amount: '',
+        next_step_at: defaultNextStep,
+        next_step_note: ''
+      });
+    } catch (error) {
+      console.error('Error fetching lead:', error);
+      toast.error('Failed to load lead details');
+      setSelectedLead(lead);
+      setWorkflowOwnerId(lead.owner_id || '');
+      setWorkflowStatus(lead.status || 'new');
+      setWorkflowNotes(lead.notes || '');
+      setTouchpointType('call');
+      setTouchpointNotes('');
+    }
   };
 
   const closeDetailSheet = () => {
     setShowDetailSheet(false);
     setSelectedLead(null);
+    setShowPushDialog(false);
+  };
+
+  const updateLeadInState = (updatedLead) => {
+    if (!updatedLead?.id) return;
+    setLeads(prev => prev.map(l => (l.id === updatedLead.id ? { ...l, ...updatedLead } : l)));
+    setSelectedLead(prev => (prev && prev.id === updatedLead.id ? { ...prev, ...updatedLead } : prev));
   };
 
   const handleCreateLead = async () => {
     if (!newLead.first_name || !newLead.last_name) {
       toast.error('First name and last name are required');
       return;
+    }
+
+    if (newLead.sales_motion_type === 'partner_sales') {
+      if (!newLead.partner_name?.trim() || !newLead.product_name?.trim()) {
+        toast.error('Partner name and partner product are required for Partner Sales');
+        return;
+      }
     }
 
     setCreating(true);
@@ -146,7 +247,10 @@ const LeadsPage = () => {
         phone: '',
         company_name: '',
         source: 'manual',
-        score: 50,
+        sales_motion_type: 'partnership_sales',
+        partner_name: '',
+        product_name: '',
+        score: 0,
         notes: ''
       });
       fetchLeads();
@@ -194,6 +298,132 @@ const LeadsPage = () => {
     }
   };
 
+  const handleAssignLead = async () => {
+    if (!selectedLead) return;
+    if (!workflowOwnerId) {
+      toast.error('Select an owner to assign');
+      return;
+    }
+
+    try {
+      const response = await api.post(`/leads/${selectedLead.id}/assign`, {
+        owner_id: workflowOwnerId
+      });
+      updateLeadInState(response.data);
+      setWorkflowStatus(response.data.status || workflowStatus);
+      toast.success('Lead assigned');
+      fetchStats();
+    } catch (error) {
+      console.error('Error assigning lead:', error);
+      toast.error(error.response?.data?.detail || 'Failed to assign lead');
+    }
+  };
+
+  const handleSaveWorkflow = async () => {
+    if (!selectedLead) return;
+
+    setSavingWorkflow(true);
+    try {
+      const response = await api.put(`/leads/${selectedLead.id}`, {
+        status: workflowStatus,
+        notes: workflowNotes
+      });
+      updateLeadInState(response.data);
+      setWorkflowStatus(response.data.status || workflowStatus);
+      setWorkflowNotes(response.data.notes || workflowNotes);
+      toast.success('Lead updated');
+      fetchStats();
+    } catch (error) {
+      console.error('Error updating lead:', error);
+      toast.error(error.response?.data?.detail || 'Failed to update lead');
+    } finally {
+      setSavingWorkflow(false);
+    }
+  };
+
+  const handleSaveScore = async () => {
+    if (!selectedLead) return;
+
+    setSavingScore(true);
+    try {
+      const payload = {
+        scoring_data: {
+          economic_units: scoringData.economic_units,
+          usage_volume: scoringData.usage_volume,
+          urgency: Number(scoringData.urgency),
+          trigger_event: scoringData.trigger_event,
+          primary_motivation: scoringData.primary_motivation,
+          decision_role: scoringData.decision_role,
+          decision_process_clarity: Number(scoringData.decision_process_clarity),
+        }
+      };
+
+      const response = await api.post(`/leads/${selectedLead.id}/score`, payload);
+      updateLeadInState(response.data);
+      toast.success('Score updated');
+      fetchStats();
+    } catch (error) {
+      console.error('Error scoring lead:', error);
+      toast.error(error.response?.data?.detail || 'Failed to update score');
+    } finally {
+      setSavingScore(false);
+    }
+  };
+
+  const handleLogTouchpoint = async () => {
+    if (!selectedLead) return;
+
+    setLoggingTouchpoint(true);
+    try {
+      const response = await api.post(`/leads/${selectedLead.id}/touchpoint`, {
+        activity_type: touchpointType,
+        notes: touchpointNotes || null,
+        got_response: false,
+      });
+      updateLeadInState(response.data);
+      setTouchpointNotes('');
+      toast.success('Touchpoint logged');
+      fetchStats();
+    } catch (error) {
+      console.error('Error logging touchpoint:', error);
+      toast.error(error.response?.data?.detail || 'Failed to log touchpoint');
+    } finally {
+      setLoggingTouchpoint(false);
+    }
+  };
+
+  const handlePushToSales = async () => {
+    if (!selectedLead) return;
+    if (!pushForm.next_step_at) {
+      toast.error('Next step is required');
+      return;
+    }
+
+    setPushingToSales(true);
+    try {
+      const response = await api.post(`/leads/${selectedLead.id}/push-to-sales`, {
+        deal_name: pushForm.deal_name?.trim() || null,
+        amount: parseFloat(pushForm.amount) || 0,
+        next_step_at: fromDateTimeLocal(pushForm.next_step_at),
+        next_step_note: pushForm.next_step_note?.trim() || null,
+      });
+
+      toast.success('Lead pushed to Sales Pipeline');
+      setShowPushDialog(false);
+      closeDetailSheet();
+      await fetchLeads();
+      await fetchStats();
+      navigate('/pipeline');
+      return response.data;
+    } catch (error) {
+      console.error('Error pushing lead to sales:', error);
+      toast.error(error.response?.data?.detail || 'Failed to push lead to Sales Pipeline');
+      return null;
+    } finally {
+      setPushingToSales(false);
+    }
+  };
+
   const getTierBadge = (tier) => {
     const colors = {
       'A': 'bg-green-500/20 text-green-400 border-green-500/30',
@@ -213,13 +443,15 @@ const LeadsPage = () => {
       'new': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
       'assigned': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
       'working': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+      'info_collected': 'bg-sky-500/20 text-sky-400 border-sky-500/30',
+      'unresponsive': 'bg-gray-500/20 text-gray-300 border-gray-500/30',
       'qualified': 'bg-green-500/20 text-green-400 border-green-500/30',
       'converted': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
       'disqualified': 'bg-red-500/20 text-red-400 border-red-500/30'
     };
     return (
       <Badge className={colors[status] || 'bg-gray-500/20 text-gray-400'}>
-        {status}
+        {(status || '').replace(/_/g, ' ')}
       </Badge>
     );
   };
@@ -237,6 +469,52 @@ const LeadsPage = () => {
       month: 'short',
       day: 'numeric',
       year: 'numeric'
+    });
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  };
+
+  const toDateTimeLocal = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const fromDateTimeLocal = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
+  };
+
+  const scoringInputsComplete = (sd) => {
+    const required = [
+      'economic_units',
+      'usage_volume',
+      'urgency',
+      'trigger_event',
+      'primary_motivation',
+      'decision_role',
+      'decision_process_clarity',
+    ];
+    return required.every((key) => {
+      const value = sd?.[key];
+      if (value === undefined || value === null) return false;
+      if (typeof value === 'string') return value.trim() !== '';
+      return true;
     });
   };
 
@@ -352,6 +630,9 @@ const LeadsPage = () => {
                 <SelectItem value="new">New</SelectItem>
                 <SelectItem value="assigned">Assigned</SelectItem>
                 <SelectItem value="working">Working</SelectItem>
+                <SelectItem value="info_collected">Info Collected</SelectItem>
+                <SelectItem value="unresponsive">Unresponsive</SelectItem>
+                <SelectItem value="disqualified">Disqualified</SelectItem>
                 <SelectItem value="qualified">Qualified</SelectItem>
                 <SelectItem value="converted">Converted</SelectItem>
               </SelectContent>
@@ -537,7 +818,13 @@ const LeadsPage = () => {
       </Card>
 
       {/* Lead Detail Sheet */}
-      <Sheet open={showDetailSheet} onOpenChange={setShowDetailSheet}>
+      <Sheet
+        open={showDetailSheet}
+        onOpenChange={(open) => {
+          if (!open) closeDetailSheet();
+          else setShowDetailSheet(true);
+        }}
+      >
         <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col">
           {selectedLead && (
             <>
@@ -585,6 +872,292 @@ const LeadsPage = () => {
                           </p>
                         </div>
                       </div>
+                      <div className="mt-3 text-xs text-muted-foreground">
+                        Scoring inputs {scoringInputsComplete(scoringData) ? 'complete' : 'incomplete'}.
+                        {' '}Required before moving to <span className="font-medium">Info Collected</span> or <span className="font-medium">Qualified</span>.
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Workflow */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Workflow</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Owner</Label>
+                          <Select
+                            value={workflowOwnerId || 'unassigned'}
+                            onValueChange={(v) => setWorkflowOwnerId(v === 'unassigned' ? '' : v)}
+                            disabled={loadingUsers || selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select owner..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="unassigned">Unassigned</SelectItem>
+                              {users.map(u => (
+                                <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={handleAssignLead}
+                            disabled={!workflowOwnerId || selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          >
+                            <UserPlus className="w-4 h-4 mr-2" />
+                            Assign
+                          </Button>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Status</Label>
+                          <Select
+                            value={workflowStatus || selectedLead.status || 'new'}
+                            onValueChange={setWorkflowStatus}
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="new">New / Assigned</SelectItem>
+                              <SelectItem value="assigned">Assigned</SelectItem>
+                              <SelectItem value="working">Working</SelectItem>
+                              <SelectItem value="info_collected">Info Collected</SelectItem>
+                              <SelectItem value="unresponsive">Unresponsive</SelectItem>
+                              <SelectItem value="disqualified">Disqualified</SelectItem>
+                              <SelectItem value="qualified">Qualified</SelectItem>
+                              <SelectItem value="converted">Converted</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <div className="text-xs text-muted-foreground">
+                            Note: moving to Info Collected / Qualified requires scoring inputs.
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-medium">Touchpoints</p>
+                            <p className="text-xs text-muted-foreground">
+                              {(selectedLead.touchpoints_count || 0)} logged • Last: {formatDateTime(selectedLead.last_touchpoint_at)}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="whitespace-nowrap">
+                            Min 3 before Unresponsive
+                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label>Type</Label>
+                            <Select
+                              value={touchpointType}
+                              onValueChange={setTouchpointType}
+                              disabled={loggingTouchpoint || selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="call">Call</SelectItem>
+                                <SelectItem value="email">Email</SelectItem>
+                                <SelectItem value="sms">SMS</SelectItem>
+                                <SelectItem value="meeting">Meeting</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Notes (optional)</Label>
+                            <Input
+                              value={touchpointNotes}
+                              onChange={(e) => setTouchpointNotes(e.target.value)}
+                              placeholder="e.g. Left voicemail"
+                              disabled={loggingTouchpoint || selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                            />
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          onClick={handleLogTouchpoint}
+                          disabled={loggingTouchpoint || selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          className="w-full"
+                        >
+                          {loggingTouchpoint ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Logging...
+                            </>
+                          ) : (
+                            'Log Touchpoint'
+                          )}
+                        </Button>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Notes</Label>
+                        <Textarea
+                          value={workflowNotes}
+                          onChange={(e) => setWorkflowNotes(e.target.value)}
+                          rows={3}
+                          disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                        />
+                      </div>
+
+                      <Button
+                        onClick={handleSaveWorkflow}
+                        disabled={savingWorkflow || selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                        className="w-full"
+                      >
+                        {savingWorkflow ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          'Save Changes'
+                        )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Scoring Inputs */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Scoring Inputs</CardTitle>
+                      <CardDescription>
+                        Product-agnostic, required for Info Collected / Qualified.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Economic Units *</Label>
+                          <Input
+                            type="number"
+                            value={scoringData.economic_units}
+                            onChange={(e) => setScoringData({ ...scoringData, economic_units: e.target.value })}
+                            placeholder="e.g. locations, sites, licenses"
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Usage Volume *</Label>
+                          <Input
+                            type="number"
+                            value={scoringData.usage_volume}
+                            onChange={(e) => setScoringData({ ...scoringData, usage_volume: e.target.value })}
+                            placeholder="e.g. units, users, lines"
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Urgency (1-5) *</Label>
+                          <Select
+                            value={String(scoringData.urgency)}
+                            onValueChange={(v) => setScoringData({ ...scoringData, urgency: v })}
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1">1</SelectItem>
+                              <SelectItem value="2">2</SelectItem>
+                              <SelectItem value="3">3</SelectItem>
+                              <SelectItem value="4">4</SelectItem>
+                              <SelectItem value="5">5</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Decision Process Clarity (1-5) *</Label>
+                          <Select
+                            value={String(scoringData.decision_process_clarity)}
+                            onValueChange={(v) => setScoringData({ ...scoringData, decision_process_clarity: v })}
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1">1</SelectItem>
+                              <SelectItem value="2">2</SelectItem>
+                              <SelectItem value="3">3</SelectItem>
+                              <SelectItem value="4">4</SelectItem>
+                              <SelectItem value="5">5</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Trigger Event *</Label>
+                        <Input
+                          value={scoringData.trigger_event}
+                          onChange={(e) => setScoringData({ ...scoringData, trigger_event: e.target.value })}
+                          placeholder="What's happening now that creates urgency?"
+                          disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Primary Motivation *</Label>
+                        <Input
+                          value={scoringData.primary_motivation}
+                          onChange={(e) => setScoringData({ ...scoringData, primary_motivation: e.target.value })}
+                          placeholder="e.g. cost savings, growth, efficiency"
+                          disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Decision Role *</Label>
+                        <Select
+                          value={scoringData.decision_role || 'decision_maker'}
+                          onValueChange={(v) => setScoringData({ ...scoringData, decision_role: v })}
+                          disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="decision_maker">Decision Maker</SelectItem>
+                            <SelectItem value="owner">Owner / Founder</SelectItem>
+                            <SelectItem value="influencer">Influencer / Champion</SelectItem>
+                            <SelectItem value="manager">Manager / Director</SelectItem>
+                            <SelectItem value="researcher">Researcher</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <Button
+                        onClick={handleSaveScore}
+                        disabled={savingScore || selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                        className="w-full"
+                      >
+                        {savingScore ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Computing...
+                          </>
+                        ) : (
+                          'Compute Score'
+                        )}
+                      </Button>
+
+                      {!scoringInputsComplete(scoringData) && (
+                        <p className="text-xs text-amber-600">
+                          Complete all required fields (*) before moving to Info Collected / Qualified.
+                        </p>
+                      )}
                     </CardContent>
                   </Card>
 
@@ -625,6 +1198,33 @@ const LeadsPage = () => {
                           <p className="font-medium">{selectedLead.owner_name || 'Unassigned'}</p>
                         </div>
                         <div>
+                          <Label className="text-xs text-muted-foreground">Sales Motion</Label>
+                          <p className="font-medium">
+                            {selectedLead.sales_motion_type === 'partner_sales'
+                              ? 'Partner Sales'
+                              : 'Partnership Sales'}
+                          </p>
+                        </div>
+                        {selectedLead.sales_motion_type === 'partner_sales' ? (
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Partner</Label>
+                            <p className="font-medium">{selectedLead.partner_name || '-'}</p>
+                          </div>
+                        ) : (
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Partner</Label>
+                            <p className="font-medium">-</p>
+                          </div>
+                        )}
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Product</Label>
+                          <p className="font-medium">
+                            {selectedLead.sales_motion_type === 'partner_sales'
+                              ? (selectedLead.product_name || '-')
+                              : '-'}
+                          </p>
+                        </div>
+                        <div>
                           <Label className="text-xs text-muted-foreground">Created</Label>
                           <p className="font-medium">{formatDate(selectedLead.created_at)}</p>
                         </div>
@@ -648,7 +1248,13 @@ const LeadsPage = () => {
                 <Button variant="outline" className="flex-1" onClick={closeDetailSheet}>
                   Close
                 </Button>
-                {selectedLead.status !== 'converted' && (
+                {selectedLead.status === 'qualified' && (
+                  <Button onClick={() => setShowPushDialog(true)}>
+                    <ArrowRight className="w-4 h-4 mr-2" />
+                    Push to Sales Pipeline
+                  </Button>
+                )}
+                {selectedLead.status !== 'converted' && selectedLead.status !== 'qualified' && (
                   <Button onClick={() => handleConvertLead(selectedLead.id)}>
                     <ArrowRight className="w-4 h-4 mr-2" />
                     Convert to Contact
@@ -659,6 +1265,75 @@ const LeadsPage = () => {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Push to Sales Dialog */}
+      <Dialog open={showPushDialog} onOpenChange={setShowPushDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Push to Sales Pipeline</DialogTitle>
+            <DialogDescription>
+              Creates a Contact (if needed) and a Deal in the default Sales pipeline.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Deal Name</Label>
+              <Input
+                value={pushForm.deal_name}
+                onChange={(e) => setPushForm({ ...pushForm, deal_name: e.target.value })}
+                placeholder="Deal name"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Estimated Deal Size</Label>
+              <Input
+                type="number"
+                value={pushForm.amount}
+                onChange={(e) => setPushForm({ ...pushForm, amount: e.target.value })}
+                placeholder="0.00"
+                step="0.01"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Next Step <span className="text-red-500">*</span></Label>
+              <Input
+                type="datetime-local"
+                value={pushForm.next_step_at}
+                onChange={(e) => setPushForm({ ...pushForm, next_step_at: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Next Step Note</Label>
+              <Textarea
+                value={pushForm.next_step_note}
+                onChange={(e) => setPushForm({ ...pushForm, next_step_note: e.target.value })}
+                placeholder="What is the next action?"
+                rows={2}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPushDialog(false)} disabled={pushingToSales}>
+              Cancel
+            </Button>
+            <Button onClick={handlePushToSales} disabled={pushingToSales || !pushForm.next_step_at}>
+              {pushingToSales ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Pushing...
+                </>
+              ) : (
+                'Create Deal'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Lead Modal */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
@@ -713,6 +1388,41 @@ const LeadsPage = () => {
                 placeholder="Acme Inc."
               />
             </div>
+            <div className="space-y-2">
+              <Label>Sales Motion Type *</Label>
+              <Select
+                value={newLead.sales_motion_type}
+                onValueChange={(v) => setNewLead({ ...newLead, sales_motion_type: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="partnership_sales">Partnership Sales (Elev8 services)</SelectItem>
+                  <SelectItem value="partner_sales">Partner Sales (partner product)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {newLead.sales_motion_type === 'partner_sales' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Partner Name *</Label>
+                  <Input
+                    value={newLead.partner_name}
+                    onChange={(e) => setNewLead({ ...newLead, partner_name: e.target.value })}
+                    placeholder="Partner (e.g. Frylow)"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Partner Product *</Label>
+                  <Input
+                    value={newLead.product_name}
+                    onChange={(e) => setNewLead({ ...newLead, product_name: e.target.value })}
+                    placeholder="Product"
+                  />
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Source</Label>

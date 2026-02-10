@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+import { Checkbox } from '../components/ui/checkbox';
 import { Skeleton } from '../components/ui/skeleton';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Progress } from '../components/ui/progress';
@@ -40,6 +41,7 @@ import {
   Calculator, Phone, Mail, MessageSquare, Calendar, FileText, 
   TrendingUp, Package, Loader2, AlertCircle, ArrowRight
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const PipelinePage = () => {
   const { api, currentWorkspace } = useAuth();
@@ -49,6 +51,11 @@ const PipelinePage = () => {
   const [kanbanData, setKanbanData] = useState(null);
   const [selectedDeal, setSelectedDeal] = useState(null);
   const [showDealSheet, setShowDealSheet] = useState(false);
+  const [nextStepAt, setNextStepAt] = useState('');
+  const [nextStepNote, setNextStepNote] = useState('');
+  const [savingNextStep, setSavingNextStep] = useState(false);
+  const [dealContactId, setDealContactId] = useState('');
+  const [savingDealContact, setSavingDealContact] = useState(false);
   const [movingDeal, setMovingDeal] = useState(null);
   const [draggedDeal, setDraggedDeal] = useState(null);
   const [dragOverColumn, setDragOverColumn] = useState(null);
@@ -73,8 +80,28 @@ const PipelinePage = () => {
     amount: '',
     contact_id: '',
     pipeline_id: '',
-    stage_id: ''
+    stage_id: '',
+    next_step_at: '',
+    next_step_note: '',
+    sales_motion_type: 'partnership_sales',
+    partner_name: '',
+    product_name: ''
   });
+
+  const toDateTimeLocal = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const fromDateTimeLocal = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
+  };
 
   useEffect(() => {
     fetchPipelines();
@@ -123,20 +150,34 @@ const PipelinePage = () => {
   const openAddDealDialog = () => {
     // Set default pipeline and stage
     if (selectedPipeline && kanbanData?.columns?.length > 0) {
+      const defaultNextStep = toDateTimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
       setNewDeal({
         name: '',
         amount: '',
         contact_id: '',
         pipeline_id: selectedPipeline,
-        stage_id: kanbanData.columns[0].id // First stage
+        stage_id: kanbanData.columns[0].id, // First stage
+        next_step_at: defaultNextStep,
+        next_step_note: '',
+        sales_motion_type: 'partnership_sales',
+        partner_name: '',
+        product_name: ''
       });
     }
     setShowAddDealDialog(true);
   };
 
   const handleAddDeal = async () => {
-    if (!newDeal.name.trim() || !newDeal.pipeline_id || !newDeal.stage_id) {
+    if (!newDeal.name.trim() || !newDeal.contact_id || !newDeal.pipeline_id || !newDeal.stage_id || !newDeal.next_step_at) {
+      toast.error('Deal name, contact, stage, and next step are required');
       return;
+    }
+
+    if (newDeal.sales_motion_type === 'partner_sales') {
+      if (!newDeal.partner_name?.trim() || !newDeal.product_name?.trim()) {
+        toast.error('Partner name and product are required for Partner Sales');
+        return;
+      }
     }
 
     setAddingDeal(true);
@@ -144,9 +185,14 @@ const PipelinePage = () => {
       await api.post('/deals', {
         name: newDeal.name.trim(),
         amount: parseFloat(newDeal.amount) || 0,
-        contact_id: newDeal.contact_id || null,
+        contact_id: newDeal.contact_id,
         pipeline_id: newDeal.pipeline_id,
-        stage_id: newDeal.stage_id
+        stage_id: newDeal.stage_id,
+        next_step_at: fromDateTimeLocal(newDeal.next_step_at),
+        next_step_note: newDeal.next_step_note || null,
+        sales_motion_type: newDeal.sales_motion_type,
+        partner_name: newDeal.sales_motion_type === 'partner_sales' ? newDeal.partner_name?.trim() : null,
+        product_name: newDeal.sales_motion_type === 'partner_sales' ? newDeal.product_name?.trim() : null
       });
 
       // Refresh kanban data
@@ -158,11 +204,18 @@ const PipelinePage = () => {
         amount: '',
         contact_id: '',
         pipeline_id: '',
-        stage_id: ''
+        stage_id: '',
+        next_step_at: '',
+        next_step_note: '',
+        sales_motion_type: 'partnership_sales',
+        partner_name: '',
+        product_name: ''
       });
       setShowAddDealDialog(false);
+      toast.success('Deal created');
     } catch (error) {
       console.error('Error creating deal:', error);
+      toast.error(error.response?.data?.detail || 'Failed to create deal');
     } finally {
       setAddingDeal(false);
     }
@@ -183,6 +236,9 @@ const PipelinePage = () => {
 
   const handleDealClick = async (deal) => {
     setSelectedDeal(deal);
+    setNextStepAt(toDateTimeLocal(deal.next_step_at));
+    setNextStepNote(deal.next_step_note || '');
+    setDealContactId(deal.contact_id || '');
     setShowDealSheet(true);
     await fetchDealCalculation(deal.id);
   };
@@ -192,6 +248,9 @@ const PipelinePage = () => {
     setSelectedDeal(null);
     setCalculationData(null);
     setCalcInputs({});
+    setNextStepAt('');
+    setNextStepNote('');
+    setDealContactId('');
   };
 
   // Drag and Drop handlers
@@ -344,6 +403,71 @@ const PipelinePage = () => {
     }
   };
 
+  const saveNextStep = async () => {
+    if (!selectedDeal) return;
+
+    if (!nextStepAt) {
+      toast.error('Next step date/time is required');
+      return;
+    }
+
+    setSavingNextStep(true);
+    try {
+      const nextStepIso = fromDateTimeLocal(nextStepAt);
+      await api.put(`/deals/${selectedDeal.id}`, {
+        next_step_at: nextStepIso,
+        next_step_note: nextStepNote || null
+      });
+
+      setSelectedDeal(prev => prev ? ({
+        ...prev,
+        next_step_at: nextStepIso,
+        next_step_note: nextStepNote || null
+      }) : prev);
+
+      await fetchKanbanData(selectedPipeline);
+      toast.success('Next step saved');
+    } catch (error) {
+      console.error('Error saving next step:', error);
+      toast.error(error.response?.data?.detail || 'Failed to save next step');
+    } finally {
+      setSavingNextStep(false);
+    }
+  };
+
+  const saveDealContact = async () => {
+    if (!selectedDeal) return;
+
+    if (!dealContactId) {
+      toast.error('Contact is required');
+      return;
+    }
+
+    setSavingDealContact(true);
+    try {
+      await api.put(`/deals/${selectedDeal.id}`, {
+        contact_id: dealContactId
+      });
+
+      const contact = contacts.find(c => c.id === dealContactId);
+      const contactName = contact ? `${contact.first_name} ${contact.last_name}`.trim() : selectedDeal.contact_name;
+
+      setSelectedDeal(prev => prev ? ({
+        ...prev,
+        contact_id: dealContactId,
+        contact_name: contactName
+      }) : prev);
+
+      await fetchKanbanData(selectedPipeline);
+      toast.success('Contact updated');
+    } catch (error) {
+      console.error('Error updating deal contact:', error);
+      toast.error(error.response?.data?.detail || 'Failed to update contact');
+    } finally {
+      setSavingDealContact(false);
+    }
+  };
+
   const formatCurrency = (value) => {
     if (value === undefined || value === null) return '-';
     return new Intl.NumberFormat('en-US', {
@@ -364,6 +488,18 @@ const PipelinePage = () => {
       default:
         return null;
     }
+  };
+
+  const getLeadTierBadge = (tier) => {
+    const t = (tier || '').toString().trim().toUpperCase();
+    const styles = {
+      A: 'bg-green-500/20 text-green-400 border-green-500/30',
+      B: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+      C: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+      D: 'bg-gray-500/20 text-gray-300 border-gray-500/30',
+    };
+    if (!styles[t]) return <Badge variant="outline">-</Badge>;
+    return <Badge className={styles[t]}>{t}</Badge>;
   };
 
   if (loading && !kanbanData) {
@@ -623,16 +759,72 @@ const PipelinePage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Associated Contact</Label>
+                  <Label>Sales Motion Type <span className="text-red-500">*</span></Label>
                   <Select
-                    value={newDeal.contact_id || "none"}
-                    onValueChange={(value) => setNewDeal({ ...newDeal, contact_id: value === "none" ? "" : value })}
+                    value={newDeal.sales_motion_type}
+                    onValueChange={(value) => setNewDeal({ ...newDeal, sales_motion_type: value })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select contact (optional)..." />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">No contact</SelectItem>
+                      <SelectItem value="partnership_sales">Partnership Sales (Elev8 services)</SelectItem>
+                      <SelectItem value="partner_sales">Partner Sales (partner product)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {newDeal.sales_motion_type === 'partner_sales' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Partner Name <span className="text-red-500">*</span></Label>
+                      <Input
+                        value={newDeal.partner_name}
+                        onChange={(e) => setNewDeal({ ...newDeal, partner_name: e.target.value })}
+                        placeholder="Partner (e.g. Frylow)"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Partner Product <span className="text-red-500">*</span></Label>
+                      <Input
+                        value={newDeal.product_name}
+                        onChange={(e) => setNewDeal({ ...newDeal, product_name: e.target.value })}
+                        placeholder="Product"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Next Step <span className="text-red-500">*</span></Label>
+                  <Input
+                    type="datetime-local"
+                    value={newDeal.next_step_at}
+                    onChange={(e) => setNewDeal({ ...newDeal, next_step_at: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">Required for all active deals.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Next Step Note</Label>
+                  <Textarea
+                    value={newDeal.next_step_note}
+                    onChange={(e) => setNewDeal({ ...newDeal, next_step_note: e.target.value })}
+                    placeholder="What is the next action?"
+                    rows={2}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Associated Contact <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={newDeal.contact_id}
+                    onValueChange={(value) => setNewDeal({ ...newDeal, contact_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select contact..." />
+                    </SelectTrigger>
+                    <SelectContent>
                       {contacts.map(c => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.first_name} {c.last_name} {c.email && `(${c.email})`}
@@ -652,14 +844,19 @@ const PipelinePage = () => {
                 amount: '',
                 contact_id: '',
                 pipeline_id: '',
-                stage_id: ''
+                stage_id: '',
+                next_step_at: '',
+                next_step_note: '',
+                sales_motion_type: 'partnership_sales',
+                partner_name: '',
+                product_name: ''
               });
             }}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleAddDeal}
-              disabled={!newDeal.name.trim() || !newDeal.pipeline_id || !newDeal.stage_id || addingDeal}
+              disabled={!newDeal.name.trim() || !newDeal.pipeline_id || !newDeal.stage_id || !newDeal.next_step_at || addingDeal}
             >
               {addingDeal ? (
                 <>
@@ -699,13 +896,15 @@ const PipelinePage = () => {
               </SheetHeader>
 
               <Tabs defaultValue="details" className="flex-1 flex flex-col">
-                <TabsList className="mx-6 mt-4">
+                <TabsList className="mx-6 mt-4 flex flex-wrap">
                   <TabsTrigger value="details">Details</TabsTrigger>
+                  <TabsTrigger value="tasks">Tasks</TabsTrigger>
                   <TabsTrigger value="calculation">
                     <Calculator className="w-4 h-4 mr-1" />
                     Calculator
                   </TabsTrigger>
                   <TabsTrigger value="activity">Activity</TabsTrigger>
+                  <TabsTrigger value="handoff">Handoff</TabsTrigger>
                 </TabsList>
 
                 <ScrollArea className="flex-1">
@@ -724,15 +923,117 @@ const PipelinePage = () => {
                             <Label className="text-xs text-muted-foreground">Value</Label>
                             <p className="font-medium">{formatCurrency(selectedDeal.amount)}</p>
                           </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Contact</Label>
-                            <p className="font-medium">{selectedDeal.contact_name || '-'}</p>
+                          <div className="col-span-2 space-y-2">
+                            <Label className="text-xs text-muted-foreground">Contact <span className="text-red-500">*</span></Label>
+                            <div className="flex gap-2">
+                              <Select value={dealContactId} onValueChange={setDealContactId}>
+                                <SelectTrigger className="flex-1">
+                                  <SelectValue placeholder="Select contact..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {contacts.map(c => (
+                                    <SelectItem key={c.id} value={c.id}>
+                                      {c.first_name} {c.last_name} {c.email && `(${c.email})`}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                variant="outline"
+                                onClick={saveDealContact}
+                                disabled={savingDealContact || !dealContactId}
+                              >
+                                {savingDealContact ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  'Save'
+                                )}
+                              </Button>
+                            </div>
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">Status</Label>
                             <p className="font-medium capitalize">{selectedDeal.status}</p>
                           </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Lead Tier</Label>
+                            <div className="mt-1">{getLeadTierBadge(selectedDeal.lead_tier)}</div>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Sales Motion</Label>
+                            <p className="font-medium">
+                              {selectedDeal.sales_motion_type === 'partner_sales'
+                                ? 'Partner Sales'
+                                : 'Partnership Sales'}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Lead Score</Label>
+                            <p className="font-medium">{selectedDeal.lead_score ?? '-'}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Partner</Label>
+                            <p className="font-medium">
+                              {selectedDeal.sales_motion_type === 'partner_sales'
+                                ? (selectedDeal.partner_name || '-')
+                                : '-'}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Product</Label>
+                            <p className="font-medium">
+                              {selectedDeal.sales_motion_type === 'partner_sales'
+                                ? (selectedDeal.product_name || '-')
+                                : '-'}
+                            </p>
+                          </div>
                         </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Clock className="w-4 h-4" />
+                          Next Step
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Next Step Date/Time <span className="text-red-500">*</span></Label>
+                          <Input
+                            type="datetime-local"
+                            value={nextStepAt}
+                            onChange={(e) => setNextStepAt(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Next Step Note</Label>
+                          <Textarea
+                            value={nextStepNote}
+                            onChange={(e) => setNextStepNote(e.target.value)}
+                            placeholder="What is the next action?"
+                            rows={2}
+                          />
+                        </div>
+                        <Button onClick={saveNextStep} disabled={savingNextStep || !nextStepAt} className="w-full">
+                          {savingNextStep ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="w-4 h-4 mr-2" />
+                              Save Next Step
+                            </>
+                          )}
+                        </Button>
+                        {!selectedDeal.next_step_at && (
+                          <p className="text-xs text-amber-600">
+                            This deal has no next step scheduled. Playbook rules require a next step on active deals.
+                          </p>
+                        )}
                       </CardContent>
                     </Card>
 
@@ -762,6 +1063,14 @@ const PipelinePage = () => {
                         </div>
                       </CardContent>
                     </Card>
+                  </TabsContent>
+
+                  <TabsContent value="tasks" className="p-6 space-y-4">
+                    <TasksPanel
+                      dealId={selectedDeal.id}
+                      api={api}
+                      onUpdate={() => fetchKanbanData(selectedPipeline)}
+                    />
                   </TabsContent>
 
                   <TabsContent value="calculation" className="p-6 space-y-4">
@@ -935,6 +1244,14 @@ const PipelinePage = () => {
                     <ActivityPanel 
                       dealId={selectedDeal.id} 
                       api={api} 
+                      onUpdate={() => fetchKanbanData(selectedPipeline)}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="handoff" className="p-6 space-y-4">
+                    <HandoffPanel
+                      dealId={selectedDeal.id}
+                      api={api}
                       onUpdate={() => fetchKanbanData(selectedPipeline)}
                     />
                   </TabsContent>
@@ -1320,6 +1637,454 @@ const ActivityPanel = ({ dealId, api, onUpdate }) => {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+};
+
+const TasksPanel = ({ dealId, api, onUpdate }) => {
+  const [loading, setLoading] = React.useState(true);
+  const [tasks, setTasks] = React.useState([]);
+  const [showCreate, setShowCreate] = React.useState(false);
+  const [creating, setCreating] = React.useState(false);
+  const [newTask, setNewTask] = React.useState({
+    title: '',
+    due_at: '',
+    description: ''
+  });
+
+  const toDateTimeLocal = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const fromDateTimeLocal = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  };
+
+  React.useEffect(() => {
+    if (!dealId) return;
+    fetchTasks();
+    const defaultDue = toDateTimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
+    setNewTask(prev => ({ ...prev, due_at: defaultDue }));
+  }, [dealId]);
+
+  const fetchTasks = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get(`/tasks?status=open&related_type=deal&related_id=${dealId}&page_size=200`);
+      setTasks(response.data.tasks || []);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      toast.error('Failed to load tasks');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const completeTask = async (task) => {
+    try {
+      await api.put(`/tasks/${task.id}`, { status: 'completed' });
+      toast.success('Task completed');
+      await fetchTasks();
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      console.error('Error completing task:', error);
+      toast.error(error.response?.data?.detail || 'Failed to complete task');
+    }
+  };
+
+  const handleCreateTask = async () => {
+    const title = (newTask.title || '').trim();
+    const due = fromDateTimeLocal(newTask.due_at);
+    if (!title) {
+      toast.error('Task title is required');
+      return;
+    }
+    if (!due) {
+      toast.error('Due date/time is required');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      await api.post('/tasks', {
+        title,
+        due_at: due,
+        description: (newTask.description || '').trim() || null,
+        related_type: 'deal',
+        related_id: dealId,
+        kind: 'manual'
+      });
+      toast.success('Task created');
+      setNewTask(prev => ({ ...prev, title: '', description: '' }));
+      setShowCreate(false);
+      await fetchTasks();
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      console.error('Error creating task:', error);
+      toast.error(error.response?.data?.detail || 'Failed to create task');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-base">Tasks</CardTitle>
+              <CardDescription>Next steps and follow-ups for this deal.</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={fetchTasks} disabled={loading}>
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button size="sm" onClick={() => setShowCreate(v => !v)}>
+                <Plus className="w-4 h-4 mr-2" />
+                New
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {showCreate && (
+            <div className="rounded-lg border p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2 col-span-2">
+                  <Label>Title</Label>
+                  <Input
+                    value={newTask.title}
+                    onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="e.g. Follow up after demo"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Due</Label>
+                  <Input
+                    type="datetime-local"
+                    value={newTask.due_at}
+                    onChange={(e) => setNewTask(prev => ({ ...prev, due_at: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Description (optional)</Label>
+                  <Input
+                    value={newTask.description}
+                    onChange={(e) => setNewTask(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Notes..."
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setShowCreate(false)} disabled={creating}>
+                  Cancel
+                </Button>
+                <Button className="flex-1" onClick={handleCreateTask} disabled={creating}>
+                  {creating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+                  Create
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : tasks.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <CheckCircle2 className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No open tasks for this deal</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {tasks.map(t => {
+                const dueMs = t.due_at ? new Date(t.due_at).getTime() : null;
+                const overdue = dueMs && !Number.isNaN(dueMs) && dueMs < Date.now();
+                return (
+                  <div key={t.id} className="flex items-start justify-between gap-3 p-3 rounded-lg border">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium truncate">{t.title}</p>
+                        {t.kind === 'next_step' && (
+                          <Badge variant="outline">Next Step</Badge>
+                        )}
+                        {overdue && (
+                          <Badge className="bg-red-500/20 text-red-400 border-red-500/30">Overdue</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Due {formatDateTime(t.due_at)}{t.owner_name ? ` • Owner: ${t.owner_name}` : ''}
+                      </p>
+                      {t.description && (
+                        <p className="text-sm text-muted-foreground mt-2">{t.description}</p>
+                      )}
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => completeTask(t)}>
+                      Complete
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+const HandoffPanel = ({ dealId, api, onUpdate }) => {
+  const [handoff, setHandoff] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [users, setUsers] = React.useState([]);
+  const [loadingUsers, setLoadingUsers] = React.useState(false);
+
+  const [deliveryOwnerId, setDeliveryOwnerId] = React.useState('');
+  const [kickoffAt, setKickoffAt] = React.useState('');
+  const [notes, setNotes] = React.useState('');
+  const [checklist, setChecklist] = React.useState({});
+
+  const CHECKLIST_LABELS = {
+    spiced_summary: 'SPICED summary',
+    gap_analysis: 'Gap analysis',
+    proposal: 'Proposal',
+    contract: 'Contract',
+    risk_notes: 'Risk notes',
+    kickoff_readiness_checklist: 'Kickoff readiness checklist',
+  };
+
+  const CHECKLIST_KEYS = Object.keys(CHECKLIST_LABELS);
+
+  const toDateTimeLocal = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const fromDateTimeLocal = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
+  };
+
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const res = await api.get('/users');
+      setUsers(res.data.users || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const fetchHandoff = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/deals/${dealId}/handoff`);
+      const data = res.data;
+      setHandoff(data);
+      setDeliveryOwnerId(data.delivery_owner_id || '');
+      setKickoffAt(toDateTimeLocal(data.kickoff_at));
+      setNotes(data.notes || '');
+      setChecklist(data.checklist || {});
+    } catch (error) {
+      console.error('Error fetching handoff:', error);
+      toast.error('Failed to load handoff');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (!dealId) return;
+    fetchUsers();
+    fetchHandoff();
+  }, [dealId]);
+
+  const missingItems = React.useMemo(() => {
+    const missing = [];
+    if (!deliveryOwnerId) missing.push('Delivery owner');
+    if (!kickoffAt) missing.push('Kickoff scheduled');
+    CHECKLIST_KEYS.forEach(k => {
+      if (!checklist?.[k]) missing.push(CHECKLIST_LABELS[k]);
+    });
+    return missing;
+  }, [deliveryOwnerId, kickoffAt, checklist]);
+
+  const isComplete = missingItems.length === 0;
+
+  const saveHandoff = async () => {
+    const kickoffIso = kickoffAt ? fromDateTimeLocal(kickoffAt) : '';
+    if (kickoffAt && !kickoffIso) {
+      toast.error('Invalid kickoff date/time');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await api.put(`/deals/${dealId}/handoff`, {
+        delivery_owner_id: deliveryOwnerId || '',
+        kickoff_at: kickoffIso,
+        notes: notes ?? '',
+        checklist: CHECKLIST_KEYS.reduce((acc, k) => {
+          acc[k] = Boolean(checklist?.[k]);
+          return acc;
+        }, {})
+      });
+      setHandoff(res.data);
+      toast.success('Handoff saved');
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      console.error('Error saving handoff:', error);
+      toast.error(error.response?.data?.detail || 'Failed to save handoff');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-base">Handoff to Delivery</CardTitle>
+              <CardDescription>Required before moving to the Handoff stage.</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              {handoff?.status === 'completed' ? (
+                <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Completed</Badge>
+              ) : (
+                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">Pending</Badge>
+              )}
+              <Button variant="outline" size="sm" onClick={fetchHandoff} disabled={loading}>
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {loading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-40 w-full" />
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Delivery Owner <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={deliveryOwnerId || 'unassigned'}
+                    onValueChange={(v) => setDeliveryOwnerId(v === 'unassigned' ? '' : v)}
+                    disabled={loadingUsers}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select owner..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {users.map(u => (
+                        <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Kickoff Scheduled <span className="text-red-500">*</span></Label>
+                  <Input
+                    type="datetime-local"
+                    value={kickoffAt}
+                    onChange={(e) => setKickoffAt(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notes (optional)</Label>
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                  placeholder="Risk notes, context for delivery..."
+                />
+              </div>
+
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Required artifacts</p>
+                  {isComplete ? (
+                    <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Ready</Badge>
+                  ) : (
+                    <Badge className="bg-red-500/20 text-red-400 border-red-500/30">Incomplete</Badge>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {CHECKLIST_KEYS.map((key) => (
+                    <div key={key} className="flex items-start gap-3">
+                      <Checkbox
+                        checked={Boolean(checklist?.[key])}
+                        onCheckedChange={(v) => setChecklist(prev => ({ ...prev, [key]: Boolean(v) }))}
+                        id={`handoff_${key}`}
+                      />
+                      <Label htmlFor={`handoff_${key}`} className="text-sm font-normal cursor-pointer">
+                        {CHECKLIST_LABELS[key]}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                {!isComplete && (
+                  <div className="text-xs text-muted-foreground pt-2 border-t">
+                    Missing: {missingItems.join(', ')}
+                  </div>
+                )}
+              </div>
+
+              <Button onClick={saveHandoff} disabled={saving} className="w-full">
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Save Handoff
+                  </>
+                )}
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

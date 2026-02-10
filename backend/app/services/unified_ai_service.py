@@ -99,9 +99,10 @@ class UnifiedAIService:
         
         if not integration or not integration.get("enabled", True):
             # Try fallback to environment key
-            env_key = os.environ.get("EMERGENT_LLM_KEY")
+            # Try fallback to environment keys
+            env_key = os.environ.get("OPENAI_API_KEY") if provider == "openai" else os.environ.get("OPENROUTER_API_KEY")
             if env_key:
-                logger.info(f"Using environment EMERGENT_LLM_KEY for workspace {self.workspace_id}")
+                logger.info(f"Using environment API key for provider '{provider}' in workspace {self.workspace_id}")
                 return provider, model, env_key
             
             raise AINotConfiguredError(
@@ -219,26 +220,33 @@ class UnifiedAIService:
         provider, model, api_key = await self.resolve_provider(feature_type)
         
         try:
-            # Import and use emergentintegrations
-            from emergentintegrations.llm.chat import LlmChat, UserMessage
-            
-            session_id = f"{feature_type.value}-{uuid.uuid4().hex[:8]}"
-            
-            # Map provider to emergentintegrations format
-            provider_map = {
-                "openai": "openai",
-                "anthropic": "anthropic",
-                "openrouter": "openrouter"
-            }
-            
-            chat = LlmChat(
-                api_key=api_key,
-                session_id=session_id,
-                system_message=system_message or "You are a helpful assistant."
-            ).with_model(provider_map.get(provider, "openai"), model)
-            
-            user_message = UserMessage(text=prompt)
-            response = await chat.send_message(user_message)
+            from openai import AsyncOpenAI
+
+            # Configure client based on provider
+            if provider in ("anthropic", "openrouter"):
+                client = AsyncOpenAI(
+                    api_key=api_key,
+                    base_url="https://openrouter.ai/api/v1",
+                )
+                extra_headers = {
+                    "HTTP-Referer": "https://elevatecrm.app",
+                    "X-Title": "Elevate CRM",
+                }
+            else:
+                client = AsyncOpenAI(api_key=api_key)
+                extra_headers = None
+
+            completion = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_message or "You are a helpful assistant."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=temperature,
+                max_tokens=max_tokens,
+                extra_headers=extra_headers,
+            )
+            response = completion.choices[0].message.content
             
             # Calculate response time
             response_time_ms = int((time.time() - start_time) * 1000)
@@ -380,16 +388,28 @@ async def test_provider_connection(
         }
     
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        
-        # Simple test message
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=f"test-{uuid.uuid4().hex[:8]}",
-            system_message="Respond with only the word 'connected' to confirm the connection."
-        ).with_model(provider_type, "gpt-4o" if provider_type == "openai" else "claude-sonnet-4-20250514")
-        
-        response = await chat.send_message(UserMessage(text="Test connection"))
+        from openai import AsyncOpenAI
+
+        # Configure client based on provider
+        if provider_type in ("anthropic", "openrouter"):
+            client = AsyncOpenAI(
+                api_key=api_key,
+                base_url="https://openrouter.ai/api/v1",
+            )
+            test_model = "anthropic/claude-sonnet-4-20250514" if provider_type == "anthropic" else "gpt-4o"
+        else:
+            client = AsyncOpenAI(api_key=api_key)
+            test_model = "gpt-4o"
+
+        completion = await client.chat.completions.create(
+            model=test_model,
+            messages=[
+                {"role": "system", "content": "Respond with only the word 'connected' to confirm the connection."},
+                {"role": "user", "content": "Test connection"}
+            ],
+            max_tokens=10,
+        )
+        response = completion.choices[0].message.content
         
         response_time_ms = int((time.time() - start_time) * 1000)
         

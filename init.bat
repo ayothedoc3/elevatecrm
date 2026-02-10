@@ -84,8 +84,8 @@ echo   Elevate CRM is running!
 echo ============================================
 echo.
 echo   Frontend:  http://localhost:3000
-echo   Backend:   http://localhost:8000
-echo   API Docs:  http://localhost:8000/docs
+echo   Backend:   http://localhost:8001
+echo   API Docs:  http://localhost:8001/docs
 echo.
 echo Close the command windows to stop the servers.
 echo.
@@ -136,10 +136,16 @@ if not exist .env (
     echo   Creating backend .env file...
     (
         echo # Elevate CRM Backend Configuration
-        echo DATABASE_URL=sqlite:///./elevatecrm.db
+        echo # PostgreSQL (Phase 1 core)
+        echo DATABASE_URL=postgresql://crm_user:crm_password@localhost:5432/crm_os
+        echo.
+        echo # Security
         echo SECRET_KEY=your-secret-key-change-in-production
-        echo ALGORITHM=HS256
-        echo ACCESS_TOKEN_EXPIRE_MINUTES=60
+        echo JWT_ALGORITHM=HS256
+        echo ACCESS_TOKEN_EXPIRE_MINUTES=1440
+        echo.
+        echo # CORS
+        echo CORS_ORIGINS=*
         echo.
         echo # OpenAI API ^(for AI features^)
         echo OPENAI_API_KEY=your-openai-api-key
@@ -158,8 +164,7 @@ if not exist .env (
         echo.
         echo # Server settings
         echo HOST=0.0.0.0
-        echo PORT=8000
-        echo DEBUG=true
+        echo PORT=8001
     ) > .env
 )
 
@@ -179,8 +184,9 @@ if not exist .env (
     echo   Creating frontend .env file...
     (
         echo # Elevate CRM Frontend Configuration
-        echo REACT_APP_API_URL=http://localhost:8000
-        echo REACT_APP_WS_URL=ws://localhost:8000/ws
+        echo REACT_APP_BACKEND_URL=http://localhost:8001
+        echo REACT_APP_API_URL=http://localhost:8001
+        echo REACT_APP_APP_PHASE=1
     ) > .env
 )
 

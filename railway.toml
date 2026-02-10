@@ -1,0 +1,31 @@
+# Railway monorepo configuration
+# Each service is configured in the Railway dashboard pointing to its subdirectory.
+# This file provides build/deploy hints.
+
+# NOTE: Railway does NOT use this file for multi-service monorepos.
+# Instead, create TWO services in the Railway dashboard:
+#
+# Service 1: "backend"
+#   - Root directory: /backend
+#   - Build command: (uses Dockerfile)
+#   - Deploy command: (uses Dockerfile CMD)
+#   - Environment variables:
+#     DATABASE_URL      = ${{Postgres.DATABASE_URL}}
+#     SECRET_KEY        = <generate a strong random string>
+#     CORS_ORIGINS      = https://<frontend-service>.up.railway.app
+#     OPENROUTER_API_KEY = <your key>
+#     HOST              = 0.0.0.0
+#     PORT              = 8001
+#
+# Service 2: "frontend"
+#   - Root directory: /frontend
+#   - Build command: (uses Dockerfile)
+#   - Build args (set as env vars with prefix):
+#     REACT_APP_BACKEND_URL = https://<backend-service>.up.railway.app
+#     REACT_APP_API_URL     = https://<backend-service>.up.railway.app
+#     REACT_APP_APP_PHASE   = 2
+#
+# Service 3: PostgreSQL (Railway plugin)
+#   - Add via "New" -> "Database" -> "PostgreSQL"
+#   - Railway auto-creates DATABASE_URL variable
+#   - Reference it in backend as ${{Postgres.DATABASE_URL}}

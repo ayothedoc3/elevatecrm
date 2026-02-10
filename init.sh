@@ -106,10 +106,16 @@ install_backend() {
         echo "  Creating backend .env file..."
         cat > .env << 'EOF'
 # Elevate CRM Backend Configuration
-DATABASE_URL=sqlite:///./elevatecrm.db
+# PostgreSQL (Phase 1 core)
+DATABASE_URL=postgresql://crm_user:crm_password@localhost:5432/crm_os
+
+# Security
 SECRET_KEY=your-secret-key-change-in-production
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=60
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+
+# CORS
+CORS_ORIGINS=*
 
 # OpenAI API (for AI features)
 OPENAI_API_KEY=your-openai-api-key
@@ -128,8 +134,7 @@ SENDGRID_API_KEY=your-sendgrid-api-key
 
 # Server settings
 HOST=0.0.0.0
-PORT=8000
-DEBUG=true
+PORT=8001
 EOF
     fi
 
@@ -156,8 +161,9 @@ install_frontend() {
         echo "  Creating frontend .env file..."
         cat > .env << 'EOF'
 # Elevate CRM Frontend Configuration
-REACT_APP_API_URL=http://localhost:8000
-REACT_APP_WS_URL=ws://localhost:8000/ws
+REACT_APP_BACKEND_URL=http://localhost:8001
+REACT_APP_API_URL=http://localhost:8001
+REACT_APP_APP_PHASE=1
 EOF
     fi
 
@@ -177,8 +183,8 @@ start_backend() {
         source venv/bin/activate
     fi
 
-    echo -e "${GREEN}  Backend starting on http://localhost:8000${NC}"
-    echo -e "${GREEN}  API docs available at http://localhost:8000/docs${NC}"
+    echo -e "${GREEN}  Backend starting on http://localhost:8001${NC}"
+    echo -e "${GREEN}  API docs available at http://localhost:8001/docs${NC}"
     $PYTHON_CMD server.py &
     BACKEND_PID=$!
     cd "$PROJECT_ROOT"

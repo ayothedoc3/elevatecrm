@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -52,6 +53,7 @@ const AI_MODELS = [
 
 const LandingPagesPage = () => {
   const { api } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [pages, setPages] = useState([]);
   const [programs, setPrograms] = useState([]);
@@ -504,13 +506,15 @@ const LandingPagesPage = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          {/* AI Create Dialog */}
+          {/* AI Create - Navigate to Builder */}
+          <Button onClick={() => navigate('/landing-pages/builder')}>
+            <Wand2 className="w-4 h-4 mr-2" />
+            Create with AI
+          </Button>
+          {/* AI Create Dialog (legacy - hidden) */}
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
-              <Button onClick={() => { resetForms(); setGeneratedSchema(null); setActiveTab('generate'); }}>
-                <Wand2 className="w-4 h-4 mr-2" />
-                Create with AI
-              </Button>
+              <span className="hidden" />
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
               <DialogHeader>
@@ -822,7 +826,7 @@ const LandingPagesPage = () => {
                 <Plus className="w-4 h-4 mr-2" />
                 Create Page
               </Button>
-              <Button onClick={() => { resetForms(); setGeneratedSchema(null); setActiveTab('generate'); setShowCreateDialog(true); }}>
+              <Button onClick={() => navigate('/landing-pages/builder')}>
                 <Wand2 className="w-4 h-4 mr-2" />
                 Create with AI
               </Button>
@@ -858,7 +862,7 @@ const LandingPagesPage = () => {
                   <Button size="sm" variant="outline" onClick={() => handlePreview(page)}>
                     <Eye className="w-3 h-3" />
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleEditPage(page)}>
+                  <Button size="sm" variant="outline" onClick={() => navigate(`/landing-pages/builder/${page.id}`)}>
                     <Edit className="w-3 h-3" />
                   </Button>
                   {page.status === 'draft' ? (

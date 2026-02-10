@@ -72,6 +72,7 @@ async def create_indexes():
     await db.deals.create_index("stage_id")
     await db.deals.create_index("contact_id")
     await db.deals.create_index([("tenant_id", 1), ("status", 1)])
+    await db.deals.create_index("account_id")
     
     # Pipelines indexes
     await db.pipelines.create_index("tenant_id")
@@ -86,6 +87,20 @@ async def create_indexes():
     # Outreach activities indexes
     await db.outreach_activities.create_index("tenant_id")
     await db.outreach_activities.create_index("deal_id")
+
+    # Accounts indexes
+    await db.accounts.create_index("tenant_id")
+    await db.accounts.create_index([("tenant_id", 1), ("name_lower", 1)], unique=True)
+
+    # Tasks indexes
+    await db.tasks.create_index("tenant_id")
+    await db.tasks.create_index([("tenant_id", 1), ("status", 1)])
+    await db.tasks.create_index([("tenant_id", 1), ("due_at", 1)])
+    await db.tasks.create_index([("tenant_id", 1), ("related_type", 1), ("related_id", 1)])
+
+    # Deal handoffs indexes
+    await db.deal_handoffs.create_index("tenant_id")
+    await db.deal_handoffs.create_index([("tenant_id", 1), ("deal_id", 1)], unique=True)
     
     # Custom objects indexes
     await db.custom_object_definitions.create_index("tenant_id")
@@ -120,6 +135,13 @@ async def create_indexes():
     await db.messages.create_index("conversation_id")
     await db.messages.create_index("tenant_id")
     await db.messages.create_index([("conversation_id", 1), ("created_at", 1)])
+
+    # Partners & Products indexes
+    await db.partners.create_index("tenant_id")
+    await db.partners.create_index([("tenant_id", 1), ("name_lower", 1)], unique=True)
+    await db.products.create_index("tenant_id")
+    await db.products.create_index("partner_id")
+    await db.products.create_index([("tenant_id", 1), ("partner_id", 1), ("name_lower", 1)], unique=True)
 
     logger.info("Database indexes created")
 

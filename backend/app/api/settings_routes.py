@@ -407,7 +407,7 @@ async def get_ai_status(request: Request):
     
     # Check for fallback to environment key
     import os
-    has_env_key = bool(os.environ.get("EMERGENT_LLM_KEY"))
+    has_env_key = bool(os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENROUTER_API_KEY"))
     
     is_configured = len(configured_ai) > 0 or has_env_key
     

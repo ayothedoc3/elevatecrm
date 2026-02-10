@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -8,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 import { Progress } from '../components/ui/progress';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import {
   BarChart3, TrendingUp, TrendingDown, DollarSign, Users, Target,
   Phone, Mail, Calendar, Clock, ArrowUp, ArrowDown, Minus,
@@ -17,7 +18,7 @@ import {
 import { toast } from 'sonner';
 
 const ReportsPage = () => {
-  const { token } = useAuth();
+  const { api } = useAuth();
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('30d');
   const [stats, setStats] = useState({
@@ -27,11 +28,19 @@ const ReportsPage = () => {
     outreach: { calls: 0, emails: 0, meetings: 0, totalTouchpoints: 0 },
     conversion: { rate: 0, avgDealSize: 0, avgDaysToClose: 0 }
   });
+  const [forecastLoading, setForecastLoading] = useState(false);
+  const [forecast, setForecast] = useState(null);
+  const [forecastMotion, setForecastMotion] = useState('all');
+  const [forecastPartnerId, setForecastPartnerId] = useState('all');
+  const [forecastProductId, setForecastProductId] = useState('all');
+  const [forecastTier, setForecastTier] = useState('all');
+  const [forecastOwnerId, setForecastOwnerId] = useState('all');
+  const [forecastIncludeClosed, setForecastIncludeClosed] = useState(false);
+  const [forecastStaleDays, setForecastStaleDays] = useState(3);
 
-  const api = axios.create({
-    baseURL: process.env.REACT_APP_BACKEND_URL + '/api',
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  const [partners, setPartners] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [users, setUsers] = useState([]);
 
   const fetchReportData = useCallback(async () => {
     setLoading(true);
@@ -123,11 +132,88 @@ const ReportsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [timeRange]);
+  }, [api, timeRange]);
+
+  const fetchForecastRefs = useCallback(async () => {
+    try {
+      const [partnersRes, usersRes] = await Promise.all([
+        api.get('/partners'),
+        api.get('/users')
+      ]);
+      setPartners(partnersRes.data.partners || []);
+      setUsers(usersRes.data.users || []);
+    } catch (error) {
+      console.error('Error loading forecast reference data:', error);
+    }
+  }, [api]);
+
+  const fetchProductsForPartner = useCallback(async (partnerId) => {
+    if (!partnerId || partnerId === 'all') {
+      setProducts([]);
+      return;
+    }
+    try {
+      const res = await api.get(`/products?partner_id=${partnerId}`);
+      setProducts(res.data.products || []);
+    } catch (error) {
+      console.error('Error loading products:', error);
+      setProducts([]);
+    }
+  }, [api]);
+
+  const fetchForecast = useCallback(async () => {
+    setForecastLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (forecastMotion !== 'all') params.append('sales_motion_type', forecastMotion);
+      if (forecastPartnerId !== 'all') params.append('partner_id', forecastPartnerId);
+      if (forecastProductId !== 'all') params.append('product_id', forecastProductId);
+      if (forecastTier !== 'all') params.append('lead_tier', forecastTier);
+      if (forecastOwnerId !== 'all') params.append('owner_id', forecastOwnerId);
+      if (forecastIncludeClosed) params.append('include_closed', 'true');
+      params.append('stale_days', String(forecastStaleDays || 3));
+
+      const res = await api.get(`/forecast/summary?${params.toString()}`);
+      setForecast(res.data);
+    } catch (error) {
+      console.error('Error fetching forecast:', error);
+      toast.error('Failed to load forecast');
+      setForecast(null);
+    } finally {
+      setForecastLoading(false);
+    }
+  }, [api, forecastMotion, forecastPartnerId, forecastProductId, forecastTier, forecastOwnerId, forecastIncludeClosed, forecastStaleDays]);
 
   useEffect(() => {
     fetchReportData();
   }, [fetchReportData]);
+
+  useEffect(() => {
+    fetchForecastRefs();
+  }, [fetchForecastRefs]);
+
+  useEffect(() => {
+    if (forecastMotion !== 'partner_sales') {
+      setForecastPartnerId('all');
+      setForecastProductId('all');
+      setProducts([]);
+      return;
+    }
+  }, [forecastMotion]);
+
+  useEffect(() => {
+    if (forecastPartnerId === 'all') {
+      setProducts([]);
+      setForecastProductId('all');
+      return;
+    }
+    fetchProductsForPartner(forecastPartnerId);
+    setForecastProductId('all');
+  }, [forecastPartnerId, fetchProductsForPartner]);
+
+  useEffect(() => {
+    fetchForecast();
+  }, [fetchForecast]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -136,6 +222,18 @@ const ReportsPage = () => {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(amount);
+  };
+
+  const getTierBadge = (tier) => {
+    const t = (tier || '').toString().trim().toUpperCase();
+    const styles = {
+      A: 'bg-green-500/20 text-green-400 border-green-500/30',
+      B: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+      C: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+      D: 'bg-gray-500/20 text-gray-300 border-gray-500/30',
+    };
+    if (!styles[t]) return <Badge variant="outline">-</Badge>;
+    return <Badge className={styles[t]}>{t}</Badge>;
   };
 
   const MetricCard = ({ title, value, subtitle, icon: Icon, trend, trendValue, color = 'text-primary' }) => (
@@ -209,6 +307,7 @@ const ReportsPage = () => {
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
+            <TabsTrigger value="forecast">Forecast</TabsTrigger>
             <TabsTrigger value="outreach">Outreach</TabsTrigger>
             <TabsTrigger value="conversion">Conversion</TabsTrigger>
           </TabsList>
@@ -383,6 +482,232 @@ const ReportsPage = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Forecast Tab */}
+          <TabsContent value="forecast" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4" />
+                      Weighted Forecast
+                    </CardTitle>
+                    <CardDescription>Tier-weighted pipeline and SLA risk indicators.</CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={fetchForecast} disabled={forecastLoading}>
+                    <RefreshCw className={`w-4 h-4 mr-2 ${forecastLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label>Sales Motion</Label>
+                    <Select value={forecastMotion} onValueChange={setForecastMotion}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="partnership_sales">Partnership Sales</SelectItem>
+                        <SelectItem value="partner_sales">Partner Sales</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Partner</Label>
+                    <Select
+                      value={forecastPartnerId}
+                      onValueChange={setForecastPartnerId}
+                      disabled={forecastMotion !== 'partner_sales'}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        {partners.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Product</Label>
+                    <Select
+                      value={forecastProductId}
+                      onValueChange={setForecastProductId}
+                      disabled={forecastMotion !== 'partner_sales' || forecastPartnerId === 'all'}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        {products.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Lead Tier</Label>
+                    <Select value={forecastTier} onValueChange={setForecastTier}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="A">A</SelectItem>
+                        <SelectItem value="B">B</SelectItem>
+                        <SelectItem value="C">C</SelectItem>
+                        <SelectItem value="D">D</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Owner</Label>
+                    <Select value={forecastOwnerId} onValueChange={setForecastOwnerId}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        {users.map(u => (
+                          <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Include Closed</Label>
+                    <Select
+                      value={forecastIncludeClosed ? 'true' : 'false'}
+                      onValueChange={(v) => setForecastIncludeClosed(v === 'true')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="false">Open Only</SelectItem>
+                        <SelectItem value="true">Include Closed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Stale Days</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={90}
+                      value={forecastStaleDays}
+                      onChange={(e) => {
+                        const n = Math.max(1, Math.min(90, Number(e.target.value) || 1));
+                        setForecastStaleDays(n);
+                      }}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {forecastLoading && !forecast ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-32" />)}
+              </div>
+            ) : forecast ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <MetricCard
+                    title="Pipeline Value"
+                    value={formatCurrency(forecast.totals?.pipeline_value || 0)}
+                    subtitle={`${forecast.totals?.deal_count || 0} deals`}
+                    icon={DollarSign}
+                    color="text-green-500"
+                  />
+                  <MetricCard
+                    title="Weighted Forecast"
+                    value={formatCurrency(forecast.totals?.weighted_value || 0)}
+                    subtitle="Tier probability applied"
+                    icon={TrendingUp}
+                    color="text-primary"
+                  />
+                  <MetricCard
+                    title="Overdue Next Steps"
+                    value={forecast.totals?.overdue_next_steps || 0}
+                    subtitle="Next step due in past"
+                    icon={Clock}
+                    color="text-red-500"
+                  />
+                  <MetricCard
+                    title="Missing Next Steps"
+                    value={forecast.totals?.missing_next_steps || 0}
+                    subtitle="No next step scheduled"
+                    icon={XCircle}
+                    color="text-amber-500"
+                  />
+                  <MetricCard
+                    title="Stale Deals"
+                    value={forecast.totals?.stale_no_activity || 0}
+                    subtitle={`No activity ≥ ${forecast.filters?.stale_days || forecastStaleDays} days`}
+                    icon={Activity}
+                    color="text-purple-500"
+                  />
+                  <MetricCard
+                    title="Deals Count"
+                    value={forecast.totals?.deal_count || 0}
+                    subtitle="In current filter"
+                    icon={Target}
+                    color="text-blue-500"
+                  />
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Tier Breakdown</CardTitle>
+                    <CardDescription>Pipeline and weighted value by tier.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-5 gap-2 text-xs text-muted-foreground mb-2">
+                      <div>Tier</div>
+                      <div>Probability</div>
+                      <div className="text-right">Deals</div>
+                      <div className="text-right">Pipeline</div>
+                      <div className="text-right">Weighted</div>
+                    </div>
+                    <div className="space-y-2">
+                      {Object.entries(forecast.by_tier || {}).map(([tier, row]) => (
+                        <div key={tier} className="grid grid-cols-5 gap-2 items-center p-3 rounded-lg border">
+                          <div className="flex items-center gap-2">
+                            {getTierBadge(tier)}
+                          </div>
+                          <div className="text-sm">{Math.round((row.probability || 0) * 100)}%</div>
+                          <div className="text-sm text-right">{row.deal_count || 0}</div>
+                          <div className="text-sm text-right">{formatCurrency(row.pipeline_value || 0)}</div>
+                          <div className="text-sm font-medium text-right">{formatCurrency(row.weighted_value || 0)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <Card>
+                <CardContent className="py-10 text-center text-muted-foreground">
+                  <TrendingUp className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                  <p>No forecast data yet</p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Outreach Tab */}
