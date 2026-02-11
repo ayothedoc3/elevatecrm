@@ -40,9 +40,10 @@ import {
 } from '../components/ui/select';
 import {
   Search, Plus, Mail, Phone, Building, User, MoreHorizontal,
-  ChevronLeft, ChevronRight, Filter, Download, MapPin, Calendar,
+  ChevronLeft, ChevronRight, Filter, Download, Upload, MapPin, Calendar,
   Target, DollarSign, Clock, Edit, Trash2, MessageSquare, Flame
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const ContactsPage = () => {
   const { api } = useAuth();
@@ -54,6 +55,10 @@ const ContactsPage = () => {
   const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
   const [selectedContact, setSelectedContact] = useState(null);
   const [showDetailSheet, setShowDetailSheet] = useState(false);
   const [contactDeals, setContactDeals] = useState([]);
@@ -132,6 +137,50 @@ const ContactsPage = () => {
     }
   };
 
+  const handleExportContacts = async () => {
+    try {
+      const res = await api.get('/contacts/export?format=hubspot&limit=50000', { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'contacts_export.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Contacts exported');
+    } catch (error) {
+      console.error('Error exporting contacts:', error);
+      toast.error('Failed to export contacts');
+    }
+  };
+
+  const handleImportContacts = async () => {
+    if (!importFile) {
+      toast.error('Select a CSV file first');
+      return;
+    }
+
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+
+      const res = await api.post('/contacts/import', formData);
+      setImportResult(res.data);
+      toast.success(`Imported contacts: ${res.data.created || 0} created, ${res.data.updated || 0} updated`);
+      fetchContacts();
+    } catch (error) {
+      console.error('Error importing contacts:', error);
+      toast.error(error.response?.data?.detail || 'Failed to import contacts');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const getLifecycleBadge = (stage) => {
     const colors = {
       lead: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
@@ -197,7 +246,11 @@ const ContactsPage = () => {
               <Filter className="w-4 h-4 mr-2" />
               Filters
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => setShowImportModal(true)}>
+              <Upload className="w-4 h-4 mr-2" />
+              Import
+            </Button>
+            <Button variant="outline" onClick={handleExportContacts}>
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
@@ -523,6 +576,70 @@ const ContactsPage = () => {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Import Contacts Modal */}
+      <Dialog open={showImportModal} onOpenChange={(open) => {
+        setShowImportModal(open);
+        if (!open) {
+          setImportFile(null);
+          setImportResult(null);
+          setImporting(false);
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Import Contacts (CSV)</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>CSV file</Label>
+              <Input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Supports HubSpot contact exports. Required column: Email.
+              </p>
+            </div>
+
+            {importResult && (
+              <Card>
+                <CardContent className="p-4 space-y-2">
+                  <div className="text-sm">
+                    <span className="font-medium">Created:</span> {importResult.created || 0}
+                    <span className="mx-2">•</span>
+                    <span className="font-medium">Updated:</span> {importResult.updated || 0}
+                    <span className="mx-2">•</span>
+                    <span className="font-medium">Skipped:</span> {importResult.skipped || 0}
+                  </div>
+
+                  {Array.isArray(importResult.errors) && importResult.errors.length > 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      {importResult.errors.slice(0, 5).map((e, idx) => (
+                        <div key={idx}>Row {e.row}: {e.error}</div>
+                      ))}
+                      {importResult.errors.length > 5 && (
+                        <div>+{importResult.errors.length - 5} more</div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowImportModal(false)} disabled={importing}>
+              Close
+            </Button>
+            <Button onClick={handleImportContacts} disabled={importing || !importFile}>
+              {importing ? 'Importing...' : 'Import'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Contact Modal */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>

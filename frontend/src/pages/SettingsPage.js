@@ -96,6 +96,12 @@ const SettingsPage = () => {
     email: '', password: '', first_name: '', last_name: '', role: 'viewer', phone: ''
   });
 
+  // Partner pipeline config state
+  const [partnersList, setPartnersList] = useState([]);
+  const [pipelinesList, setPipelinesList] = useState([]);
+  const [savingPartnerId, setSavingPartnerId] = useState(null);
+  const [cloningPartnerId, setCloningPartnerId] = useState(null);
+
   // Dialog state
   const [showAddIntegration, setShowAddIntegration] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState(null);
@@ -127,7 +133,9 @@ const SettingsPage = () => {
         loadProviders(),
         loadAffiliateSettings(),
         loadAuditLogs(),
-        loadTeamMembers()
+        loadTeamMembers(),
+        loadPartnersList(),
+        loadPipelinesList()
       ]);
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -240,6 +248,96 @@ const SettingsPage = () => {
       }
     } catch (error) {
       console.error('Error loading team members:', error);
+    }
+  };
+
+  const loadPartnersList = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/partners`, {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPartnersList(data.partners || []);
+      }
+    } catch (error) {
+      console.error('Error loading partners:', error);
+    }
+  };
+
+  const loadPipelinesList = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/pipelines`, {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPipelinesList(data.pipelines || []);
+      }
+    } catch (error) {
+      console.error('Error loading pipelines:', error);
+    }
+  };
+
+  const updatePartnerDefaultPipeline = async (partnerId, pipelineId) => {
+    setSavingPartnerId(partnerId);
+    try {
+      const response = await fetch(`${API_URL}/api/partners/${partnerId}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ default_pipeline_id: pipelineId || '' })
+      });
+
+      if (response.ok) {
+        const updated = await response.json();
+        setPartnersList(prev => prev.map(p => p.id === partnerId ? { ...p, ...updated } : p));
+        toast({ title: 'Saved', description: 'Partner pipeline updated' });
+      } else {
+        const err = await response.json().catch(() => ({}));
+        toast({ title: 'Error', description: err.detail || 'Failed to update partner pipeline', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Error updating partner pipeline:', error);
+      toast({ title: 'Error', description: 'Failed to update partner pipeline', variant: 'destructive' });
+    } finally {
+      setSavingPartnerId(null);
+    }
+  };
+
+  const cloneDefaultPipelineForPartner = async (partner) => {
+    const basePipeline = pipelinesList.find(p => p.is_default) || pipelinesList[0];
+    if (!basePipeline) {
+      toast({ title: 'No pipelines', description: 'Create a pipeline first', variant: 'destructive' });
+      return;
+    }
+
+    setCloningPartnerId(partner.id);
+    try {
+      const response = await fetch(`${API_URL}/api/pipelines/${basePipeline.id}/clone`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          name: `${partner.name} Pipeline`,
+          description: `Partner-specific pipeline for ${partner.name}`,
+          is_default: false
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        toast({ title: 'Error', description: err.detail || 'Failed to clone pipeline', variant: 'destructive' });
+        return;
+      }
+
+      const cloned = await response.json();
+      const newPipelineId = cloned.id;
+      await loadPipelinesList();
+      await updatePartnerDefaultPipeline(partner.id, newPipelineId);
+    } catch (error) {
+      console.error('Error cloning pipeline:', error);
+      toast({ title: 'Error', description: 'Failed to clone pipeline', variant: 'destructive' });
+    } finally {
+      setCloningPartnerId(null);
     }
   };
 
@@ -646,19 +744,92 @@ const SettingsPage = () => {
                 </div>
               </div>
               
-              <div className="flex justify-end">
-                <Button onClick={saveWorkspaceSettings} disabled={saving}>
-                  {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                  Save Changes
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        {/* AI & Intelligence Tab */}
-        <TabsContent value="ai" className="space-y-6">
-          {/* AI Status Alert */}
+                <div className="flex justify-end">
+                  <Button onClick={saveWorkspaceSettings} disabled={saving}>
+                    {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                    Save Changes
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {(user?.role === 'admin' || user?.role === 'manager') && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Partner Pipelines</CardTitle>
+                  <CardDescription>
+                    Assign a default pipeline per Partner Sales partner (used when pushing a Partner Sales lead to the pipeline).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {partnersList.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No partners found. Create a partner by creating a Partner Sales lead.</p>
+                  ) : pipelinesList.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No pipelines found. Create one in the Pipelines API or seed data.</p>
+                  ) : (
+                    <div className="rounded-lg border overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Partner</TableHead>
+                            <TableHead>Default Pipeline</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {partnersList.map((partner) => (
+                            <TableRow key={partner.id}>
+                              <TableCell className="font-medium">{partner.name}</TableCell>
+                              <TableCell>
+                                <Select
+                                  value={partner.default_pipeline_id || 'default'}
+                                  onValueChange={(v) =>
+                                    updatePartnerDefaultPipeline(partner.id, v === 'default' ? '' : v)
+                                  }
+                                  disabled={savingPartnerId === partner.id}
+                                >
+                                  <SelectTrigger className="w-[260px]">
+                                    <SelectValue placeholder="Select pipeline" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="default">Workspace Default (no override)</SelectItem>
+                                    {pipelinesList.map((p) => (
+                                      <SelectItem key={p.id} value={p.id}>
+                                        {p.name}{p.is_default ? ' (Default)' : ''}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => cloneDefaultPipelineForPartner(partner)}
+                                  disabled={cloningPartnerId === partner.id}
+                                >
+                                  {cloningPartnerId === partner.id ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Plus className="w-4 h-4 mr-2" />
+                                  )}
+                                  Clone Default & Assign
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+          
+          {/* AI & Intelligence Tab */}
+          <TabsContent value="ai" className="space-y-6">
+            {/* AI Status Alert */}
           {aiConfig.configured_providers?.length === 0 && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />

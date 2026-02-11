@@ -45,86 +45,14 @@ const ReportsPage = () => {
   const fetchReportData = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch deals data
-      const dealsRes = await api.get('/deals');
-      const deals = dealsRes.data.deals || [];
-      
-      // Fetch contacts data
-      const contactsRes = await api.get('/contacts');
-      const contacts = contactsRes.data.contacts || [];
-      
-      // Fetch pipeline data
-      const pipelinesRes = await api.get('/pipelines');
-      const pipelines = pipelinesRes.data.pipelines || [];
-      
-      // Fetch timeline for activity stats
-      const timelineRes = await api.get('/timeline?page_size=100');
-      const events = timelineRes.data.events || [];
-      
-      // Calculate deal stats
-      const wonDeals = deals.filter(d => d.status === 'won' || d.status === 'WON');
-      const lostDeals = deals.filter(d => d.status === 'lost' || d.status === 'LOST');
-      const openDeals = deals.filter(d => d.status === 'open' || d.status === 'OPEN');
-      
-      const totalValue = deals.reduce((sum, d) => sum + (d.amount || 0), 0);
-      const wonValue = wonDeals.reduce((sum, d) => sum + (d.amount || 0), 0);
-      
-      // Calculate pipeline stage distribution
-      const stageDistribution = {};
-      const pipeline = pipelines[0];
-      if (pipeline) {
-        const kanbanRes = await api.get(`/pipelines/${pipeline.id}/kanban`);
-        const columns = kanbanRes.data.columns || [];
-        columns.forEach(col => {
-          stageDistribution[col.name] = {
-            count: col.deals?.length || 0,
-            value: col.deals?.reduce((sum, d) => sum + (d.amount || 0), 0) || 0
-          };
-        });
-      }
-      
-      // Calculate outreach stats from timeline
-      const callEvents = events.filter(e => e.event_type === 'call_log');
-      const emailEvents = events.filter(e => e.event_type === 'email_sent' || e.event_type === 'email_received');
-      const meetingEvents = events.filter(e => e.event_type === 'meeting');
-      
-      // Calculate conversion metrics
-      const totalClosedDeals = wonDeals.length + lostDeals.length;
-      const conversionRate = totalClosedDeals > 0 ? (wonDeals.length / totalClosedDeals) * 100 : 0;
-      const avgDealSize = wonDeals.length > 0 ? wonValue / wonDeals.length : 0;
-      
+      const res = await api.get(`/kpis/summary?time_range=${encodeURIComponent(timeRange)}`);
+      const data = res.data || {};
       setStats({
-        deals: {
-          total: deals.length,
-          won: wonDeals.length,
-          lost: lostDeals.length,
-          open: openDeals.length,
-          value: totalValue,
-          wonValue: wonValue
-        },
-        contacts: {
-          total: contacts.length,
-          new: contacts.filter(c => {
-            const created = new Date(c.created_at);
-            const daysAgo = (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24);
-            return daysAgo <= parseInt(timeRange);
-          }).length
-        },
-        pipeline: {
-          stages: Object.entries(stageDistribution).map(([name, data]) => ({ name, ...data })),
-          velocity: deals.length > 0 ? Math.round(wonValue / deals.length) : 0
-        },
-        outreach: {
-          calls: callEvents.length,
-          emails: emailEvents.length,
-          meetings: meetingEvents.length,
-          totalTouchpoints: callEvents.length + emailEvents.length + meetingEvents.length
-        },
-        conversion: {
-          rate: conversionRate,
-          avgDealSize: avgDealSize,
-          avgDaysToClose: 14 // Placeholder - would need deal close dates
-        }
+        deals: data.deals || { total: 0, won: 0, lost: 0, open: 0, value: 0, wonValue: 0 },
+        contacts: data.contacts || { total: 0, new: 0 },
+        pipeline: data.pipeline || { stages: [], velocity: 0 },
+        outreach: data.outreach || { calls: 0, emails: 0, meetings: 0, totalTouchpoints: 0 },
+        conversion: data.conversion || { rate: 0, avgDealSize: 0, avgDaysToClose: 0 },
       });
     } catch (error) {
       console.error('Error fetching report data:', error);

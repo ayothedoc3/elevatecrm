@@ -238,3 +238,49 @@ Expected:
 
 Expected:
 - Partner/Product values are present and filterable in Forecast.
+
+## 16) CSV Import/Export (HubSpot migration helpers)
+
+### 16.1 Contacts CSV
+
+1. Go to `Contacts`.
+2. Click `Export` and confirm a `.csv` downloads successfully.
+3. Click `Import`, upload the same CSV (or a modified one with a new email), and run the import.
+
+Expected:
+- Import returns a summary: `created`, `updated`, `skipped`, and (if any) `errors`.
+- Imported contacts appear in the Contacts list.
+
+### 16.2 Leads CSV
+
+1. Go to `Leads`.
+2. Click `Export` and confirm a `.csv` downloads successfully.
+3. Click `Import`, upload the exported CSV (or a modified one), and run the import.
+
+Expected:
+- Import returns a summary: `created`, `updated`, `skipped`, and (if any) `errors`.
+- Imported leads appear in the Leads list.
+
+Notes:
+- Minimum required per row: `Email` or `Phone`.
+- If you include scoring input columns, Lead Score/Tier will be auto-computed.
+
+## 17) KPI endpoint (server-side summary)
+
+1. Go to `Reports`.
+2. Open browser devtools Network tab and refresh Reports.
+
+Expected:
+- The frontend calls `GET /api/kpis/summary?time_range=...` and receives `200`.
+- Reports load without client-side KPI aggregation logic.
+
+## 18) Partner default pipeline routing (optional)
+
+1. Login as Admin or Manager.
+2. Go to `Settings` -> `Workspace` -> `Partner Pipelines`.
+3. For a partner, choose a `Default Pipeline` (or click `Clone Default & Assign`).
+4. Create a `Partner Sales` lead for that partner + product and `Push to Sales`.
+5. Go to `Pipeline` and select the partner’s pipeline from the pipeline dropdown.
+
+Expected:
+- The pushed deal is created in the partner’s default pipeline when no explicit pipeline is selected during push.

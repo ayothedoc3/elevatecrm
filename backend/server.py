@@ -95,6 +95,7 @@ from app.api_pg.settings_routes import router as settings_router  # noqa: E402
 from app.api_pg.workflows_routes import router as workflows_router  # noqa: E402
 from app.api_pg.custom_objects_routes import router as custom_objects_router  # noqa: E402
 from app.api_pg.blueprints_routes import router as blueprints_router  # noqa: E402
+from app.api_pg.kpis_routes import router as kpis_router  # noqa: E402
 from app.api_pg.storage_routes import router as storage_router  # noqa: E402
 from app.api_pg.referral_routes import router as referral_router  # noqa: E402
 
@@ -122,6 +123,7 @@ api_router.include_router(settings_router)
 api_router.include_router(workflows_router)
 api_router.include_router(custom_objects_router)
 api_router.include_router(blueprints_router)
+api_router.include_router(kpis_router)
 api_router.include_router(storage_router)
 api_router.include_router(referral_router)
 

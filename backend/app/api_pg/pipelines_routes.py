@@ -1,17 +1,67 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+import uuid
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import and_, select
+from pydantic import BaseModel, Field
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api_pg.deps import get_current_user
-from app.api_pg.utils import dt_to_iso
+from app.api_pg.utils import dt_to_iso, now_utc
 from app.core.database import get_db
 from app.pg_models.models import Contact, Deal, Pipeline, PipelineStage
 
 router = APIRouter(tags=["Pipelines"])
+
+
+def _require_admin(user: dict) -> None:
+    if user.get("role") not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+
+class PipelineStageCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    color: str = "#6366F1"
+    probability: float = Field(default=0.0, ge=0.0, le=100.0)
+    required_fields: List[str] = Field(default_factory=list)
+    requires_calculation_complete: bool = False
+    display_order: Optional[int] = Field(default=None, ge=0, le=9999)
+
+
+class PipelineStageUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+    probability: Optional[float] = Field(default=None, ge=0.0, le=100.0)
+    required_fields: Optional[List[str]] = None
+    requires_calculation_complete: Optional[bool] = None
+    display_order: Optional[int] = Field(default=None, ge=0, le=9999)
+
+
+class PipelineCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    is_default: bool = False
+    display_order: Optional[int] = Field(default=None, ge=0, le=9999)
+    stages: Optional[List[PipelineStageCreate]] = None
+
+
+class PipelineUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_default: Optional[bool] = None
+    display_order: Optional[int] = Field(default=None, ge=0, le=9999)
+
+
+class PipelineCloneRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    is_default: bool = False
+
+
+class PipelineStagesReorder(BaseModel):
+    stage_ids: List[str] = Field(default_factory=list)
 
 
 @router.get("/pipelines")
@@ -60,6 +110,342 @@ async def list_pipelines(
         )
 
     return {"pipelines": result}
+
+
+@router.post("/pipelines", status_code=201)
+async def create_pipeline(
+    data: PipelineCreate,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_admin(user)
+    tenant_id = user["tenant_id"]
+    now = now_utc()
+
+    display_order = data.display_order
+    if display_order is None:
+        max_res = await db.execute(select(func.max(Pipeline.display_order)).where(Pipeline.tenant_id == tenant_id))
+        display_order = int(max_res.scalar_one_or_none() or 0) + 1
+
+    if data.is_default:
+        await db.execute(
+            update(Pipeline)
+            .where(and_(Pipeline.tenant_id == tenant_id, Pipeline.is_default.is_(True)))
+            .values(is_default=False, updated_at=now)
+            .execution_options(synchronize_session=False)
+        )
+
+    pipeline = Pipeline(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        name=data.name,
+        description=data.description,
+        is_default=bool(data.is_default),
+        display_order=int(display_order or 0),
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(pipeline)
+    await db.flush()
+
+    stages = data.stages or []
+    if not stages:
+        stages = [
+            PipelineStageCreate(
+                name="New",
+                color="#6366F1",
+                probability=0.0,
+                required_fields=["next_step_at", "contact_id"],
+                requires_calculation_complete=False,
+                display_order=0,
+            )
+        ]
+
+    for idx, s in enumerate(stages):
+        order = int(s.display_order) if s.display_order is not None else idx
+        db.add(
+            PipelineStage(
+                id=str(uuid.uuid4()),
+                pipeline_id=pipeline.id,
+                name=s.name,
+                color=s.color or "#6366F1",
+                display_order=order,
+                probability=float(s.probability or 0.0),
+                required_fields=list(s.required_fields or []),
+                requires_calculation_complete=bool(s.requires_calculation_complete),
+                created_at=now,
+                updated_at=now,
+            )
+        )
+
+    await db.flush()
+    return {"id": pipeline.id, "success": True}
+
+
+@router.put("/pipelines/{pipeline_id}")
+async def update_pipeline(
+    pipeline_id: str,
+    data: PipelineUpdate,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_admin(user)
+    tenant_id = user["tenant_id"]
+    pipeline = (
+        await db.execute(select(Pipeline).where(and_(Pipeline.id == pipeline_id, Pipeline.tenant_id == tenant_id)))
+    ).scalar_one_or_none()
+    if not pipeline:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+
+    now = now_utc()
+
+    if data.is_default is not None:
+        if data.is_default:
+            await db.execute(
+                update(Pipeline)
+                .where(and_(Pipeline.tenant_id == tenant_id, Pipeline.is_default.is_(True)))
+                .values(is_default=False, updated_at=now)
+                .execution_options(synchronize_session=False)
+            )
+            pipeline.is_default = True
+        else:
+            pipeline.is_default = False
+
+    if data.name is not None:
+        pipeline.name = data.name
+    if data.description is not None:
+        pipeline.description = data.description
+    if data.display_order is not None:
+        pipeline.display_order = int(data.display_order)
+
+    pipeline.updated_at = now
+    await db.flush()
+    return {"success": True}
+
+
+@router.delete("/pipelines/{pipeline_id}")
+async def delete_pipeline(
+    pipeline_id: str,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_admin(user)
+    tenant_id = user["tenant_id"]
+    pipeline = (
+        await db.execute(select(Pipeline).where(and_(Pipeline.id == pipeline_id, Pipeline.tenant_id == tenant_id)))
+    ).scalar_one_or_none()
+    if not pipeline:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+
+    deal_count = (
+        await db.execute(
+            select(func.count(Deal.id)).where(and_(Deal.tenant_id == tenant_id, Deal.pipeline_id == pipeline_id))
+        )
+    ).scalar_one()
+    if int(deal_count or 0) > 0:
+        raise HTTPException(status_code=400, detail="Cannot delete pipeline with existing deals")
+
+    await db.delete(pipeline)
+    return {"success": True}
+
+
+@router.post("/pipelines/{pipeline_id}/clone", status_code=201)
+async def clone_pipeline(
+    pipeline_id: str,
+    data: PipelineCloneRequest,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_admin(user)
+    tenant_id = user["tenant_id"]
+
+    pipeline = (
+        await db.execute(select(Pipeline).where(and_(Pipeline.id == pipeline_id, Pipeline.tenant_id == tenant_id)))
+    ).scalar_one_or_none()
+    if not pipeline:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+
+    stages = (
+        await db.execute(
+            select(PipelineStage).where(PipelineStage.pipeline_id == pipeline_id).order_by(PipelineStage.display_order.asc())
+        )
+    ).scalars().all()
+
+    now = now_utc()
+    max_res = await db.execute(select(func.max(Pipeline.display_order)).where(Pipeline.tenant_id == tenant_id))
+    next_order = int(max_res.scalar_one_or_none() or 0) + 1
+
+    if data.is_default:
+        await db.execute(
+            update(Pipeline)
+            .where(and_(Pipeline.tenant_id == tenant_id, Pipeline.is_default.is_(True)))
+            .values(is_default=False, updated_at=now)
+            .execution_options(synchronize_session=False)
+        )
+
+    new_pipeline = Pipeline(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        name=data.name,
+        description=data.description if data.description is not None else pipeline.description,
+        is_default=bool(data.is_default),
+        display_order=next_order,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(new_pipeline)
+    await db.flush()
+
+    for s in stages:
+        db.add(
+            PipelineStage(
+                id=str(uuid.uuid4()),
+                pipeline_id=new_pipeline.id,
+                name=s.name,
+                color=s.color,
+                display_order=int(s.display_order or 0),
+                probability=float(s.probability or 0.0),
+                required_fields=list(s.required_fields or []),
+                requires_calculation_complete=bool(s.requires_calculation_complete),
+                created_at=now,
+                updated_at=now,
+            )
+        )
+
+    await db.flush()
+    return {"id": new_pipeline.id, "success": True}
+
+
+@router.post("/pipelines/{pipeline_id}/stages", status_code=201)
+async def create_pipeline_stage(
+    pipeline_id: str,
+    data: PipelineStageCreate,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_admin(user)
+    tenant_id = user["tenant_id"]
+    pipeline = (
+        await db.execute(select(Pipeline).where(and_(Pipeline.id == pipeline_id, Pipeline.tenant_id == tenant_id)))
+    ).scalar_one_or_none()
+    if not pipeline:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+
+    now = now_utc()
+    order = data.display_order
+    if order is None:
+        max_res = await db.execute(select(func.max(PipelineStage.display_order)).where(PipelineStage.pipeline_id == pipeline_id))
+        order = int(max_res.scalar_one_or_none() or 0) + 1
+
+    stage = PipelineStage(
+        id=str(uuid.uuid4()),
+        pipeline_id=pipeline_id,
+        name=data.name,
+        color=data.color or "#6366F1",
+        display_order=int(order or 0),
+        probability=float(data.probability or 0.0),
+        required_fields=list(data.required_fields or []),
+        requires_calculation_complete=bool(data.requires_calculation_complete),
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(stage)
+    await db.flush()
+    return {"id": stage.id, "success": True}
+
+
+@router.put("/pipelines/{pipeline_id}/stages/{stage_id}")
+async def update_pipeline_stage(
+    pipeline_id: str,
+    stage_id: str,
+    data: PipelineStageUpdate,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_admin(user)
+    stage = (
+        await db.execute(select(PipelineStage).where(and_(PipelineStage.id == stage_id, PipelineStage.pipeline_id == pipeline_id)))
+    ).scalar_one_or_none()
+    if not stage:
+        raise HTTPException(status_code=404, detail="Stage not found")
+
+    now = now_utc()
+    if data.name is not None:
+        stage.name = data.name
+    if data.color is not None:
+        stage.color = data.color
+    if data.display_order is not None:
+        stage.display_order = int(data.display_order)
+    if data.probability is not None:
+        stage.probability = float(data.probability)
+    if data.required_fields is not None:
+        stage.required_fields = list(data.required_fields or [])
+    if data.requires_calculation_complete is not None:
+        stage.requires_calculation_complete = bool(data.requires_calculation_complete)
+    stage.updated_at = now
+    await db.flush()
+    return {"success": True}
+
+
+@router.delete("/pipelines/{pipeline_id}/stages/{stage_id}")
+async def delete_pipeline_stage(
+    pipeline_id: str,
+    stage_id: str,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_admin(user)
+    stage = (
+        await db.execute(select(PipelineStage).where(and_(PipelineStage.id == stage_id, PipelineStage.pipeline_id == pipeline_id)))
+    ).scalar_one_or_none()
+    if not stage:
+        raise HTTPException(status_code=404, detail="Stage not found")
+
+    deal_count = (
+        await db.execute(select(func.count(Deal.id)).where(and_(Deal.tenant_id == user["tenant_id"], Deal.stage_id == stage_id)))
+    ).scalar_one()
+    if int(deal_count or 0) > 0:
+        raise HTTPException(status_code=400, detail="Cannot delete stage with existing deals")
+
+    await db.delete(stage)
+    return {"success": True}
+
+
+@router.post("/pipelines/{pipeline_id}/stages/reorder")
+async def reorder_pipeline_stages(
+    pipeline_id: str,
+    data: PipelineStagesReorder,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_admin(user)
+    tenant_id = user["tenant_id"]
+    pipeline = (
+        await db.execute(select(Pipeline).where(and_(Pipeline.id == pipeline_id, Pipeline.tenant_id == tenant_id)))
+    ).scalar_one_or_none()
+    if not pipeline:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+
+    stage_ids = [s for s in (data.stage_ids or []) if s]
+    if not stage_ids:
+        raise HTTPException(status_code=400, detail="stage_ids is required")
+
+    stages = (
+        await db.execute(select(PipelineStage).where(and_(PipelineStage.pipeline_id == pipeline_id, PipelineStage.id.in_(stage_ids))))
+    ).scalars().all()
+    stages_map = {s.id: s for s in stages}
+    missing = [s for s in stage_ids if s not in stages_map]
+    if missing:
+        raise HTTPException(status_code=400, detail="Invalid stage_ids for pipeline")
+
+    now = now_utc()
+    for order, stage_id in enumerate(stage_ids):
+        stage = stages_map[stage_id]
+        stage.display_order = order
+        stage.updated_at = now
+
+    await db.flush()
+    return {"success": True}
 
 
 @router.get("/pipelines/{pipeline_id}")

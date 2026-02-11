@@ -96,6 +96,9 @@ class Partner(Base):
     name = Column(String(255), nullable=False)
     name_lower = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    default_pipeline_id = Column(
+        String(36), ForeignKey("pipelines.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     created_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=_now, nullable=False)

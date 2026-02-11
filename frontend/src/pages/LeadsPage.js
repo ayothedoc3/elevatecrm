@@ -49,7 +49,7 @@ import {
 } from '../components/ui/dropdown-menu';
 import {
   Search, Plus, Mail, Phone, Building, User, MoreHorizontal,
-  ChevronLeft, ChevronRight, Filter, Download, Target, RefreshCw,
+  ChevronLeft, ChevronRight, Filter, Download, Upload, Target, RefreshCw,
   TrendingUp, Users, Zap, Star, Edit, Trash2, UserPlus, ArrowRight, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -67,6 +67,10 @@ const LeadsPage = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
   const [selectedLead, setSelectedLead] = useState(null);
   const [showDetailSheet, setShowDetailSheet] = useState(false);
   const [stats, setStats] = useState(null);
@@ -163,6 +167,51 @@ const LeadsPage = () => {
       console.error('Error fetching users:', error);
     } finally {
       setLoadingUsers(false);
+    }
+  };
+
+  const handleExportLeads = async () => {
+    try {
+      const res = await api.get('/leads/export?format=hubspot', { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leads_export_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Leads exported');
+    } catch (error) {
+      console.error('Error exporting leads:', error);
+      toast.error(error?.response?.data?.detail || 'Failed to export leads');
+    }
+  };
+
+  const handleImportLeads = async () => {
+    if (!importFile) {
+      toast.error('Select a CSV file first');
+      return;
+    }
+
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const form = new FormData();
+      form.append('file', importFile);
+      const res = await api.post('/leads/import?max_rows=5000', form, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setImportResult(res.data);
+      toast.success(`Imported: ${res.data.created || 0} created, ${res.data.updated || 0} updated`);
+      fetchLeads();
+      fetchStats();
+    } catch (error) {
+      console.error('Error importing leads:', error);
+      toast.error(error?.response?.data?.detail || 'Failed to import leads');
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -637,13 +686,24 @@ const LeadsPage = () => {
                 <SelectItem value="converted">Converted</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline">
-              <Download className="w-4 h-4 mr-2" />
-              Export
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setImportResult(null);
+                  setImportFile(null);
+                  setShowImportModal(true);
+                }}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Import
+              </Button>
+              <Button variant="outline" onClick={handleExportLeads}>
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
       {/* Leads Table */}
       <Card>
@@ -1333,13 +1393,96 @@ const LeadsPage = () => {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+        </Dialog>
 
-      {/* Create Lead Modal */}
-      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Lead</DialogTitle>
+        {/* Import Leads Modal */}
+        <Dialog
+          open={showImportModal}
+          onOpenChange={(open) => {
+            setShowImportModal(open);
+            if (!open) {
+              setImportFile(null);
+              setImportResult(null);
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Import Leads (CSV)</DialogTitle>
+              <DialogDescription>
+                Import leads from a HubSpot CSV export (or a standard CSV). Minimum required: Email or Phone.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>CSV file</Label>
+                <Input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Tip: Include scoring columns (Economic Units, Usage Volume, Urgency, Trigger Event, Primary Motivation, Decision Role, Decision
+                  Process Clarity) to auto-compute Lead Score/Tier.
+                </p>
+              </div>
+
+              {importResult && (
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">Import results</p>
+                    <Badge variant="secondary">
+                      {(importResult.created || 0) + (importResult.updated || 0)} processed
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div><span className="text-muted-foreground">Created:</span> {importResult.created || 0}</div>
+                    <div><span className="text-muted-foreground">Updated:</span> {importResult.updated || 0}</div>
+                    <div><span className="text-muted-foreground">Skipped:</span> {importResult.skipped || 0}</div>
+                  </div>
+
+                  {importResult.errors?.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Errors (first {importResult.errors.length})</p>
+                      <ScrollArea className="h-36 rounded border p-2">
+                        <div className="space-y-1 text-xs">
+                          {importResult.errors.map((e, idx) => (
+                            <div key={idx} className="text-muted-foreground">
+                              Row {e.row}: {e.error}
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowImportModal(false)} disabled={importing}>
+                Close
+              </Button>
+              <Button onClick={handleImportLeads} disabled={importing || !importFile}>
+                {importing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  'Import'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Create Lead Modal */}
+        <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Lead</DialogTitle>
             <DialogDescription>
               Create a new lead to track in your pipeline
             </DialogDescription>

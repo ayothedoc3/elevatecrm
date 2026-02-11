@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import csv
+import io
 import uuid
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -190,6 +193,448 @@ async def get_leads(
         leads.append(_lead_to_dict(lead, owner_name=owner_name))
 
     return {"leads": leads, "total": total, "page": page, "page_size": page_size}
+
+
+@router.get("/export")
+async def export_leads_csv(
+    format: str = Query("hubspot"),
+    limit: int = Query(10000, ge=1, le=50000),
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    tenant_id = user["tenant_id"]
+    leads = (
+        await db.execute(select(Lead).where(Lead.tenant_id == tenant_id).order_by(Lead.created_at.desc()).limit(limit))
+    ).scalars().all()
+
+    out = io.StringIO()
+    writer = csv.writer(out)
+
+    fmt = (format or "hubspot").strip().lower()
+    if fmt == "hubspot":
+        writer.writerow(
+            [
+                "Email",
+                "First Name",
+                "Last Name",
+                "Phone Number",
+                "Company Name",
+                "Lead Status",
+                "Lead Source",
+                "Lead Score",
+                "Lead Tier",
+                "Sales Motion Type",
+                "Partner Name",
+                "Partner Product",
+                "Economic Units",
+                "Usage Volume",
+                "Urgency (1-5)",
+                "Trigger Event",
+                "Primary Motivation",
+                "Decision Role",
+                "Decision Process Clarity (1-5)",
+            ]
+        )
+        for l in leads:
+            sd = l.scoring_data or {}
+            writer.writerow(
+                [
+                    l.email or "",
+                    l.first_name or "",
+                    l.last_name or "",
+                    l.phone or "",
+                    l.company_name or "",
+                    l.status or "",
+                    l.source or "",
+                    int(l.score or 0),
+                    (l.tier or "").strip().upper(),
+                    l.sales_motion_type or "",
+                    l.partner_name or "",
+                    l.product_name or "",
+                    sd.get("economic_units", ""),
+                    sd.get("usage_volume", ""),
+                    sd.get("urgency", ""),
+                    sd.get("trigger_event", ""),
+                    sd.get("primary_motivation", ""),
+                    sd.get("decision_role", ""),
+                    sd.get("decision_process_clarity", ""),
+                ]
+            )
+    else:
+        writer.writerow(
+            [
+                "email",
+                "first_name",
+                "last_name",
+                "phone",
+                "company_name",
+                "status",
+                "source",
+                "sales_motion_type",
+                "partner_name",
+                "product_name",
+                "score",
+                "tier",
+                "economic_units",
+                "usage_volume",
+                "urgency",
+                "trigger_event",
+                "primary_motivation",
+                "decision_role",
+                "decision_process_clarity",
+                "created_at",
+                "updated_at",
+            ]
+        )
+        for l in leads:
+            sd = l.scoring_data or {}
+            writer.writerow(
+                [
+                    l.email or "",
+                    l.first_name or "",
+                    l.last_name or "",
+                    l.phone or "",
+                    l.company_name or "",
+                    l.status or "",
+                    l.source or "",
+                    l.sales_motion_type or "",
+                    l.partner_name or "",
+                    l.product_name or "",
+                    int(l.score or 0),
+                    (l.tier or "").strip().upper(),
+                    sd.get("economic_units", ""),
+                    sd.get("usage_volume", ""),
+                    sd.get("urgency", ""),
+                    sd.get("trigger_event", ""),
+                    sd.get("primary_motivation", ""),
+                    sd.get("decision_role", ""),
+                    sd.get("decision_process_clarity", ""),
+                    dt_to_iso(l.created_at) or "",
+                    dt_to_iso(l.updated_at) or "",
+                ]
+            )
+
+    filename = f"leads_{tenant_id}.csv"
+    return Response(
+        content=out.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/import")
+async def import_leads_csv(
+    file: UploadFile = File(...),
+    max_rows: int = Query(5000, ge=1, le=50000),
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    tenant_id = user["tenant_id"]
+    filename = (file.filename or "").lower()
+    if filename and not filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only .csv files are supported")
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    text = raw.decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        raise HTTPException(status_code=400, detail="CSV must include a header row")
+
+    def norm_header(h: str) -> str:
+        return "".join(ch for ch in (h or "").strip().lower() if ch.isalnum())
+
+    header_aliases = {
+        # Identity
+        "email": "email",
+        "emailaddress": "email",
+        "emailid": "email",
+        "firstname": "first_name",
+        "lastname": "last_name",
+        "fullname": "full_name",
+        "name": "full_name",
+        "phone": "phone",
+        "phonenumber": "phone",
+        "mobilenumber": "phone",
+        "company": "company_name",
+        "companyname": "company_name",
+        "organization": "company_name",
+        # Lead fields
+        "leadstatus": "status",
+        "status": "status",
+        "leadsource": "source",
+        "source": "source",
+        "salesmotiontype": "sales_motion_type",
+        "salesmotion": "sales_motion_type",
+        "motion": "sales_motion_type",
+        "partner": "partner_name",
+        "partnername": "partner_name",
+        "partnerproduct": "product_name",
+        "product": "product_name",
+        "productname": "product_name",
+        "leadscore": "score",
+        "score": "score",
+        "leadtier": "tier",
+        "tier": "tier",
+        "notes": "notes",
+        # Scoring inputs
+        "economicunits": "economic_units",
+        "economicunit": "economic_units",
+        "usagevolume": "usage_volume",
+        "urgency": "urgency",
+        "triggerevent": "trigger_event",
+        "primarymotivation": "primary_motivation",
+        "decisionrole": "decision_role",
+        "decisionprocessclarity": "decision_process_clarity",
+    }
+
+    header_map: Dict[str, Optional[str]] = {}
+    for h in reader.fieldnames:
+        header_map[h] = header_aliases.get(norm_header(h))
+
+    created = 0
+    updated = 0
+    skipped = 0
+    errors: list[Dict[str, Any]] = []
+
+    now = now_utc()
+    row_count = 0
+
+    def normalize_status(value: str) -> str:
+        raw = (value or "").strip().lower()
+        if not raw:
+            return "new"
+        normalized = "".join(ch for ch in raw if ch.isalnum() or ch in {"_", " "}).strip()
+        normalized = normalized.replace(" ", "_")
+        mapping = {
+            "new": "new",
+            "assigned": "assigned",
+            "working": "working",
+            "info_collected": "info_collected",
+            "infocollected": "info_collected",
+            "unresponsive": "unresponsive",
+            "disqualified": "disqualified",
+            "qualified": "qualified",
+            "converted": "converted",
+        }
+        return mapping.get(normalized, "new")
+
+    for row_index, row in enumerate(reader, start=2):
+        row_count += 1
+        if row_count > max_rows:
+            skipped += 1
+            errors.append({"row": row_index, "error": f"Max rows exceeded ({max_rows}). Remaining rows not processed."})
+            break
+
+        values: Dict[str, str] = {}
+        for k, v in (row or {}).items():
+            field = header_map.get(k)
+            if not field:
+                continue
+            val = (v or "").strip()
+            if val != "":
+                values[field] = val
+
+        email = (values.get("email") or "").strip()
+        phone = (values.get("phone") or "").strip()
+        if not email and not phone:
+            skipped += 1
+            errors.append({"row": row_index, "error": "Missing email and phone"})
+            continue
+
+        first_name = (values.get("first_name") or "").strip()
+        last_name = (values.get("last_name") or "").strip()
+        full_name = (values.get("full_name") or "").strip()
+        if (not first_name or not last_name) and full_name:
+            parts = [p for p in full_name.split(" ") if p]
+            if not first_name and parts:
+                first_name = parts[0]
+            if not last_name and len(parts) > 1:
+                last_name = " ".join(parts[1:])
+        if not first_name and email and "@" in email:
+            first_name = email.split("@", 1)[0]
+
+        company_name = (values.get("company_name") or "").strip() or None
+        status = normalize_status(values.get("status") or "")
+        source = (values.get("source") or "").strip() or "hubspot_import"
+
+        partner_name = (values.get("partner_name") or "").strip() or None
+        product_name = (values.get("product_name") or "").strip() or None
+
+        raw_motion = (values.get("sales_motion_type") or "").strip()
+        sales_motion_type = raw_motion
+        if not sales_motion_type:
+            sales_motion_type = "partner_sales" if (partner_name or product_name) else "partnership_sales"
+        if sales_motion_type not in {"partnership_sales", "partner_sales"}:
+            sales_motion_type = "partner_sales" if "partner" in sales_motion_type.lower() else "partnership_sales"
+
+        update_motion_fields = any(k in values for k in ("sales_motion_type", "partner_name", "product_name"))
+
+        scoring_data_updates: Dict[str, Any] = {}
+        for key in [
+            "economic_units",
+            "usage_volume",
+            "urgency",
+            "trigger_event",
+            "primary_motivation",
+            "decision_role",
+            "decision_process_clarity",
+        ]:
+            if key in values:
+                scoring_data_updates[key] = values[key]
+
+        manual_score = values.get("score")
+        manual_tier = (values.get("tier") or "").strip().upper() or None
+
+        existing: Optional[Lead] = None
+        if email:
+            existing = (
+                await db.execute(
+                    select(Lead)
+                    .where(and_(Lead.tenant_id == tenant_id, func.lower(Lead.email) == email.lower()))
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+        if not existing and phone:
+            existing = (
+                await db.execute(select(Lead).where(and_(Lead.tenant_id == tenant_id, Lead.phone == phone)).limit(1))
+            ).scalar_one_or_none()
+
+        resolved_partner_product: Optional[Dict[str, Optional[str]]] = None
+        if sales_motion_type == "partner_sales" and (not existing or update_motion_fields):
+            try:
+                resolved_partner_product = await resolve_partner_and_product(
+                    db=db,
+                    tenant_id=tenant_id,
+                    sales_motion_type=sales_motion_type,
+                    partner_id=None,
+                    product_id=None,
+                    partner_name=partner_name,
+                    product_name=product_name,
+                    actor_id=user["id"],
+                )
+            except HTTPException as exc:
+                skipped += 1
+                errors.append({"row": row_index, "error": exc.detail})
+                continue
+
+        if existing:
+            if email:
+                existing.email = email
+            if phone:
+                existing.phone = phone
+            if first_name:
+                existing.first_name = first_name
+            if last_name:
+                existing.last_name = last_name
+            if first_name or last_name:
+                existing.full_name = f"{existing.first_name or ''} {existing.last_name or ''}".strip() or existing.full_name
+            if company_name:
+                existing.company_name = company_name
+            if source:
+                existing.source = source
+            if status:
+                existing.status = status
+            if values.get("notes") is not None:
+                existing.notes = values.get("notes") or ""
+
+            if update_motion_fields:
+                existing.sales_motion_type = sales_motion_type
+                if sales_motion_type == "partner_sales":
+                    existing.partner_id = (resolved_partner_product or {}).get("partner_id")
+                    existing.product_id = (resolved_partner_product or {}).get("product_id")
+                    existing.partner_name = (resolved_partner_product or {}).get("partner_name")
+                    existing.product_name = (resolved_partner_product or {}).get("product_name")
+                else:
+                    existing.partner_id = None
+                    existing.product_id = None
+                    existing.partner_name = None
+                    existing.product_name = None
+
+            if scoring_data_updates:
+                merged = dict(existing.scoring_data or {})
+                merged.update(scoring_data_updates)
+                existing.scoring_data = merged
+                if scoring_inputs_complete(merged):
+                    existing.score = compute_universal_score(merged, existing.source or source)
+                    existing.tier = calculate_tier(int(existing.score or 0))
+
+            if manual_score is not None:
+                try:
+                    existing.score = int(manual_score)
+                except Exception:
+                    pass
+                existing.tier = calculate_tier(int(existing.score or 0))
+            if manual_tier:
+                existing.tier = manual_tier if manual_tier in VALID_LEAD_TIERS else calculate_tier(int(existing.score or 0))
+
+            existing.updated_at = now
+            updated += 1
+            continue
+
+        scoring_data = scoring_data_updates or {}
+        if manual_score is not None:
+            try:
+                score = int(manual_score)
+            except Exception:
+                score = 0
+        elif scoring_inputs_complete(scoring_data):
+            score = compute_universal_score(scoring_data, source)
+        else:
+            score = 0
+
+        tier = (manual_tier or calculate_tier(int(score or 0))).strip().upper()
+        if tier not in VALID_LEAD_TIERS:
+            tier = calculate_tier(int(score or 0))
+
+        lead = Lead(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            first_name=first_name or None,
+            last_name=last_name or None,
+            full_name=f"{first_name} {last_name}".strip() or full_name or None,
+            email=email or None,
+            phone=phone or None,
+            company_name=company_name,
+            source=source,
+            sales_motion_type=sales_motion_type,
+            partner_id=(resolved_partner_product or {}).get("partner_id") if resolved_partner_product else None,
+            product_id=(resolved_partner_product or {}).get("product_id") if resolved_partner_product else None,
+            partner_name=(resolved_partner_product or {}).get("partner_name") if resolved_partner_product else None,
+            product_name=(resolved_partner_product or {}).get("product_name") if resolved_partner_product else None,
+            score=int(score or 0),
+            tier=tier,
+            scoring_data=scoring_data,
+            status=status,
+            owner_id=None,
+            assigned_at=None,
+            notes=(values.get("notes") or None),
+            touchpoints_count=0,
+            last_touchpoint_at=None,
+            tags=[],
+            converted_at=None,
+            contact_id=None,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(lead)
+        created += 1
+
+    if created or updated or skipped:
+        await create_timeline_event(
+            db=db,
+            tenant_id=tenant_id,
+            event_type="leads_imported",
+            title=f"Leads imported ({created} created, {updated} updated)",
+            actor_id=user["id"],
+            actor_name=user.get("full_name"),
+            metadata={"created": created, "updated": updated, "skipped": skipped, "errors": len(errors)},
+        )
+
+    await db.flush()
+    return {"created": created, "updated": updated, "skipped": skipped, "errors": errors[:200]}
 
 
 @router.post("", status_code=201)
@@ -690,7 +1135,14 @@ async def push_lead_to_sales(
                 contact.updated_at = now
 
     # Pipeline/Stage
-    chosen = await get_default_pipeline_and_stage(db, tenant_id, data.pipeline_id, data.stage_id)
+    chosen = await get_default_pipeline_and_stage(
+        db,
+        tenant_id,
+        data.pipeline_id,
+        data.stage_id,
+        sales_motion_type=lead.sales_motion_type,
+        partner_id=lead.partner_id,
+    )
     pipeline = chosen["pipeline"]
     stage: PipelineStage = chosen["stage"]
 

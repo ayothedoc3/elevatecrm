@@ -278,7 +278,12 @@ async def upsert_open_next_step_task_for_deal(
 
 
 async def get_default_pipeline_and_stage(
-    db: AsyncSession, tenant_id: str, pipeline_id: Optional[str], stage_id: Optional[str]
+    db: AsyncSession,
+    tenant_id: str,
+    pipeline_id: Optional[str],
+    stage_id: Optional[str],
+    sales_motion_type: Optional[str] = None,
+    partner_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     pipeline: Optional[Pipeline] = None
     if pipeline_id:
@@ -287,10 +292,21 @@ async def get_default_pipeline_and_stage(
         if not pipeline:
             raise HTTPException(status_code=404, detail="Pipeline not found")
     else:
+        if (sales_motion_type or "").strip() == "partner_sales" and partner_id:
+            partner = (
+                await db.execute(select(Partner).where(and_(Partner.tenant_id == tenant_id, Partner.id == partner_id)))
+            ).scalar_one_or_none()
+            if partner and partner.default_pipeline_id:
+                pipeline = (
+                    await db.execute(
+                        select(Pipeline).where(and_(Pipeline.tenant_id == tenant_id, Pipeline.id == partner.default_pipeline_id))
+                    )
+                ).scalar_one_or_none()
+
         pipeline_res = await db.execute(
             select(Pipeline).where(and_(Pipeline.tenant_id == tenant_id, Pipeline.is_default == True)).limit(1)
         )
-        pipeline = pipeline_res.scalar_one_or_none()
+        pipeline = pipeline or pipeline_res.scalar_one_or_none()
         if not pipeline:
             pipeline_res = await db.execute(select(Pipeline).where(Pipeline.tenant_id == tenant_id).limit(1))
             pipeline = pipeline_res.scalar_one_or_none()
