@@ -345,6 +345,8 @@ const TopBar = () => {
                           e.preventDefault();
                           if (t.related_type === 'deal' && t.related_id) {
                             navigate(`/pipeline/deal/${t.related_id}`);
+                          } else if (t.related_type === 'contact' && t.related_id) {
+                            navigate(`/contacts/${t.related_id}`);
                           } else {
                             navigate('/pipeline');
                           }
@@ -373,6 +375,8 @@ const TopBar = () => {
                         ev.preventDefault();
                         if (e.deal_id) {
                           navigate(`/pipeline/deal/${e.deal_id}`);
+                        } else if (e.contact_id) {
+                          navigate(`/contacts/${e.contact_id}`);
                         } else {
                           navigate('/activity');
                         }
@@ -473,6 +477,7 @@ const AppRoutes = () => {
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
       <Route path="/contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
+      <Route path="/contacts/:contactId" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
       <Route path="/leads" element={<ProtectedRoute><LeadsPage /></ProtectedRoute>} />
       <Route path="/pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
       <Route path="/pipeline/deal/:dealId" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />

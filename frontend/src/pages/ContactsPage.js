@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -47,6 +48,7 @@ import { toast } from 'sonner';
 
 const ContactsPage = () => {
   const { api } = useAuth();
+  const { contactId } = useParams();
   const [loading, setLoading] = useState(true);
   const [contacts, setContacts] = useState([]);
   const [total, setTotal] = useState(0);
@@ -74,6 +76,24 @@ const ContactsPage = () => {
   useEffect(() => {
     fetchContacts();
   }, [page, search]);
+
+  useEffect(() => {
+    const openContactFromUrl = async () => {
+      if (!contactId) return;
+      try {
+        const res = await api.get(`/contacts/${contactId}`);
+        setSelectedContact(res.data);
+        setShowDetailSheet(true);
+        await fetchContactDeals(contactId);
+      } catch (error) {
+        console.error('Error opening contact from URL:', error);
+        toast.error(error.response?.data?.detail || 'Failed to load contact');
+      }
+    };
+
+    openContactFromUrl();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactId]);
 
   const fetchContacts = async () => {
     setLoading(true);
