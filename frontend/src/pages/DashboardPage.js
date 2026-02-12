@@ -7,8 +7,7 @@ import { Skeleton } from '../components/ui/skeleton';
 import { Progress } from '../components/ui/progress';
 import {
   Users, DollarSign, TrendingUp, Target, ArrowUpRight, ArrowDownRight,
-  Calendar, Clock, CheckCircle2, AlertCircle, Flame, Phone, Mail,
-  Calculator, ArrowRight
+  Clock, CheckCircle2, AlertCircle, Flame, Phone
 } from 'lucide-react';
 
 const DashboardPage = () => {
@@ -286,47 +285,6 @@ const DashboardPage = () => {
         </Card>
       </div>
 
-      {/* Quick Actions Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-blue-500/20 rounded-lg">
-              <Calculator className="w-6 h-6 text-blue-500" />
-            </div>
-            <div>
-              <p className="font-medium">ROI Calculator</p>
-              <p className="text-sm text-muted-foreground">Calculate oil savings for prospects</p>
-            </div>
-            <ArrowRight className="w-5 h-5 text-muted-foreground ml-auto" />
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-green-500/20 rounded-lg">
-              <Mail className="w-6 h-6 text-green-500" />
-            </div>
-            <div>
-              <p className="font-medium">Send Campaign</p>
-              <p className="text-sm text-muted-foreground">Email or SMS outreach</p>
-            </div>
-            <ArrowRight className="w-5 h-5 text-muted-foreground ml-auto" />
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-violet-500/20 rounded-lg">
-              <Calendar className="w-6 h-6 text-violet-500" />
-            </div>
-            <div>
-              <p className="font-medium">Schedule Demo</p>
-              <p className="text-sm text-muted-foreground">Book product demonstrations</p>
-            </div>
-            <ArrowRight className="w-5 h-5 text-muted-foreground ml-auto" />
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 };
