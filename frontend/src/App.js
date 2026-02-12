@@ -221,8 +221,46 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
 };
 
 const TopBar = () => {
-  const { user } = useAuth();
+  const { user, api } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
+  const navigate = useNavigate();
+
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [recentEvents, setRecentEvents] = useState([]);
+  const [overdueTasks, setOverdueTasks] = useState([]);
+
+  const refreshNotifications = async () => {
+    setNotificationsLoading(true);
+    try {
+      const nowIso = new Date().toISOString();
+      const [eventsRes, tasksRes] = await Promise.all([
+        api.get('/timeline?page=1&page_size=5'),
+        api.get(`/tasks?status=open&page=1&page_size=5&due_before=${encodeURIComponent(nowIso)}`)
+      ]);
+      setRecentEvents(eventsRes.data?.events || []);
+      setOverdueTasks(tasksRes.data?.tasks || []);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+      setRecentEvents([]);
+      setOverdueTasks([]);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const formatRelative = (isoString) => {
+    if (!isoString) return '';
+    const dt = new Date(isoString);
+    if (Number.isNaN(dt.getTime())) return '';
+    const diffMs = Date.now() - dt.getTime();
+    const mins = Math.floor(Math.abs(diffMs) / 60000);
+    if (mins < 60) return `${mins}m`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h`;
+    const days = Math.floor(hours / 24);
+    return `${days}d`;
+  };
   
   return (
     <div className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 flex items-center justify-between">
@@ -262,10 +300,100 @@ const TopBar = () => {
           </TooltipContent>
         </Tooltip>
         
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-        </Button>
+        <DropdownMenu
+          open={notificationsOpen}
+          onOpenChange={(open) => {
+            setNotificationsOpen(open);
+            if (open) refreshNotifications();
+          }}
+        >
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
+              <Bell className="w-5 h-5" />
+              {overdueTasks.length > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-80">
+            <DropdownMenuLabel className="flex items-center justify-between">
+              <span>Notifications</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.preventDefault();
+                  refreshNotifications();
+                }}
+              >
+                Refresh
+              </Button>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+
+            {notificationsLoading ? (
+              <div className="px-2 py-2 text-sm text-muted-foreground">Loading…</div>
+            ) : (
+              <>
+                {overdueTasks.length > 0 && (
+                  <>
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">Overdue Tasks</DropdownMenuLabel>
+                    {overdueTasks.map((t) => (
+                      <DropdownMenuItem
+                        key={t.id}
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          navigate('/pipeline');
+                          setNotificationsOpen(false);
+                        }}
+                        className="flex flex-col items-start gap-0.5"
+                      >
+                        <span className="font-medium">{t.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          Due {t.due_at ? `${formatRelative(t.due_at)} ago` : '—'}
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+
+                <DropdownMenuLabel className="text-xs text-muted-foreground">Recent Activity</DropdownMenuLabel>
+                {recentEvents.length === 0 ? (
+                  <div className="px-2 py-2 text-sm text-muted-foreground">No recent activity</div>
+                ) : (
+                  recentEvents.map((e) => (
+                    <DropdownMenuItem
+                      key={e.id}
+                      onSelect={(ev) => {
+                        ev.preventDefault();
+                        navigate('/activity');
+                        setNotificationsOpen(false);
+                      }}
+                      className="flex flex-col items-start gap-0.5"
+                    >
+                      <span className="font-medium">{e.title}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {e.created_at ? `${formatRelative(e.created_at)} ago` : ''}
+                      </span>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </>
+            )}
+
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                navigate('/activity');
+                setNotificationsOpen(false);
+              }}
+            >
+              View activity
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         
         <div className="text-right ml-2">
           <p className="text-sm font-medium">{user?.first_name} {user?.last_name}</p>
