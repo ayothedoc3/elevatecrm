@@ -343,7 +343,11 @@ const TopBar = () => {
                         key={t.id}
                         onSelect={(e) => {
                           e.preventDefault();
-                          navigate('/pipeline');
+                          if (t.related_type === 'deal' && t.related_id) {
+                            navigate(`/pipeline/deal/${t.related_id}`);
+                          } else {
+                            navigate('/pipeline');
+                          }
                           setNotificationsOpen(false);
                         }}
                         className="flex flex-col items-start gap-0.5"
@@ -367,7 +371,11 @@ const TopBar = () => {
                       key={e.id}
                       onSelect={(ev) => {
                         ev.preventDefault();
-                        navigate('/activity');
+                        if (e.deal_id) {
+                          navigate(`/pipeline/deal/${e.deal_id}`);
+                        } else {
+                          navigate('/activity');
+                        }
                         setNotificationsOpen(false);
                       }}
                       className="flex flex-col items-start gap-0.5"
@@ -467,6 +475,7 @@ const AppRoutes = () => {
       <Route path="/contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
       <Route path="/leads" element={<ProtectedRoute><LeadsPage /></ProtectedRoute>} />
       <Route path="/pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
+      <Route path="/pipeline/deal/:dealId" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
       <Route path="/activity" element={<ProtectedRoute><ActivityPage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
 

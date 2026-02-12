@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -45,6 +46,7 @@ import { toast } from 'sonner';
 
 const PipelinePage = () => {
   const { api, currentWorkspace } = useAuth();
+  const { dealId } = useParams();
   const [loading, setLoading] = useState(true);
   const [pipelines, setPipelines] = useState([]);
   const [selectedPipeline, setSelectedPipeline] = useState(null);
@@ -110,6 +112,30 @@ const PipelinePage = () => {
   }, [currentWorkspace]);
 
   useEffect(() => {
+    const openDealFromUrl = async () => {
+      if (!dealId) return;
+      try {
+        const res = await api.get(`/deals/${dealId}`);
+        const d = res.data;
+        if (d?.pipeline_id) setSelectedPipeline(d.pipeline_id);
+        setSelectedDeal(d);
+        setNextStepAt(toDateTimeLocal(d.next_step_at));
+        setNextStepNote(d.next_step_note || '');
+        setDealContactId(d.contact_id || '');
+        setDealSheetTab('details');
+        setShowDealSheet(true);
+        await fetchDealCalculation(d.id);
+      } catch (error) {
+        console.error('Error opening deal from URL:', error);
+        toast.error(error.response?.data?.detail || 'Failed to load deal');
+      }
+    };
+
+    openDealFromUrl();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dealId]);
+
+  useEffect(() => {
     if (selectedPipeline) {
       fetchKanbanData(selectedPipeline);
     }
@@ -119,9 +145,7 @@ const PipelinePage = () => {
     try {
       const response = await api.get('/pipelines');
       setPipelines(response.data.pipelines);
-      if (response.data.pipelines.length > 0) {
-        setSelectedPipeline(response.data.pipelines[0].id);
-      }
+      setSelectedPipeline(prev => prev || (response.data.pipelines?.[0]?.id || null));
     } catch (error) {
       console.error('Error fetching pipelines:', error);
     }
