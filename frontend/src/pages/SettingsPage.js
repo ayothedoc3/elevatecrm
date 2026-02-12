@@ -486,7 +486,7 @@ const SettingsPage = () => {
   
   const addIntegration = async () => {
     if (!selectedProvider || !newApiKey) {
-      toast({ title: "Error", description: "Please select a provider and enter an API key", variant: "destructive" });
+      toast({ title: "Error", description: "Please select a provider and enter a credential", variant: "destructive" });
       return;
     }
     
@@ -571,7 +571,7 @@ const SettingsPage = () => {
   };
   
   const revokeIntegration = async (providerType) => {
-    if (!window.confirm(`Are you sure you want to revoke the ${providerType} integration? This will permanently delete the API key.`)) {
+    if (!window.confirm(`Are you sure you want to revoke the ${providerType} integration? This will permanently delete the stored credential.`)) {
       return;
     }
     
@@ -598,6 +598,7 @@ const SettingsPage = () => {
       twilio: <MessageSquare className="w-5 h-5" />,
       sendgrid: <MessageSquare className="w-5 h-5" />,
       mailgun: <MessageSquare className="w-5 h-5" />,
+      discord: <MessageSquare className="w-5 h-5" />,
       stripe: <CreditCard className="w-5 h-5" />,
       wise: <CreditCard className="w-5 h-5" />,
       paypal: <CreditCard className="w-5 h-5" />
@@ -1231,7 +1232,7 @@ const SettingsPage = () => {
                               }}
                             >
                               <Plus className="w-4 h-4 mr-1" />
-                              Add Key
+                              {provider.type === 'discord' ? 'Add Webhook' : 'Add Key'}
                             </Button>
                           )}
                         </div>
@@ -1578,7 +1579,18 @@ const SettingsPage = () => {
       </Tabs>
       
       {/* Add Integration Dialog */}
-      <Dialog open={showAddIntegration} onOpenChange={setShowAddIntegration}>
+      <Dialog
+        open={showAddIntegration}
+        onOpenChange={(open) => {
+          setShowAddIntegration(open);
+          if (!open) {
+            setSelectedProvider(null);
+            setNewApiKey('');
+            setShowKey(false);
+            setTesting(false);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -1606,12 +1618,15 @@ const SettingsPage = () => {
                     <SelectValue placeholder="Choose a provider" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="openai">OpenAI</SelectItem>
-                    <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
-                    <SelectItem value="openrouter">OpenRouter</SelectItem>
-                    <SelectItem value="twilio">Twilio</SelectItem>
-                    <SelectItem value="sendgrid">SendGrid</SelectItem>
-                    <SelectItem value="stripe">Stripe</SelectItem>
+                    {[
+                      ...(providers?.providers?.ai || []),
+                      ...(providers?.providers?.communication || []),
+                      ...(providers?.providers?.payment || [])
+                    ].map((p) => (
+                      <SelectItem key={p.type} value={p.type}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1620,14 +1635,18 @@ const SettingsPage = () => {
             {selectedProvider && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="api-key">API Key</Label>
+                  <Label htmlFor="api-key">{selectedProvider.type === 'discord' ? 'Webhook URL' : 'API Key'}</Label>
                   <div className="relative">
                     <Input
                       id="api-key"
                       type={showKey ? 'text' : 'password'}
                       value={newApiKey}
                       onChange={(e) => setNewApiKey(e.target.value)}
-                      placeholder={`Enter your ${selectedProvider.name} API key`}
+                      placeholder={
+                        selectedProvider.type === 'discord'
+                          ? 'https://discord.com/api/webhooks/...'
+                          : `Enter your ${selectedProvider.name} API key`
+                      }
                       className="pr-10"
                     />
                     <Button
@@ -1641,10 +1660,27 @@ const SettingsPage = () => {
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Get your key from{' '}
-                    <a href={selectedProvider.key_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                      {selectedProvider.name} Dashboard <ExternalLink className="w-3 h-3 inline" />
-                    </a>
+                    {selectedProvider.type === 'discord' ? (
+                      <>
+                        Create a Discord webhook for your channel and paste the URL here.{' '}
+                        {selectedProvider.key_url && (
+                          <a href={selectedProvider.key_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                            Learn how <ExternalLink className="w-3 h-3 inline" />
+                          </a>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        Get your key from{' '}
+                        {selectedProvider.key_url ? (
+                          <a href={selectedProvider.key_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                            {selectedProvider.name} Dashboard <ExternalLink className="w-3 h-3 inline" />
+                          </a>
+                        ) : (
+                          `${selectedProvider.name} dashboard`
+                        )}
+                      </>
+                    )}
                   </p>
                 </div>
                 

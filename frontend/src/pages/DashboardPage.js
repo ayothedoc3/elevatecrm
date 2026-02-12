@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -12,6 +13,7 @@ import {
 
 const DashboardPage = () => {
   const { api, currentWorkspace } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     contacts: 0,
@@ -92,11 +94,11 @@ const DashboardPage = () => {
             <p className="text-muted-foreground">Sales Dashboard</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => navigate('/activity')}>
               <Phone className="w-4 h-4 mr-2" />
               Log Call
             </Button>
-            <Button size="sm">
+            <Button size="sm" onClick={() => navigate('/pipeline')}>
               <Target className="w-4 h-4 mr-2" />
               New Deal
             </Button>
@@ -106,7 +108,15 @@ const DashboardPage = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20">
+        <Card
+          className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20 cursor-pointer hover:bg-blue-500/5"
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate('/contacts')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') navigate('/contacts');
+          }}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -124,7 +134,15 @@ const DashboardPage = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-violet-500/10 to-violet-600/10 border-violet-500/20">
+        <Card
+          className="bg-gradient-to-br from-violet-500/10 to-violet-600/10 border-violet-500/20 cursor-pointer hover:bg-violet-500/5"
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate('/pipeline')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') navigate('/pipeline');
+          }}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -142,7 +160,15 @@ const DashboardPage = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/10 border-emerald-500/20">
+        <Card
+          className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/10 border-emerald-500/20 cursor-pointer hover:bg-emerald-500/5"
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate('/pipeline')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') navigate('/pipeline');
+          }}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -160,7 +186,15 @@ const DashboardPage = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/10 border-orange-500/20">
+        <Card
+          className="bg-gradient-to-br from-orange-500/10 to-orange-600/10 border-orange-500/20 cursor-pointer hover:bg-orange-500/5"
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate('/reports')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') navigate('/reports');
+          }}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -193,7 +227,16 @@ const DashboardPage = () => {
             {recentDeals.length > 0 ? (
               <div className="space-y-4">
                 {recentDeals.map(deal => (
-                  <div key={deal.id} className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
+                  <div
+                    key={deal.id}
+                    className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/pipeline/deal/${deal.id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') navigate(`/pipeline/deal/${deal.id}`);
+                    }}
+                  >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center">
                         <Flame className="w-5 h-5 text-orange-500" />
@@ -201,7 +244,7 @@ const DashboardPage = () => {
                       <div>
                         <p className="font-medium">{deal.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          {deal.contact_name || 'No contact'} • {deal.stage_name}
+                          {deal.contact_name || 'No contact'} {'\u2022'} {deal.stage_name}
                         </p>
                       </div>
                     </div>

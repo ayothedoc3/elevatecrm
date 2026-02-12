@@ -6,6 +6,7 @@ from datetime import timedelta
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+import httpx
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, func, select, update
@@ -393,11 +394,40 @@ async def test_connection(
     if not api_key:
         return {"success": False, "error": "No API key provided"}
 
-    if provider_type not in {"openai", "openrouter", "anthropic"}:
-        return {"success": False, "error": f"Connection testing is not implemented for {provider_type}"}
-
     start = time.time()
     try:
+        if provider_type == "discord":
+            key = api_key.strip()
+            if not key.startswith("https://discord.com/api/webhooks/") and not key.startswith("https://discordapp.com/api/webhooks/"):
+                raise ValueError("Discord webhook URL must start with https://discord.com/api/webhooks/")
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(key, json={"content": "✅ Elev8 CRM: Discord webhook connected successfully."})
+
+            if resp.status_code not in {200, 204}:
+                raise RuntimeError(f"Discord returned HTTP {resp.status_code}")
+
+            response_time_ms = int((time.time() - start) * 1000)
+
+            if integration:
+                integration.last_test_at = now_utc()
+                integration.test_status = "success"
+                integration.updated_at = now_utc()
+
+            await _log_audit(
+                db,
+                tenant_id=user["tenant_id"],
+                actor=user,
+                action="test_connection",
+                provider_type=provider_type,
+                metadata={"test_result": "success", "response_time_ms": response_time_ms},
+            )
+            await db.flush()
+            return {"success": True, "response_time_ms": response_time_ms}
+
+        if provider_type not in {"openai", "openrouter", "anthropic"}:
+            return {"success": False, "error": f"Connection testing is not implemented for {provider_type}"}
+
         if provider_type in {"openrouter", "anthropic"}:
             client = AsyncOpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
             model = "anthropic/claude-sonnet-4.5"
@@ -455,20 +485,70 @@ async def list_providers(user: dict = Depends(get_current_user)):
     return {
         "providers": {
             "ai": [
-                {"type": "openai", "name": "OpenAI", "description": "GPT models via the OpenAI API"},
-                {"type": "openrouter", "name": "OpenRouter", "description": "Claude and other models via OpenRouter"},
-                {"type": "anthropic", "name": "Anthropic", "description": "Claude models (stored as OpenRouter key)"},
+                {
+                    "type": "openai",
+                    "name": "OpenAI",
+                    "description": "GPT models via the OpenAI API",
+                    "key_url": "https://platform.openai.com/api-keys",
+                },
+                {
+                    "type": "openrouter",
+                    "name": "OpenRouter",
+                    "description": "Claude and other models via OpenRouter",
+                    "key_url": "https://openrouter.ai/keys",
+                },
+                {
+                    "type": "anthropic",
+                    "name": "Anthropic",
+                    "description": "Claude models (stored as OpenRouter key)",
+                    "key_url": "https://console.anthropic.com/settings/keys",
+                },
             ],
             "communication": [
-                {"type": "twilio", "name": "Twilio", "description": "SMS and voice messaging"},
-                {"type": "sendgrid", "name": "SendGrid", "description": "Email delivery provider"},
-                {"type": "mailgun", "name": "Mailgun", "description": "Email delivery provider"},
-                {"type": "discord", "name": "Discord", "description": "Discord webhook for sales alerts"},
+                {
+                    "type": "twilio",
+                    "name": "Twilio",
+                    "description": "SMS and voice messaging",
+                    "key_url": "https://console.twilio.com/",
+                },
+                {
+                    "type": "sendgrid",
+                    "name": "SendGrid",
+                    "description": "Email delivery provider",
+                    "key_url": "https://app.sendgrid.com/settings/api_keys",
+                },
+                {
+                    "type": "mailgun",
+                    "name": "Mailgun",
+                    "description": "Email delivery provider",
+                    "key_url": "https://app.mailgun.com/app/account/security/api_keys",
+                },
+                {
+                    "type": "discord",
+                    "name": "Discord",
+                    "description": "Discord webhook for sales alerts",
+                    "key_url": "https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks",
+                },
             ],
             "payment": [
-                {"type": "stripe", "name": "Stripe", "description": "Payments and subscriptions"},
-                {"type": "wise", "name": "Wise", "description": "International payouts"},
-                {"type": "paypal", "name": "PayPal", "description": "Payments and payouts"},
+                {
+                    "type": "stripe",
+                    "name": "Stripe",
+                    "description": "Payments and subscriptions",
+                    "key_url": "https://dashboard.stripe.com/apikeys",
+                },
+                {
+                    "type": "wise",
+                    "name": "Wise",
+                    "description": "International payouts",
+                    "key_url": "https://wise.com/",
+                },
+                {
+                    "type": "paypal",
+                    "name": "PayPal",
+                    "description": "Payments and payouts",
+                    "key_url": "https://developer.paypal.com/",
+                },
             ],
         }
     }
