@@ -3,49 +3,21 @@
 This is a **manual QA script** to verify Phase 1 is usable end-to-end for the core motion:
 **Lead -> Assign -> Scoring -> Qualify -> Push to Sales -> Work Deal (next step + stage gating) -> Close -> Handoff -> Forecast**
 
-## 0) Prereqs
+This QA script is run against the deployed Railway environment (no local setup required).
 
-- Node.js 18+ / 20+
-- Python 3.10+ / 3.11+
-- PostgreSQL 14+ running and reachable from this machine
-  - Docker option:
-    - `docker run --rm -e POSTGRES_USER=crm_user -e POSTGRES_PASSWORD=crm_password -e POSTGRES_DB=crm_os -p 5432:5432 postgres:16`
-- Backend `.env` configured:
-  - File: `elevatecrm/backend/.env`
-  - If missing, copy from: `elevatecrm/backend/.env.example`
-  - Ensure `DATABASE_URL` points to your Postgres (example):
-    - `DATABASE_URL=postgresql://crm_user:crm_password@localhost:5432/crm_os`
-  - Ensure backend port matches frontend env (default in this repo is `8001`)
-- Frontend `.env` configured:
-  - File: `elevatecrm/frontend/.env`
-  - If missing, copy from: `elevatecrm/frontend/.env.example`
-  - Ensure `REACT_APP_BACKEND_URL` points to the backend (default: `http://localhost:8001`)
+## 2) Reset demo data (clean run) - do this BEFORE QA starts
 
-## 1) First-time setup (schema)
+This script assumes a clean `demo` tenant state so every rep is testing the same baseline.
 
-1. Start Postgres and ensure the database in `DATABASE_URL` exists.
-2. Run migrations:
-   - `cd elevatecrm/backend`
-   - `alembic upgrade head`
+Reset is typically done by an admin/ops user with Railway access.
 
-Note: `python server.py` will also attempt to create tables on startup (dev convenience), but **migrations are recommended**.
+**Railway (recommended)**
+1. Open the backend service in Railway.
+2. Run the demo reset script in the backend container:
+   - `cd backend && python reset_demo_pg.py`
+3. Restart/redeploy the backend service (demo data is seeded on startup).
 
-## 2) Reset demo data (clean run)
-
-1. Stop backend + frontend.
-2. Reset the demo tenant in Postgres:
-   - `cd elevatecrm/backend`
-   - `python reset_demo_pg.py`
-3. Start backend (it will reseed demo data on startup if missing):
-   - `cd elevatecrm/backend`
-   - `python server.py`
-4. Start frontend:
-   - `cd elevatecrm/frontend`
-   - `npm start`
-
-Expected:
-- Backend: `http://localhost:8001/api/health` returns healthy JSON.
-- Frontend: `http://localhost:3000` loads.
+If you cannot reset, ask an admin/ops owner to reset the `demo` tenant and then begin QA at **Section 3 (Login)**.
 
 ## 3) Login (demo tenant)
 
@@ -308,3 +280,59 @@ Expected:
 
 Expected:
 - The pushed deal is created in the partner’s default pipeline when no explicit pipeline is selected during push.
+
+## 19) Click-through UX: Dashboard + Notifications
+
+1. Go to `Dashboard`.
+2. Click each KPI card:
+   - `Total Contacts` -> goes to Contacts
+   - `Active Deals` / `Pipeline Value` -> goes to Pipeline
+   - `Deals Won` -> goes to Reports
+3. In `Recent Deals`, click a deal row.
+
+Expected:
+- Clicking a deal opens the deal detail (Pipeline page with the deal sheet open).
+
+4. Click the notification bell (top-right).
+5. Click a **Task** notification and a **Recent Activity** notification.
+
+Expected:
+- Clicking a notification takes you to the related record:
+  - Deal notifications -> open the deal sheet
+  - Contact notifications -> open the contact sheet
+  - Otherwise -> opens Activity
+
+## 20) Discord integration (Admin UI)
+
+1. Login as `Admin`.
+2. Go to `Settings` -> `Integrations`.
+3. Under `Communications`, find `Discord` and click `Add Webhook`.
+4. Paste a Discord webhook URL (created in your Discord channel settings).
+5. Click `Test Connection`.
+
+Expected:
+- A confirmation message posts to the Discord channel.
+
+6. Click `Save Integration`.
+
+Expected:
+- Discord shows as `Configured` in Integrations.
+
+7. Trigger Discord alerts:
+   - Assign a Lead to a user (lead assignment alert)
+   - Move a Deal to `Closed Won` (win alert)
+   - Move a Deal to `Closed Lost` (loss alert)
+
+Expected:
+- Each event posts a message to the Discord channel.
+
+## 21) @Mentions -> mention tasks + clickable notifications
+
+1. In any Deal, set/update a field that supports notes (example: `Next Step Note`) and include a mention like `@sales` or `@manager`.
+2. Save.
+3. Login as the mentioned user.
+4. Click the notification bell and click the `Mention` task.
+
+Expected:
+- A `Mention` task exists and is clickable.
+- Clicking it opens the related deal.
