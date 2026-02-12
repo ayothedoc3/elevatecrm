@@ -228,22 +228,23 @@ const TopBar = () => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [recentEvents, setRecentEvents] = useState([]);
-  const [overdueTasks, setOverdueTasks] = useState([]);
+  const [taskAlerts, setTaskAlerts] = useState([]);
 
   const refreshNotifications = async () => {
     setNotificationsLoading(true);
     try {
       const nowIso = new Date().toISOString();
+      const dueSoonIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       const [eventsRes, tasksRes] = await Promise.all([
         api.get('/timeline?page=1&page_size=5'),
-        api.get(`/tasks?status=open&page=1&page_size=5&due_before=${encodeURIComponent(nowIso)}`)
+        api.get(`/tasks?status=open&page=1&page_size=10&owner_id=${encodeURIComponent(user?.id || '')}&due_before=${encodeURIComponent(dueSoonIso)}`)
       ]);
       setRecentEvents(eventsRes.data?.events || []);
-      setOverdueTasks(tasksRes.data?.tasks || []);
+      setTaskAlerts(tasksRes.data?.tasks || []);
     } catch (error) {
       console.error('Error loading notifications:', error);
       setRecentEvents([]);
-      setOverdueTasks([]);
+      setTaskAlerts([]);
     } finally {
       setNotificationsLoading(false);
     }
@@ -310,7 +311,7 @@ const TopBar = () => {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
               <Bell className="w-5 h-5" />
-              {overdueTasks.length > 0 && (
+              {taskAlerts.some(t => t.kind === 'mention' || (t.due_at && new Date(t.due_at).getTime() < Date.now())) && (
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
               )}
             </Button>
@@ -335,10 +336,13 @@ const TopBar = () => {
               <div className="px-2 py-2 text-sm text-muted-foreground">Loading…</div>
             ) : (
               <>
-                {overdueTasks.length > 0 && (
+                {taskAlerts.length > 0 && (
                   <>
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">Overdue Tasks</DropdownMenuLabel>
-                    {overdueTasks.map((t) => (
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">Tasks (Mentions + Due Soon)</DropdownMenuLabel>
+                    {taskAlerts.map((t) => {
+                      const dueMs = t.due_at ? new Date(t.due_at).getTime() : null;
+                      const overdue = dueMs && !Number.isNaN(dueMs) && dueMs < Date.now();
+                      return (
                       <DropdownMenuItem
                         key={t.id}
                         onSelect={(e) => {
@@ -354,12 +358,21 @@ const TopBar = () => {
                         }}
                         className="flex flex-col items-start gap-0.5"
                       >
-                        <span className="font-medium">{t.title}</span>
+                        <span className="font-medium flex items-center gap-2">
+                          {t.title}
+                          {t.kind === 'mention' && (
+                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">Mention</Badge>
+                          )}
+                          {overdue && (
+                            <Badge className="bg-red-500/20 text-red-400 border-red-500/30">Overdue</Badge>
+                          )}
+                        </span>
                         <span className="text-xs text-muted-foreground">
-                          Due {t.due_at ? `${formatRelative(t.due_at)} ago` : '—'}
+                          Due {t.due_at ? (overdue ? `${formatRelative(t.due_at)} ago` : `in ${formatRelative(t.due_at)}`) : '—'}
                         </span>
                       </DropdownMenuItem>
-                    ))}
+                      );
+                    })}
                     <DropdownMenuSeparator />
                   </>
                 )}

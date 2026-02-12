@@ -236,7 +236,7 @@ async def list_integrations(
         )
 
     ai = [x for x in out if x.get("provider_type") in {"openai", "anthropic", "openrouter"}]
-    communication = [x for x in out if x.get("provider_type") in {"twilio", "sendgrid", "mailgun"}]
+    communication = [x for x in out if x.get("provider_type") in {"twilio", "sendgrid", "mailgun", "discord"}]
     payment = [x for x in out if x.get("provider_type") in {"stripe", "wise", "paypal"}]
 
     return {"integrations": out, "by_category": {"ai": ai, "communication": communication, "payment": payment}}
@@ -251,11 +251,16 @@ async def add_integration(
     _require_admin(user)
 
     provider_type = (data.provider_type or "").strip().lower()
-    valid = {"openai", "anthropic", "openrouter", "twilio", "sendgrid", "mailgun", "stripe", "wise", "paypal"}
+    valid = {"openai", "anthropic", "openrouter", "twilio", "sendgrid", "mailgun", "discord", "stripe", "wise", "paypal"}
     if provider_type not in valid:
         raise HTTPException(status_code=400, detail=f"Invalid provider type. Must be one of: {', '.join(sorted(valid))}")
     if not data.api_key or len(data.api_key.strip()) < 10:
         raise HTTPException(status_code=400, detail="API key is required and must be at least 10 characters")
+
+    if provider_type == "discord":
+        key = data.api_key.strip()
+        if not key.startswith("https://discord.com/api/webhooks/") and not key.startswith("https://discordapp.com/api/webhooks/"):
+            raise HTTPException(status_code=400, detail="Discord webhook URL must start with https://discord.com/api/webhooks/")
 
     enc = get_encryption_service()
     encrypted_key = enc.encrypt(data.api_key.strip())
@@ -458,6 +463,7 @@ async def list_providers(user: dict = Depends(get_current_user)):
                 {"type": "twilio", "name": "Twilio", "description": "SMS and voice messaging"},
                 {"type": "sendgrid", "name": "SendGrid", "description": "Email delivery provider"},
                 {"type": "mailgun", "name": "Mailgun", "description": "Email delivery provider"},
+                {"type": "discord", "name": "Discord", "description": "Discord webhook for sales alerts"},
             ],
             "payment": [
                 {"type": "stripe", "name": "Stripe", "description": "Payments and subscriptions"},

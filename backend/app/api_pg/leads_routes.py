@@ -909,6 +909,23 @@ async def assign_lead(
     lead.updated_at = now
     await db.flush()
 
+    lead_display = (lead.full_name or f"{lead.first_name or ''} {lead.last_name or ''}").strip() or lead.email or lead.id
+    assigned_to = f"{(owner.first_name or '').strip()} {(owner.last_name or '').strip()}".strip() or owner.email
+    await create_timeline_event(
+        db=db,
+        tenant_id=tenant_id,
+        event_type="lead_assigned",
+        title=f"Lead assigned: {lead_display}",
+        actor_id=user["id"],
+        actor_name=user.get("full_name"),
+        description=f"Assigned to {assigned_to}",
+        metadata={
+            "lead_id": lead_id,
+            "assigned_to_user_id": owner.id,
+            "assigned_to_user_email": owner.email,
+        },
+    )
+
     sla = await get_workspace_sla_config(db, tenant_id)
     payload = _lead_to_dict(lead, owner_name=f"{owner.first_name} {owner.last_name}".strip())
     payload.update(_lead_sla_fields(lead, sla, now))

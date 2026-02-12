@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api_pg.deps import get_current_user
 from app.api_pg.services import (
     complete_open_next_step_tasks_for_deal,
+    create_mention_tasks_from_text,
     create_timeline_event,
     get_active_calculation_definition,
     get_calculation_result,
@@ -431,6 +432,33 @@ async def create_deal(
             note=deal.next_step_note,
         )
 
+    # @mentions in notes -> create mention tasks for tagged teammates
+    try:
+        await create_mention_tasks_from_text(
+            db=db,
+            tenant_id=tenant_id,
+            actor_id=user.get("id"),
+            actor_name=user.get("full_name"),
+            text=deal.next_step_note,
+            source=f"deal:{deal.id}:next_step_note",
+            related_type="deal",
+            related_id=deal.id,
+            context_label=f"Deal: {deal.name}",
+        )
+        await create_mention_tasks_from_text(
+            db=db,
+            tenant_id=tenant_id,
+            actor_id=user.get("id"),
+            actor_name=user.get("full_name"),
+            text=deal.demo_notes,
+            source=f"deal:{deal.id}:demo_notes",
+            related_type="deal",
+            related_id=deal.id,
+            context_label=f"Deal: {deal.name}",
+        )
+    except Exception:
+        pass
+
     return _deal_to_dict(deal, contact=contact, stage=stage)
 
 
@@ -522,6 +550,20 @@ async def update_deal(
 
     if data.next_step_note is not None:
         deal.next_step_note = data.next_step_note
+        try:
+            await create_mention_tasks_from_text(
+                db=db,
+                tenant_id=tenant_id,
+                actor_id=user.get("id"),
+                actor_name=user.get("full_name"),
+                text=deal.next_step_note,
+                source=f"deal:{deal.id}:next_step_note",
+                related_type="deal",
+                related_id=deal.id,
+                context_label=f"Deal: {deal.name}",
+            )
+        except Exception:
+            pass
 
     if data.spiced is not None:
         incoming = data.spiced or {}
@@ -576,6 +618,20 @@ async def update_deal(
 
     if data.demo_notes is not None:
         deal.demo_notes = data.demo_notes
+        try:
+            await create_mention_tasks_from_text(
+                db=db,
+                tenant_id=tenant_id,
+                actor_id=user.get("id"),
+                actor_name=user.get("full_name"),
+                text=deal.demo_notes,
+                source=f"deal:{deal.id}:demo_notes",
+                related_type="deal",
+                related_id=deal.id,
+                context_label=f"Deal: {deal.name}",
+            )
+        except Exception:
+            pass
 
     if data.demo_status is not None:
         demo_status = (data.demo_status or "").strip().lower() or None
@@ -726,6 +782,20 @@ async def update_deal_handoff(
 
     if data.notes is not None:
         handoff.notes = data.notes
+        try:
+            await create_mention_tasks_from_text(
+                db=db,
+                tenant_id=tenant_id,
+                actor_id=user.get("id"),
+                actor_name=user.get("full_name"),
+                text=handoff.notes,
+                source=f"deal:{deal.id}:handoff_notes",
+                related_type="deal",
+                related_id=deal.id,
+                context_label=f"Deal: {deal.name} (Handoff)",
+            )
+        except Exception:
+            pass
 
     if data.checklist is not None:
         incoming = data.checklist or {}

@@ -9,6 +9,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api_pg.deps import get_current_user
+from app.api_pg.services import create_mention_tasks_from_text
 from app.api_pg.utils import dt_to_iso, now_utc, parse_iso_datetime
 from app.core.database import get_db
 from app.pg_models.models import Task, User
@@ -176,6 +177,23 @@ async def create_task(
     db.add(task)
     await db.flush()
 
+    if task.kind != "mention":
+        try:
+            mention_text = " ".join([x for x in [(task.title or "").strip(), (task.description or "").strip()] if x])
+            await create_mention_tasks_from_text(
+                db=db,
+                tenant_id=tenant_id,
+                actor_id=user.get("id"),
+                actor_name=user.get("full_name"),
+                text=mention_text,
+                source=f"task:{task.id}",
+                related_type=task.related_type,
+                related_id=task.related_id,
+                context_label=f"Task: {task.title}",
+            )
+        except Exception:
+            pass
+
     return {
         "id": task.id,
         "tenant_id": task.tenant_id,
@@ -231,6 +249,23 @@ async def update_task(
 
     task.updated_at = now
     await db.flush()
+
+    if task.kind != "mention" and (data.title is not None or data.description is not None):
+        try:
+            mention_text = " ".join([x for x in [(task.title or "").strip(), (task.description or "").strip()] if x])
+            await create_mention_tasks_from_text(
+                db=db,
+                tenant_id=tenant_id,
+                actor_id=user.get("id"),
+                actor_name=user.get("full_name"),
+                text=mention_text,
+                source=f"task:{task.id}",
+                related_type=task.related_type,
+                related_id=task.related_id,
+                context_label=f"Task: {task.title}",
+            )
+        except Exception:
+            pass
 
     owner_name = None
     if task.owner_id:

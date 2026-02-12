@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import re
 import uuid
-from datetime import datetime
-from typing import Any, Dict, Optional
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 from sqlalchemy import and_, select, update
@@ -21,8 +23,16 @@ from app.pg_models.models import (
     Product,
     Task,
     TimelineEvent,
+    User,
+    WorkspaceIntegration,
     WorkspaceSetting,
 )
+from app.services.encryption_service import get_encryption_service
+
+try:
+    import httpx
+except Exception:  # pragma: no cover
+    httpx = None
 
 DEFAULT_SLA_CONFIG: Dict[str, int] = {
     "speed_to_lead_minutes": 15,
@@ -39,6 +49,249 @@ TOUCHPOINT_EVENT_TYPES = {
     "meeting",
 }
 
+MENTION_RE = re.compile(r"(?:(?<=\\s)|^)@([A-Za-z0-9][A-Za-z0-9_.-]{1,63})")
+
+
+def extract_mention_tokens(text: Optional[str]) -> List[str]:
+    if not text:
+        return []
+    tokens: List[str] = []
+    seen = set()
+    for m in MENTION_RE.finditer(text):
+        token = (m.group(1) or "").strip()
+        if not token:
+            continue
+        key = token.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        tokens.append(token)
+    return tokens
+
+
+def _user_mention_aliases(u: User) -> set[str]:
+    aliases = set()
+    email = (u.email or "").strip().lower()
+    if email:
+        aliases.add(email)
+        local = email.split("@")[0]
+        if local:
+            aliases.add(local)
+
+    first = (u.first_name or "").strip().lower()
+    last = (u.last_name or "").strip().lower()
+    if first:
+        aliases.add(first)
+    if last:
+        aliases.add(last)
+    if first and last:
+        aliases.add(f"{first}{last}")
+        aliases.add(f"{first}.{last}")
+        aliases.add(f"{first}_{last}")
+    return aliases
+
+
+async def resolve_mentions_to_users(
+    db: AsyncSession,
+    tenant_id: str,
+    tokens: List[str],
+) -> Dict[str, User]:
+    if not tokens:
+        return {}
+
+    res = await db.execute(select(User).where(and_(User.tenant_id == tenant_id, User.is_active.is_(True))))
+    users = res.scalars().all()
+
+    token_map: Dict[str, User] = {}
+    for raw in tokens:
+        token = raw.strip().lower()
+        if not token:
+            continue
+        for u in users:
+            if token in _user_mention_aliases(u):
+                token_map[raw] = u
+                break
+
+    return token_map
+
+
+def _truncate(text: str, max_len: int) -> str:
+    if text is None:
+        return ""
+    s = str(text)
+    if len(s) <= max_len:
+        return s
+    return s[: max(0, max_len - 1)] + "…"
+
+
+async def create_mention_tasks_from_text(
+    db: AsyncSession,
+    tenant_id: str,
+    actor_id: Optional[str],
+    actor_name: Optional[str],
+    text: Optional[str],
+    source: str,
+    related_type: Optional[str],
+    related_id: Optional[str],
+    context_label: str,
+) -> int:
+    tokens = extract_mention_tokens(text)
+    if not tokens:
+        return 0
+
+    token_to_user = await resolve_mentions_to_users(db, tenant_id, tokens)
+    if not token_to_user:
+        return 0
+
+    now = now_utc()
+    created = 0
+
+    for token, mentioned_user in token_to_user.items():
+        if actor_id and mentioned_user.id == actor_id:
+            continue
+
+        fingerprint_raw = f"{tenant_id}|{source}|{related_type or ''}|{related_id or ''}|{actor_id or ''}|{mentioned_user.id}|{token.lower()}"
+        fingerprint = hashlib.sha256(fingerprint_raw.encode("utf-8")).hexdigest()[:24]
+
+        existing_res = await db.execute(
+            select(Task.id)
+            .where(
+                and_(
+                    Task.tenant_id == tenant_id,
+                    Task.owner_id == mentioned_user.id,
+                    Task.status == "open",
+                    Task.kind == "mention",
+                    Task.meta["mention_fingerprint"].astext == fingerprint,
+                )
+            )
+            .limit(1)
+        )
+        if existing_res.scalar_one_or_none():
+            continue
+
+        title = _truncate(f"Mention: {context_label}", 200)
+        snippet = _truncate((text or "").strip(), 600)
+        who = (actor_name or "Someone").strip() or "Someone"
+        description = _truncate(
+            f"{who} mentioned you (@{token}).\nContext: {context_label}\n\n{snippet}".strip(),
+            1800,
+        )
+
+        task = Task(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            title=title,
+            description=description or None,
+            due_at=now + timedelta(hours=4),
+            owner_id=mentioned_user.id,
+            created_by=actor_id,
+            status="open",
+            kind="mention",
+            related_type=(related_type or None),
+            related_id=(related_id or None),
+            completed_at=None,
+            completed_by=None,
+            meta={
+                "mention": True,
+                "mention_token": token,
+                "mention_actor_id": actor_id,
+                "mention_source": source,
+                "mention_context_label": context_label,
+                "mention_fingerprint": fingerprint,
+                "created_at": now.isoformat(),
+            },
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(task)
+        created += 1
+
+    if created:
+        await db.flush()
+
+    return created
+
+
+async def _get_enabled_discord_webhook_url(db: AsyncSession, tenant_id: str) -> Optional[str]:
+    res = await db.execute(
+        select(WorkspaceIntegration).where(
+            and_(
+                WorkspaceIntegration.tenant_id == tenant_id,
+                WorkspaceIntegration.provider_type == "discord",
+                WorkspaceIntegration.enabled.is_(True),
+            )
+        )
+    )
+    integration = res.scalar_one_or_none()
+    if not integration:
+        return None
+
+    enc = get_encryption_service()
+    try:
+        url = enc.decrypt(integration.encrypted_api_key)
+    except Exception:
+        return None
+
+    url = (url or "").strip()
+    if not url.startswith("https://discord.com/api/webhooks/") and not url.startswith("https://discordapp.com/api/webhooks/"):
+        return None
+    return url
+
+
+async def _post_discord_webhook(webhook_url: str, content: str) -> bool:
+    if not webhook_url or not content:
+        return False
+    if httpx is None:
+        return False
+
+    payload = {"content": _truncate(content, 1900)}
+    timeout = httpx.Timeout(5.0, connect=3.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(webhook_url, json=payload)
+        return 200 <= resp.status_code < 300
+
+
+async def maybe_send_discord_notification_for_event(
+    db: AsyncSession,
+    tenant_id: str,
+    event_type: str,
+    title: str,
+    actor_name: Optional[str],
+    metadata: Optional[Dict[str, Any]] = None,
+) -> None:
+    webhook_url = await _get_enabled_discord_webhook_url(db, tenant_id)
+    if not webhook_url:
+        return
+
+    evt = (event_type or "").strip().lower()
+    allowed = {"deal_won", "deal_lost", "lead_assigned"}
+    if evt not in allowed:
+        return
+
+    who = (actor_name or "").strip()
+    prefix = f"[{evt}]"
+    content = f"{prefix} {title}"
+    if who:
+        content = f"{content} (by {who})"
+
+    try:
+        ok = await _post_discord_webhook(webhook_url, content)
+        if ok:
+            res = await db.execute(
+                select(WorkspaceIntegration).where(
+                    and_(
+                        WorkspaceIntegration.tenant_id == tenant_id,
+                        WorkspaceIntegration.provider_type == "discord",
+                    )
+                )
+            )
+            integration = res.scalar_one_or_none()
+            if integration:
+                integration.last_used_at = now_utc()
+                integration.updated_at = now_utc()
+                await db.flush()
+    except Exception:
+        return
 
 def normalize_sla_config(cfg: Optional[Dict[str, Any]]) -> Dict[str, int]:
     out = dict(DEFAULT_SLA_CONFIG)
@@ -243,6 +496,39 @@ async def create_timeline_event(
                 deal.last_touchpoint_at = created_at
                 deal.updated_at = now_utc()
                 await db.flush()
+
+    # @mentions: create "mention" tasks for any referenced teammates in title/description.
+    try:
+        mention_text = " ".join([x for x in [(title or "").strip(), (description or "").strip()] if x])
+        if mention_text:
+            rt = "deal" if deal_id else ("contact" if contact_id else None)
+            rid = deal_id or contact_id
+            await create_mention_tasks_from_text(
+                db=db,
+                tenant_id=tenant_id,
+                actor_id=actor_id,
+                actor_name=actor_name,
+                text=mention_text,
+                source=f"timeline:{event.id}",
+                related_type=rt,
+                related_id=rid,
+                context_label=title,
+            )
+    except Exception:
+        pass
+
+    # Discord automation (webhook): key events only (wins + lead assignment).
+    try:
+        await maybe_send_discord_notification_for_event(
+            db=db,
+            tenant_id=tenant_id,
+            event_type=event_type,
+            title=title,
+            actor_name=actor_name,
+            metadata=metadata or {},
+        )
+    except Exception:
+        pass
 
     return {
         "id": event.id,
