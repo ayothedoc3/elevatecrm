@@ -39,7 +39,7 @@ import {
   DollarSign, User, Clock, CheckCircle2, AlertTriangle, X,
   ChevronRight, ChevronLeft, GripVertical, MoreHorizontal, Plus, RefreshCw,
   Calculator, Phone, Mail, MessageSquare, Calendar, FileText, 
-  TrendingUp, Package, Loader2, AlertCircle, ArrowRight
+  TrendingUp, Package, Loader2, AlertCircle, ArrowRight, Save
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -51,6 +51,7 @@ const PipelinePage = () => {
   const [kanbanData, setKanbanData] = useState(null);
   const [selectedDeal, setSelectedDeal] = useState(null);
   const [showDealSheet, setShowDealSheet] = useState(false);
+  const [dealSheetTab, setDealSheetTab] = useState('details');
   const [nextStepAt, setNextStepAt] = useState('');
   const [nextStepNote, setNextStepNote] = useState('');
   const [savingNextStep, setSavingNextStep] = useState(false);
@@ -239,6 +240,7 @@ const PipelinePage = () => {
     setNextStepAt(toDateTimeLocal(deal.next_step_at));
     setNextStepNote(deal.next_step_note || '');
     setDealContactId(deal.contact_id || '');
+    setDealSheetTab('details');
     setShowDealSheet(true);
     await fetchDealCalculation(deal.id);
   };
@@ -251,6 +253,7 @@ const PipelinePage = () => {
     setNextStepAt('');
     setNextStepNote('');
     setDealContactId('');
+    setDealSheetTab('details');
   };
 
   // Drag and Drop handlers
@@ -640,6 +643,15 @@ const PipelinePage = () => {
                           <span>{deal.contact_name}</span>
                         </div>
                       )}
+
+                      {deal.cadence_breached && (
+                        <div className="flex items-center gap-1">
+                          <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">
+                            <Clock className="w-3 h-3 mr-1" />
+                            Stale {deal.cadence_hours_since_touch ?? '-'}h
+                          </Badge>
+                        </div>
+                      )}
                       
                       {/* Quick Move Buttons */}
                       <div className="flex gap-1 pt-2 border-t" onClick={e => e.stopPropagation()}>
@@ -895,9 +907,17 @@ const PipelinePage = () => {
                 </div>
               </SheetHeader>
 
-              <Tabs defaultValue="details" className="flex-1 flex flex-col">
+              <Tabs value={dealSheetTab} onValueChange={setDealSheetTab} className="flex-1 flex flex-col">
                 <TabsList className="mx-6 mt-4 flex flex-wrap">
                   <TabsTrigger value="details">Details</TabsTrigger>
+                  <TabsTrigger value="spiced">
+                    <FileText className="w-4 h-4 mr-1" />
+                    SPICED
+                  </TabsTrigger>
+                  <TabsTrigger value="demo">
+                    <Calendar className="w-4 h-4 mr-1" />
+                    Demo
+                  </TabsTrigger>
                   <TabsTrigger value="tasks">Tasks</TabsTrigger>
                   <TabsTrigger value="calculation">
                     <Calculator className="w-4 h-4 mr-1" />
@@ -1056,13 +1076,31 @@ const PipelinePage = () => {
                             <MessageSquare className="w-4 h-4" />
                             <span className="text-xs">SMS</span>
                           </Button>
-                          <Button variant="outline" size="sm" className="h-16 flex-col gap-1">
+                          <Button variant="outline" size="sm" className="h-16 flex-col gap-1" onClick={() => setDealSheetTab('demo')}>
                             <Calendar className="w-4 h-4" />
                             <span className="text-xs">Schedule</span>
                           </Button>
                         </div>
                       </CardContent>
                     </Card>
+                  </TabsContent>
+
+                  <TabsContent value="spiced" className="p-6 space-y-4">
+                    <SpicedPanel
+                      deal={selectedDeal}
+                      api={api}
+                      onDealUpdated={(d) => setSelectedDeal(d)}
+                      onUpdate={() => fetchKanbanData(selectedPipeline)}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="demo" className="p-6 space-y-4">
+                    <DemoPanel
+                      deal={selectedDeal}
+                      api={api}
+                      onDealUpdated={(d) => setSelectedDeal(d)}
+                      onUpdate={() => fetchKanbanData(selectedPipeline)}
+                    />
                   </TabsContent>
 
                   <TabsContent value="tasks" className="p-6 space-y-4">
@@ -1336,6 +1374,362 @@ const PipelinePage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+};
+
+const DemoPanel = ({ deal, api, onDealUpdated, onUpdate }) => {
+  const toDateTimeLocal = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const fromDateTimeLocal = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
+  };
+
+  const [form, setForm] = React.useState({
+    demo_title: '',
+    demo_type: '',
+    demo_status: 'auto',
+    demo_scheduled_at: '',
+    demo_duration_minutes: 30,
+    demo_meet_url: '',
+    demo_calendar_url: '',
+    demo_completed_at: '',
+    demo_notes: ''
+  });
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!deal) return;
+    setForm({
+      demo_title: deal.demo_title || deal.name || '',
+      demo_type: deal.demo_type || 'consultation',
+      demo_status: deal.demo_status || 'auto',
+      demo_scheduled_at: toDateTimeLocal(deal.demo_scheduled_at),
+      demo_duration_minutes: deal.demo_duration_minutes || 30,
+      demo_meet_url: deal.demo_meet_url || '',
+      demo_calendar_url: deal.demo_calendar_url || '',
+      demo_completed_at: toDateTimeLocal(deal.demo_completed_at),
+      demo_notes: deal.demo_notes || ''
+    });
+  }, [deal?.id]);
+
+  const buildGoogleCalendarUrl = () => {
+    const startIso = fromDateTimeLocal(form.demo_scheduled_at);
+    if (!startIso) {
+      toast.error('Set a demo scheduled date/time first');
+      return null;
+    }
+
+    const start = new Date(startIso);
+    const durationMinutes = Number(form.demo_duration_minutes) || 30;
+    const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const fmt = (d) =>
+      `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+
+    const title = (form.demo_title || `${deal?.name || 'Demo'} Demo`).trim();
+    const detailsLines = [
+      deal?.name ? `Deal: ${deal.name}` : null,
+      deal?.contact_name ? `Contact: ${deal.contact_name}` : null,
+      form.demo_meet_url ? `Meet: ${form.demo_meet_url}` : null,
+      form.demo_notes ? `Notes: ${form.demo_notes}` : null,
+    ].filter(Boolean);
+
+    const params = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: title,
+      dates: `${fmt(start)}/${fmt(end)}`,
+      details: detailsLines.join('\n'),
+      location: form.demo_meet_url || ''
+    });
+
+    return `https://calendar.google.com/calendar/render?${params.toString()}`;
+  };
+
+  const openGoogleCalendar = () => {
+    const url = buildGoogleCalendarUrl();
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const saveDemo = async () => {
+    if (!deal?.id) return;
+    setSaving(true);
+    try {
+      const payload = {
+        demo_title: form.demo_title?.trim() || null,
+        demo_type: form.demo_type?.trim() || null,
+        demo_status: form.demo_status === 'auto' ? null : form.demo_status,
+        demo_scheduled_at: fromDateTimeLocal(form.demo_scheduled_at),
+        demo_duration_minutes: Number(form.demo_duration_minutes) || 30,
+        demo_meet_url: form.demo_meet_url?.trim() || null,
+        demo_calendar_url: form.demo_calendar_url?.trim() || null,
+        demo_completed_at: fromDateTimeLocal(form.demo_completed_at),
+        demo_notes: form.demo_notes || null,
+      };
+
+      const res = await api.put(`/deals/${deal.id}`, payload);
+      toast.success('Demo saved');
+      if (onDealUpdated) onDealUpdated(res.data);
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      console.error('Error saving demo:', error);
+      toast.error(error.response?.data?.detail || 'Failed to save demo');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!deal) return null;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Calendar className="w-4 h-4" />
+            Demo Scheduling (v1)
+          </CardTitle>
+          <CardDescription>
+            Store demo details + open a Google Calendar template event (no OAuth sync in v1).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Title</Label>
+            <Input
+              value={form.demo_title}
+              onChange={(e) => setForm((p) => ({ ...p, demo_title: e.target.value }))}
+              placeholder="e.g. David Laredo - The Nosh | Frylow Consultation"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Input
+                value={form.demo_type}
+                onChange={(e) => setForm((p) => ({ ...p, demo_type: e.target.value }))}
+                placeholder="consultation / webinar / demo"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={form.demo_status} onValueChange={(v) => setForm((p) => ({ ...p, demo_status: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto</SelectItem>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="no_show">No-show</SelectItem>
+                  <SelectItem value="canceled">Canceled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Scheduled At</Label>
+              <Input
+                type="datetime-local"
+                value={form.demo_scheduled_at}
+                onChange={(e) => setForm((p) => ({ ...p, demo_scheduled_at: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Duration (minutes)</Label>
+              <Input
+                type="number"
+                min={5}
+                max={480}
+                value={form.demo_duration_minutes}
+                onChange={(e) => setForm((p) => ({ ...p, demo_duration_minutes: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Google Meet URL</Label>
+            <Input
+              value={form.demo_meet_url}
+              onChange={(e) => setForm((p) => ({ ...p, demo_meet_url: e.target.value }))}
+              placeholder="https://meet.google.com/..."
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Calendar Event URL (optional)</Label>
+            <Input
+              value={form.demo_calendar_url}
+              onChange={(e) => setForm((p) => ({ ...p, demo_calendar_url: e.target.value }))}
+              placeholder="Paste the created event URL if desired"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Completed At (optional)</Label>
+              <Input
+                type="datetime-local"
+                value={form.demo_completed_at}
+                onChange={(e) => setForm((p) => ({ ...p, demo_completed_at: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Notes</Label>
+            <Textarea
+              value={form.demo_notes}
+              onChange={(e) => setForm((p) => ({ ...p, demo_notes: e.target.value }))}
+              rows={3}
+              placeholder="Add context, agenda, external CRM link, etc."
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={openGoogleCalendar} disabled={!form.demo_scheduled_at}>
+              <Calendar className="w-4 h-4 mr-2" />
+              Create Google Calendar Event
+            </Button>
+            {form.demo_calendar_url?.trim() && (
+              <Button variant="outline" asChild>
+                <a href={form.demo_calendar_url} target="_blank" rel="noreferrer">
+                  Open Event
+                </a>
+              </Button>
+            )}
+          </div>
+
+          <Button onClick={saveDemo} disabled={saving} className="w-full">
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" />
+                Save Demo
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+const SpicedPanel = ({ deal, api, onDealUpdated, onUpdate }) => {
+  const FIELDS = [
+    { key: 'situation', label: 'Situation' },
+    { key: 'problem', label: 'Problem' },
+    { key: 'implication', label: 'Implication' },
+    { key: 'critical_event', label: 'Critical Event' },
+    { key: 'economic_impact', label: 'Economic Impact' },
+    { key: 'decision', label: 'Decision' },
+  ];
+
+  const [spiced, setSpiced] = React.useState({});
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!deal) return;
+    const existing = deal.spiced || {};
+    const next = {};
+    for (const f of FIELDS) next[f.key] = existing[f.key] || '';
+    setSpiced(next);
+  }, [deal?.id]);
+
+  const completeCount = FIELDS.filter((f) => (spiced?.[f.key] || '').toString().trim().length > 0).length;
+  const pct = Math.round((completeCount / FIELDS.length) * 100);
+  const isComplete = completeCount === FIELDS.length;
+
+  const saveSpiced = async () => {
+    if (!deal?.id) return;
+    setSaving(true);
+    try {
+      const payload = { spiced: { ...spiced } };
+      const res = await api.put(`/deals/${deal.id}`, payload);
+      toast.success('SPICED saved');
+      if (onDealUpdated) onDealUpdated(res.data);
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      console.error('Error saving SPICED:', error);
+      toast.error(error.response?.data?.detail || 'Failed to save SPICED');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!deal) return null;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            SPICED Summary
+            {isComplete ? (
+              <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Complete</Badge>
+            ) : (
+              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">Incomplete</Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Required for playbook-aligned discovery. Demo Completed stage requires SPICED complete.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{completeCount}/{FIELDS.length} fields complete</span>
+              <span>{pct}%</span>
+            </div>
+            <Progress value={pct} className="h-2" />
+          </div>
+
+          {FIELDS.map((f) => (
+            <div key={f.key} className="space-y-2">
+              <Label>{f.label}</Label>
+              <Textarea
+                value={spiced?.[f.key] || ''}
+                onChange={(e) => setSpiced((p) => ({ ...(p || {}), [f.key]: e.target.value }))}
+                rows={2}
+                placeholder={`Enter ${f.label.toLowerCase()}...`}
+              />
+            </div>
+          ))}
+
+          <Button onClick={saveSpiced} disabled={saving} className="w-full">
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" />
+                Save SPICED
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 };

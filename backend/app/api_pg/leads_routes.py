@@ -15,6 +15,7 @@ from app.api_pg.deps import get_current_user
 from app.api_pg.services import (
     create_timeline_event,
     get_default_pipeline_and_stage,
+    get_workspace_sla_config,
     resolve_account,
     resolve_partner_and_product,
     upsert_open_next_step_task_for_deal,
@@ -126,9 +127,34 @@ def _lead_to_dict(lead: Lead, owner_name: Optional[str] = None) -> Dict[str, Any
         "contact_id": lead.contact_id,
         "touchpoints_count": int(lead.touchpoints_count or 0),
         "last_touchpoint_at": dt_to_iso(lead.last_touchpoint_at),
+        "first_touchpoint_at": dt_to_iso(lead.first_touchpoint_at),
         "scoring_data": lead.scoring_data or {},
         "created_at": dt_to_iso(lead.created_at),
         "updated_at": dt_to_iso(lead.updated_at),
+    }
+
+
+def _lead_sla_fields(lead: Lead, sla: Dict[str, int], now) -> Dict[str, Any]:
+    created_at = lead.created_at or now
+
+    speed_threshold = int(sla.get("speed_to_lead_minutes") or 15)
+    if lead.first_touchpoint_at:
+        speed_minutes = (lead.first_touchpoint_at - created_at).total_seconds() / 60.0
+        speed_breached = speed_minutes > speed_threshold
+    else:
+        speed_minutes = (now - created_at).total_seconds() / 60.0
+        speed_breached = speed_minutes > speed_threshold and lead.status not in {"converted", "disqualified"}
+
+    cadence_threshold = int(sla.get("lead_cadence_hours") or 24)
+    cadence_base = lead.last_touchpoint_at or lead.assigned_at or created_at
+    cadence_hours = (now - cadence_base).total_seconds() / 3600.0 if cadence_base else 0.0
+    cadence_breached = cadence_hours > cadence_threshold and lead.status not in {"converted", "disqualified"}
+
+    return {
+        "speed_to_lead_minutes": round(max(0.0, speed_minutes), 1),
+        "speed_to_lead_breached": bool(speed_breached),
+        "cadence_hours_since_touch": round(max(0.0, cadence_hours), 1),
+        "cadence_breached": bool(cadence_breached),
     }
 
 
@@ -147,6 +173,8 @@ async def get_leads(
     db: AsyncSession = Depends(get_db),
 ):
     tenant_id = user["tenant_id"]
+    sla = await get_workspace_sla_config(db, tenant_id)
+    now = now_utc()
 
     filters = [Lead.tenant_id == tenant_id]
     if status:
@@ -190,7 +218,9 @@ async def get_leads(
         owner_name = None
         if owner:
             owner_name = f"{owner.first_name} {owner.last_name}".strip()
-        leads.append(_lead_to_dict(lead, owner_name=owner_name))
+        payload = _lead_to_dict(lead, owner_name=owner_name)
+        payload.update(_lead_sla_fields(lead, sla, now))
+        leads.append(payload)
 
     return {"leads": leads, "total": total, "page": page, "page_size": page_size}
 
@@ -717,7 +747,11 @@ async def get_lead(
         if owner:
             owner_name = f"{owner.first_name} {owner.last_name}".strip()
 
-    return _lead_to_dict(lead, owner_name=owner_name)
+    tenant_id = user["tenant_id"]
+    sla = await get_workspace_sla_config(db, tenant_id)
+    payload = _lead_to_dict(lead, owner_name=owner_name)
+    payload.update(_lead_sla_fields(lead, sla, now_utc()))
+    return payload
 
 
 @router.put("/{lead_id}")
@@ -875,7 +909,10 @@ async def assign_lead(
     lead.updated_at = now
     await db.flush()
 
-    return _lead_to_dict(lead, owner_name=f"{owner.first_name} {owner.last_name}".strip())
+    sla = await get_workspace_sla_config(db, tenant_id)
+    payload = _lead_to_dict(lead, owner_name=f"{owner.first_name} {owner.last_name}".strip())
+    payload.update(_lead_sla_fields(lead, sla, now))
+    return payload
 
 
 @router.post("/{lead_id}/touchpoint")
@@ -897,6 +934,8 @@ async def log_lead_touchpoint(
     now = now_utc()
     lead.touchpoints_count = int(lead.touchpoints_count or 0) + 1
     lead.last_touchpoint_at = now
+    if not lead.first_touchpoint_at:
+        lead.first_touchpoint_at = now
     lead.updated_at = now
 
     await create_timeline_event(
@@ -923,7 +962,10 @@ async def log_lead_touchpoint(
         if owner:
             owner_name = f"{owner.first_name} {owner.last_name}".strip()
 
-    return _lead_to_dict(lead, owner_name=owner_name)
+    sla = await get_workspace_sla_config(db, tenant_id)
+    payload = _lead_to_dict(lead, owner_name=owner_name)
+    payload.update(_lead_sla_fields(lead, sla, now))
+    return payload
 
 
 @router.post("/{lead_id}/score")

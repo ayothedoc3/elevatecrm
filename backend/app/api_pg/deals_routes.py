@@ -43,6 +43,16 @@ class DealCreate(BaseModel):
     stage_id: str
     next_step_at: Optional[str] = None
     next_step_note: Optional[str] = None
+    spiced: Optional[Dict[str, Any]] = None
+    demo_title: Optional[str] = None
+    demo_type: Optional[str] = None
+    demo_status: Optional[str] = None
+    demo_scheduled_at: Optional[str] = None
+    demo_duration_minutes: Optional[int] = Field(default=None, ge=5, le=480)
+    demo_meet_url: Optional[str] = None
+    demo_calendar_url: Optional[str] = None
+    demo_completed_at: Optional[str] = None
+    demo_notes: Optional[str] = None
     lead_score: Optional[int] = Field(default=None, ge=0, le=100)
     lead_tier: Optional[str] = None
     sales_motion_type: str = "partnership_sales"
@@ -58,6 +68,16 @@ class DealUpdate(BaseModel):
     contact_id: Optional[str] = None
     next_step_at: Optional[str] = None
     next_step_note: Optional[str] = None
+    spiced: Optional[Dict[str, Any]] = None
+    demo_title: Optional[str] = None
+    demo_type: Optional[str] = None
+    demo_status: Optional[str] = None
+    demo_scheduled_at: Optional[str] = None
+    demo_duration_minutes: Optional[int] = Field(default=None, ge=5, le=480)
+    demo_meet_url: Optional[str] = None
+    demo_calendar_url: Optional[str] = None
+    demo_completed_at: Optional[str] = None
+    demo_notes: Optional[str] = None
     lead_score: Optional[int] = Field(default=None, ge=0, le=100)
     lead_tier: Optional[str] = None
     sales_motion_type: Optional[str] = None
@@ -110,6 +130,7 @@ def _deal_to_dict(
         "stage_name": stage_name,
         "next_step_at": dt_to_iso(d.next_step_at),
         "next_step_note": d.next_step_note,
+        "last_touchpoint_at": dt_to_iso(d.last_touchpoint_at),
         "lead_score": int(d.lead_score or 0),
         "lead_tier": d.lead_tier,
         "sales_motion_type": d.sales_motion_type,
@@ -117,12 +138,57 @@ def _deal_to_dict(
         "product_id": d.product_id,
         "partner_name": d.partner_name,
         "product_name": d.product_name,
+        "spiced": d.spiced or {},
+        "spiced_complete": _spiced_complete(d.spiced or {}),
+        "demo_title": d.demo_title,
+        "demo_type": d.demo_type,
+        "demo_status": d.demo_status,
+        "demo_scheduled_at": dt_to_iso(d.demo_scheduled_at),
+        "demo_duration_minutes": int(d.demo_duration_minutes or 30),
+        "demo_meet_url": d.demo_meet_url,
+        "demo_calendar_url": d.demo_calendar_url,
+        "demo_completed_at": dt_to_iso(d.demo_completed_at),
+        "demo_notes": d.demo_notes,
         "owner_id": d.owner_id,
         "owner_name": owner_name,
         "handoff_status": d.handoff_status,
         "created_at": dt_to_iso(d.created_at),
         "updated_at": dt_to_iso(d.updated_at),
     }
+
+
+def _spiced_complete(spiced: Dict[str, Any]) -> bool:
+    required = ["situation", "problem", "implication", "critical_event", "economic_impact", "decision"]
+    for k in required:
+        v = (spiced or {}).get(k)
+        if not is_non_empty(v):
+            return False
+    return True
+
+
+def _normalize_spiced(existing: Dict[str, Any], incoming: Dict[str, Any]) -> Dict[str, Any]:
+    allowed = ["situation", "problem", "implication", "critical_event", "economic_impact", "decision"]
+    invalid_keys = [k for k in (incoming or {}).keys() if k not in allowed]
+    if invalid_keys:
+        raise HTTPException(status_code=400, detail=f"Invalid spiced keys: {', '.join(invalid_keys)}")
+
+    if not incoming:
+        return {}
+
+    merged = {k: (existing or {}).get(k) for k in allowed}
+    for k, v in incoming.items():
+        merged[k] = v.strip() if isinstance(v, str) else v
+    return merged
+
+
+def _demo_is_scheduled(deal: Deal) -> bool:
+    return bool(deal.demo_scheduled_at)
+
+
+def _demo_is_completed(deal: Deal) -> bool:
+    if (deal.demo_status or "").strip().lower() == "completed":
+        return True
+    return bool(deal.demo_completed_at)
 
 
 def _stage_requires_calculation(stage: PipelineStage) -> bool:
@@ -271,6 +337,28 @@ async def create_deal(
 
     next_step_dt = parse_iso_datetime(data.next_step_at) if data.next_step_at else None
 
+    spiced = data.spiced if data.spiced is not None else {}
+    if not isinstance(spiced, dict):
+        raise HTTPException(status_code=400, detail="spiced must be an object")
+
+    demo_scheduled_dt = parse_iso_datetime((data.demo_scheduled_at or "").strip()) if data.demo_scheduled_at else None
+    if data.demo_scheduled_at and not demo_scheduled_dt:
+        raise HTTPException(status_code=400, detail="demo_scheduled_at must be a valid ISO datetime")
+
+    demo_completed_dt = parse_iso_datetime((data.demo_completed_at or "").strip()) if data.demo_completed_at else None
+    if data.demo_completed_at and not demo_completed_dt:
+        raise HTTPException(status_code=400, detail="demo_completed_at must be a valid ISO datetime")
+
+    demo_status = (data.demo_status or "").strip().lower() or None
+    if demo_status and demo_status not in {"scheduled", "completed", "no_show", "canceled"}:
+        raise HTTPException(status_code=400, detail="Invalid demo_status")
+    if not demo_status and demo_completed_dt:
+        demo_status = "completed"
+    if not demo_status and demo_scheduled_dt:
+        demo_status = "scheduled"
+
+    demo_duration_minutes = int(data.demo_duration_minutes or 30)
+
     now = now_utc()
     deal = Deal(
         id=str(uuid.uuid4()),
@@ -286,6 +374,7 @@ async def create_deal(
         stage_id=data.stage_id,
         next_step_at=next_step_dt,
         next_step_note=data.next_step_note,
+        last_touchpoint_at=None,
         lead_score=lead_score,
         lead_tier=lead_tier,
         sales_motion_type=(data.sales_motion_type or "partnership_sales").strip(),
@@ -293,6 +382,16 @@ async def create_deal(
         product_id=resolved.get("product_id"),
         partner_name=resolved.get("partner_name"),
         product_name=resolved.get("product_name"),
+        spiced=spiced,
+        demo_title=(data.demo_title or "").strip() or None,
+        demo_type=(data.demo_type or "").strip() or None,
+        demo_status=demo_status,
+        demo_scheduled_at=demo_scheduled_dt,
+        demo_duration_minutes=demo_duration_minutes,
+        demo_meet_url=(data.demo_meet_url or "").strip() or None,
+        demo_calendar_url=(data.demo_calendar_url or "").strip() or None,
+        demo_completed_at=demo_completed_dt,
+        demo_notes=data.demo_notes,
         owner_id=user["id"],
         last_override={},
         handoff_status="pending",
@@ -423,6 +522,79 @@ async def update_deal(
 
     if data.next_step_note is not None:
         deal.next_step_note = data.next_step_note
+
+    if data.spiced is not None:
+        incoming = data.spiced or {}
+        if not isinstance(incoming, dict):
+            raise HTTPException(status_code=400, detail="spiced must be an object")
+        deal.spiced = _normalize_spiced(deal.spiced or {}, incoming)
+
+    if data.demo_title is not None:
+        v = (data.demo_title or "").strip() or None
+        if not v and "demo_title" in current_required:
+            raise HTTPException(status_code=400, detail="demo_title is required for the current stage")
+        deal.demo_title = v
+
+    if data.demo_type is not None:
+        v = (data.demo_type or "").strip() or None
+        if not v and "demo_type" in current_required:
+            raise HTTPException(status_code=400, detail="demo_type is required for the current stage")
+        deal.demo_type = v
+
+    if data.demo_scheduled_at is not None:
+        value = (data.demo_scheduled_at or "").strip()
+        dt = parse_iso_datetime(value) if value else None
+        if value and not dt:
+            raise HTTPException(status_code=400, detail="demo_scheduled_at must be a valid ISO datetime")
+        if not dt and "demo_scheduled_at" in current_required:
+            raise HTTPException(status_code=400, detail="demo_scheduled_at is required for the current stage")
+        deal.demo_scheduled_at = dt
+
+    if data.demo_duration_minutes is not None:
+        deal.demo_duration_minutes = int(data.demo_duration_minutes or 30)
+
+    if data.demo_meet_url is not None:
+        v = (data.demo_meet_url or "").strip() or None
+        if not v and "demo_meet_url" in current_required:
+            raise HTTPException(status_code=400, detail="demo_meet_url is required for the current stage")
+        deal.demo_meet_url = v
+
+    if data.demo_calendar_url is not None:
+        v = (data.demo_calendar_url or "").strip() or None
+        if not v and "demo_calendar_url" in current_required:
+            raise HTTPException(status_code=400, detail="demo_calendar_url is required for the current stage")
+        deal.demo_calendar_url = v
+
+    if data.demo_completed_at is not None:
+        value = (data.demo_completed_at or "").strip()
+        dt = parse_iso_datetime(value) if value else None
+        if value and not dt:
+            raise HTTPException(status_code=400, detail="demo_completed_at must be a valid ISO datetime")
+        if not dt and "demo_completed_at" in current_required:
+            raise HTTPException(status_code=400, detail="demo_completed_at is required for the current stage")
+        deal.demo_completed_at = dt
+
+    if data.demo_notes is not None:
+        deal.demo_notes = data.demo_notes
+
+    if data.demo_status is not None:
+        demo_status = (data.demo_status or "").strip().lower() or None
+        if demo_status and demo_status not in {"scheduled", "completed", "no_show", "canceled"}:
+            raise HTTPException(status_code=400, detail="Invalid demo_status")
+        if not demo_status and "demo_status" in current_required:
+            raise HTTPException(status_code=400, detail="demo_status is required for the current stage")
+        deal.demo_status = demo_status
+
+    if deal.demo_completed_at:
+        deal.demo_status = "completed"
+    elif deal.demo_scheduled_at and not deal.demo_status:
+        deal.demo_status = "scheduled"
+
+    if (deal.demo_status or "").strip().lower() == "scheduled" and not deal.demo_scheduled_at:
+        raise HTTPException(status_code=400, detail="demo_scheduled_at is required when demo_status is scheduled")
+
+    if (deal.demo_status or "").strip().lower() == "completed" and not deal.demo_completed_at:
+        deal.demo_completed_at = now
 
     motion_update_requested = any(
         [
@@ -639,6 +811,9 @@ async def move_deal_stage(
     moving_to_closed_won = "closed won" in new_stage_name_lower
     moving_to_closed_lost = "closed lost" in new_stage_name_lower
     moving_to_handoff = "handoff" in new_stage_name_lower
+    moving_to_demo_scheduled = "demo" in new_stage_name_lower and ("schedule" in new_stage_name_lower or "scheduled" in new_stage_name_lower)
+    moving_to_demo_completed = "demo" in new_stage_name_lower and "completed" in new_stage_name_lower
+    moving_to_verbal = "verbal commitment" in new_stage_name_lower
 
     if not override:
         if (deal.status or "open").lower() in ["won", "lost"]:
@@ -659,6 +834,18 @@ async def move_deal_stage(
                 calc_result = await get_calculation_result(db, deal_id=deal_id, definition_id=calc_def.id)
                 if not calc_result or not calc_result.is_complete:
                     raise HTTPException(status_code=400, detail="Calculation must be complete before moving to this stage")
+
+        if moving_to_demo_scheduled and not _demo_is_scheduled(deal):
+            raise HTTPException(status_code=400, detail="Demo must be scheduled (demo_scheduled_at) before moving to this stage")
+
+        if moving_to_demo_completed:
+            if not _demo_is_completed(deal):
+                raise HTTPException(status_code=400, detail="Demo must be completed (demo_completed_at) before moving to this stage")
+            if not _spiced_complete(deal.spiced or {}):
+                raise HTTPException(status_code=400, detail="SPICED summary must be complete before moving to this stage")
+
+        if moving_to_verbal and not _demo_is_completed(deal):
+            raise HTTPException(status_code=400, detail="Demo must be completed before moving to Verbal Commitment")
 
         if moving_to_handoff:
             handoff = (

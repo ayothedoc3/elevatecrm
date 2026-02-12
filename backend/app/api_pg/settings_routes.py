@@ -61,6 +61,7 @@ class WorkspaceSettingsUpdate(BaseModel):
     primary_color: Optional[str] = None
     timezone: Optional[str] = None
     currency: Optional[str] = None
+    sla_config: Optional[Dict[str, Any]] = None
 
 
 class IntegrationCreate(BaseModel):
@@ -112,6 +113,7 @@ async def get_workspace_settings(
             "primary_color": "#6366F1",
             "timezone": "UTC",
             "currency": "USD",
+            "sla_config": {"speed_to_lead_minutes": 15, "lead_cadence_hours": 24, "deal_cadence_hours": 72},
         }
     return {
         "name": settings.name,
@@ -120,6 +122,8 @@ async def get_workspace_settings(
         "primary_color": settings.primary_color,
         "timezone": settings.timezone,
         "currency": settings.currency,
+        "sla_config": settings.sla_config
+        or {"speed_to_lead_minutes": 15, "lead_cadence_hours": 24, "deal_cadence_hours": 72},
     }
 
 
@@ -134,6 +138,26 @@ async def update_workspace_settings(
     if not updates:
         return {"success": True}
 
+    if "sla_config" in updates:
+        cfg = updates.get("sla_config")
+        if not isinstance(cfg, dict):
+            raise HTTPException(status_code=400, detail="sla_config must be an object")
+        normalized = {}
+        for key in ["speed_to_lead_minutes", "lead_cadence_hours", "deal_cadence_hours"]:
+            if key not in cfg:
+                continue
+            try:
+                value = int(cfg.get(key))
+            except Exception:
+                continue
+            if value > 0:
+                normalized[key] = value
+        updates["sla_config"] = {
+            "speed_to_lead_minutes": int(normalized.get("speed_to_lead_minutes", 15)),
+            "lead_cadence_hours": int(normalized.get("lead_cadence_hours", 24)),
+            "deal_cadence_hours": int(normalized.get("deal_cadence_hours", 72)),
+        }
+
     now = now_utc()
     res = await db.execute(select(WorkspaceSetting).where(WorkspaceSetting.tenant_id == user["tenant_id"]))
     settings = res.scalar_one_or_none()
@@ -146,6 +170,8 @@ async def update_workspace_settings(
             primary_color=updates.get("primary_color") or "#6366F1",
             timezone=updates.get("timezone") or "UTC",
             currency=updates.get("currency") or "USD",
+            sla_config=updates.get("sla_config")
+            or {"speed_to_lead_minutes": 15, "lead_cadence_hours": 24, "deal_cadence_hours": 72},
             updated_by=user["id"],
             created_at=now,
             updated_at=now,

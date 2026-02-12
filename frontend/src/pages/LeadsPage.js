@@ -799,7 +799,25 @@ const LeadsPage = () => {
                       </div>
                     </TableCell>
                     <TableCell>{getTierBadge(lead.tier)}</TableCell>
-                    <TableCell>{getStatusBadge(lead.status)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        {getStatusBadge(lead.status)}
+                        {(lead.speed_to_lead_breached || lead.cadence_breached) && (
+                          <div className="flex flex-wrap gap-1">
+                            {lead.speed_to_lead_breached && (
+                              <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                                Speed {lead.speed_to_lead_minutes ?? '-'}m
+                              </Badge>
+                            )}
+                            {lead.cadence_breached && (
+                              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                                Stale {lead.cadence_hours_since_touch ?? '-'}h
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-muted-foreground capitalize">
                       {lead.source || '-'}
                     </TableCell>
@@ -1009,9 +1027,25 @@ const LeadsPage = () => {
                               {(selectedLead.touchpoints_count || 0)} logged • Last: {formatDateTime(selectedLead.last_touchpoint_at)}
                             </p>
                           </div>
-                          <Badge variant="outline" className="whitespace-nowrap">
-                            Min 3 before Unresponsive
-                          </Badge>
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge
+                              className={selectedLead.speed_to_lead_breached
+                                ? "bg-red-500/20 text-red-400 border-red-500/30 whitespace-nowrap"
+                                : "bg-green-500/20 text-green-400 border-green-500/30 whitespace-nowrap"}
+                            >
+                              Speed {selectedLead.speed_to_lead_minutes ?? '-'}m
+                            </Badge>
+                            <Badge
+                              className={selectedLead.cadence_breached
+                                ? "bg-amber-500/20 text-amber-400 border-amber-500/30 whitespace-nowrap"
+                                : "bg-blue-500/20 text-blue-400 border-blue-500/30 whitespace-nowrap"}
+                            >
+                              Cadence {selectedLead.cadence_hours_since_touch ?? '-'}h
+                            </Badge>
+                            <Badge variant="outline" className="whitespace-nowrap">
+                              Min 3 before Unresponsive
+                            </Badge>
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">

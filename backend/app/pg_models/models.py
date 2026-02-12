@@ -162,6 +162,7 @@ class Lead(Base):
 
     touchpoints_count = Column(Integer, default=0, nullable=False)
     last_touchpoint_at = Column(DateTime(timezone=True), nullable=True)
+    first_touchpoint_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     tags = Column(JSONB, default=list, nullable=False)
 
@@ -277,6 +278,8 @@ class Deal(Base):
     next_step_at = Column(DateTime(timezone=True), nullable=True, index=True)
     next_step_note = Column(Text, nullable=True)
 
+    last_touchpoint_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
     lead_score = Column(Integer, default=0, nullable=False)
     lead_tier = Column(String(2), default="D", nullable=False, index=True)
 
@@ -293,6 +296,19 @@ class Deal(Base):
     closed_won_at = Column(DateTime(timezone=True), nullable=True)
     closed_lost_at = Column(DateTime(timezone=True), nullable=True)
     reopened_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Discovery / Demo / Qualification capture
+    spiced = Column(JSONB, default=dict, nullable=False)
+
+    demo_title = Column(String(255), nullable=True)
+    demo_type = Column(String(50), nullable=True)
+    demo_status = Column(String(30), nullable=True, index=True)  # scheduled | completed | no_show | canceled
+    demo_scheduled_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    demo_duration_minutes = Column(Integer, default=30, nullable=False)
+    demo_meet_url = Column(String(500), nullable=True)
+    demo_calendar_url = Column(String(1000), nullable=True)
+    demo_completed_at = Column(DateTime(timezone=True), nullable=True)
+    demo_notes = Column(Text, nullable=True)
 
     last_override = Column(JSONB, default=dict, nullable=False)
 
@@ -471,6 +487,11 @@ class WorkspaceSetting(Base):
     primary_color = Column(String(20), default="#6366F1", nullable=False)
     timezone = Column(String(50), default="UTC", nullable=False)
     currency = Column(String(10), default="USD", nullable=False)
+    sla_config = Column(
+        JSONB,
+        default=lambda: {"speed_to_lead_minutes": 15, "lead_cadence_hours": 24, "deal_cadence_hours": 72},
+        nullable=False,
+    )
 
     updated_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=_now, nullable=False)

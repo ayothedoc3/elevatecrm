@@ -41,6 +41,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
+const DEFAULT_SLA_CONFIG = { speed_to_lead_minutes: 15, lead_cadence_hours: 24, deal_cadence_hours: 72 };
 
 const SettingsPage = () => {
   const { user } = useAuth();
@@ -58,7 +59,8 @@ const SettingsPage = () => {
     logo_url: '',
     primary_color: '#6366F1',
     timezone: 'UTC',
-    currency: 'USD'
+    currency: 'USD',
+    sla_config: { ...DEFAULT_SLA_CONFIG }
   });
   
   // AI config state
@@ -151,7 +153,10 @@ const SettingsPage = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        setWorkspaceSettings(data);
+        setWorkspaceSettings({
+          ...data,
+          sla_config: { ...DEFAULT_SLA_CONFIG, ...(data.sla_config || {}) }
+        });
       }
     } catch (error) {
       console.error('Error loading workspace settings:', error);
@@ -749,6 +754,80 @@ const SettingsPage = () => {
                     {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                     Save Changes
                   </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="w-5 h-5" />
+                  Sales SLAs
+                </CardTitle>
+                <CardDescription>
+                  Configure speed-to-lead and cadence windows used for SLA alerts in Leads and Pipeline.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Speed-to-Lead (minutes)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={workspaceSettings.sla_config?.speed_to_lead_minutes ?? DEFAULT_SLA_CONFIG.speed_to_lead_minutes}
+                    onChange={(e) =>
+                      setWorkspaceSettings({
+                        ...workspaceSettings,
+                        sla_config: {
+                          ...(workspaceSettings.sla_config || {}),
+                          speed_to_lead_minutes: e.target.value === '' ? '' : Number(e.target.value)
+                        }
+                      })
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Time from lead creation to first touchpoint.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Lead Cadence (hours)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={workspaceSettings.sla_config?.lead_cadence_hours ?? DEFAULT_SLA_CONFIG.lead_cadence_hours}
+                    onChange={(e) =>
+                      setWorkspaceSettings({
+                        ...workspaceSettings,
+                        sla_config: {
+                          ...(workspaceSettings.sla_config || {}),
+                          lead_cadence_hours: e.target.value === '' ? '' : Number(e.target.value)
+                        }
+                      })
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Max time allowed without a touchpoint on a lead.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Deal Cadence (hours)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={workspaceSettings.sla_config?.deal_cadence_hours ?? DEFAULT_SLA_CONFIG.deal_cadence_hours}
+                    onChange={(e) =>
+                      setWorkspaceSettings({
+                        ...workspaceSettings,
+                        sla_config: {
+                          ...(workspaceSettings.sla_config || {}),
+                          deal_cadence_hours: e.target.value === '' ? '' : Number(e.target.value)
+                        }
+                      })
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Max time allowed without a touchpoint on an open deal.
+                  </p>
                 </div>
               </CardContent>
             </Card>

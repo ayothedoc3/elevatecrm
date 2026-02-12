@@ -9,11 +9,21 @@ from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api_pg.deps import get_current_user
+from app.api_pg.services import get_workspace_sla_config
 from app.api_pg.utils import dt_to_iso, now_utc
 from app.core.database import get_db
 from app.pg_models.models import Contact, Deal, Pipeline, PipelineStage
 
 router = APIRouter(tags=["Pipelines"])
+
+
+def _spiced_complete(spiced: Dict[str, Any]) -> bool:
+    required = ["situation", "problem", "implication", "critical_event", "economic_impact", "decision"]
+    for k in required:
+        v = (spiced or {}).get(k)
+        if not (v is not None and str(v).strip()):
+            return False
+    return True
 
 
 def _require_admin(user: dict) -> None:
@@ -499,6 +509,9 @@ async def get_pipeline_kanban(
     db: AsyncSession = Depends(get_db),
 ):
     tenant_id = user["tenant_id"]
+    sla = await get_workspace_sla_config(db, tenant_id)
+    now = now_utc()
+    cadence_threshold = int(sla.get("deal_cadence_hours") or 72)
     pipeline = (
         await db.execute(select(Pipeline).where(and_(Pipeline.id == pipeline_id, Pipeline.tenant_id == tenant_id)))
     ).scalar_one_or_none()
@@ -538,6 +551,11 @@ async def get_pipeline_kanban(
             contact_name = None
             if contact:
                 contact_name = (contact.full_name or f"{contact.first_name or ''} {contact.last_name or ''}").strip() or None
+
+            cadence_base = deal.last_touchpoint_at or deal.created_at or now
+            cadence_hours = (now - cadence_base).total_seconds() / 3600.0 if cadence_base else 0.0
+            cadence_breached = cadence_hours > cadence_threshold and (deal.status or "open") == "open"
+
             column_deals.append(
                 {
                     "id": deal.id,
@@ -556,6 +574,9 @@ async def get_pipeline_kanban(
                     "stage_name": stage.name,
                     "next_step_at": dt_to_iso(deal.next_step_at),
                     "next_step_note": deal.next_step_note,
+                    "last_touchpoint_at": dt_to_iso(deal.last_touchpoint_at),
+                    "cadence_hours_since_touch": round(max(0.0, cadence_hours), 1),
+                    "cadence_breached": bool(cadence_breached),
                     "lead_score": int(deal.lead_score or 0),
                     "lead_tier": deal.lead_tier,
                     "sales_motion_type": deal.sales_motion_type,
@@ -563,6 +584,17 @@ async def get_pipeline_kanban(
                     "product_id": deal.product_id,
                     "partner_name": deal.partner_name,
                     "product_name": deal.product_name,
+                    "spiced": deal.spiced or {},
+                    "spiced_complete": _spiced_complete(deal.spiced or {}),
+                    "demo_title": deal.demo_title,
+                    "demo_type": deal.demo_type,
+                    "demo_status": deal.demo_status,
+                    "demo_scheduled_at": dt_to_iso(deal.demo_scheduled_at),
+                    "demo_duration_minutes": int(deal.demo_duration_minutes or 30),
+                    "demo_meet_url": deal.demo_meet_url,
+                    "demo_calendar_url": deal.demo_calendar_url,
+                    "demo_completed_at": dt_to_iso(deal.demo_completed_at),
+                    "demo_notes": deal.demo_notes,
                     "owner_id": deal.owner_id,
                     "handoff_status": deal.handoff_status,
                     "created_at": dt_to_iso(deal.created_at),

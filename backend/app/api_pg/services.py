@@ -21,7 +21,49 @@ from app.pg_models.models import (
     Product,
     Task,
     TimelineEvent,
+    WorkspaceSetting,
 )
+
+DEFAULT_SLA_CONFIG: Dict[str, int] = {
+    "speed_to_lead_minutes": 15,
+    "lead_cadence_hours": 24,
+    "deal_cadence_hours": 72,
+}
+
+TOUCHPOINT_EVENT_TYPES = {
+    "call_log",
+    "email_sent",
+    "email_received",
+    "sms_sent",
+    "sms_received",
+    "meeting",
+}
+
+
+def normalize_sla_config(cfg: Optional[Dict[str, Any]]) -> Dict[str, int]:
+    out = dict(DEFAULT_SLA_CONFIG)
+    if not isinstance(cfg, dict):
+        return out
+
+    for key, default_val in DEFAULT_SLA_CONFIG.items():
+        raw = cfg.get(key)
+        if raw is None:
+            continue
+        try:
+            value = int(raw)
+        except Exception:
+            continue
+        if value <= 0:
+            continue
+        out[key] = value
+
+    return out
+
+
+async def get_workspace_sla_config(db: AsyncSession, tenant_id: str) -> Dict[str, int]:
+    res = await db.execute(select(WorkspaceSetting).where(WorkspaceSetting.tenant_id == tenant_id).limit(1))
+    ws = res.scalar_one_or_none()
+    return normalize_sla_config((ws.sla_config or {}) if ws else None)
 
 
 async def resolve_account(
@@ -172,6 +214,7 @@ async def create_timeline_event(
     visibility: str = "internal_only",
     metadata: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    created_at = now_utc()
     event = TimelineEvent(
         id=str(uuid.uuid4()),
         tenant_id=tenant_id,
@@ -184,10 +227,23 @@ async def create_timeline_event(
         contact_id=contact_id,
         visibility=visibility,
         meta=metadata or {},
-        created_at=now_utc(),
+        created_at=created_at,
     )
     db.add(event)
     await db.flush()
+
+    # Cadence tracking: keep a fast "last touched" timestamp on deals.
+    evt_type = (event_type or "").strip()
+    if deal_id and evt_type in TOUCHPOINT_EVENT_TYPES:
+        deal = (
+            await db.execute(select(Deal).where(and_(Deal.tenant_id == tenant_id, Deal.id == deal_id)).limit(1))
+        ).scalar_one_or_none()
+        if deal:
+            if not deal.last_touchpoint_at or deal.last_touchpoint_at < created_at:
+                deal.last_touchpoint_at = created_at
+                deal.updated_at = now_utc()
+                await db.flush()
+
     return {
         "id": event.id,
         "tenant_id": event.tenant_id,

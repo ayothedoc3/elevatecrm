@@ -97,6 +97,10 @@ Expected:
 
 1. In the lead sheet `Workflow`, use the `Touchpoints` section:
    - Log 1 touchpoint
+
+Expected (SLA UI):
+- Speed-to-lead shows a minutes value (and stops increasing after first touchpoint is logged).
+- Cadence shows hours since last touchpoint (updates after each touchpoint).
 2. Try to change Status to `Unresponsive` and click `Save Changes`.
 
 Expected:
@@ -176,12 +180,32 @@ Expected:
 
 2. Open the deal `Calculator` tab.
 3. Fill required calculator inputs and `Save`.
-4. Drag to `Discovery / Demo Scheduled` again.
+4. Open the deal `Demo` tab.
+5. Set `Scheduled At` and click `Save Demo`.
+6. Drag to `Discovery / Demo Scheduled` again.
 
 Expected:
 - Move succeeds (no override required).
 
-## 12) Close Won / Lost locks stages by default
+## 12) Stage gating: "Demo Completed" requires Demo completion + SPICED
+
+1. Drag the deal from `Discovery / Demo Scheduled` -> `Discovery / Demo Completed`.
+
+Expected:
+- Move is blocked until:
+  - Demo is marked completed, and
+  - SPICED summary is complete.
+
+2. Open the deal `SPICED` tab and fill all fields. Click `Save SPICED`.
+3. Open the deal `Demo` tab and either:
+   - Set Status = `Completed` and click `Save Demo`, or
+   - Set `Completed At` and click `Save Demo`.
+4. Drag to `Discovery / Demo Completed` again.
+
+Expected:
+- Move succeeds (no override required).
+
+## 13) Close Won / Lost locks stages by default
 
 1. Drag deal to `Closed Won`.
 
@@ -194,7 +218,7 @@ Expected:
 Expected:
 - Blocked with "Deal is closed..." message (override allowed for admin/manager).
 
-## 13) Handoff to Delivery gating (must be completed)
+## 14) Handoff to Delivery gating (must be completed)
 
 1. After `Closed Won`, try to drag the deal into `Handoff to Delivery`.
 
@@ -211,7 +235,7 @@ Expected:
 Expected:
 - Stage move succeeds.
 
-## 14) Forecast (weighted pipeline + SLA risk)
+## 15) Forecast (weighted pipeline + SLA risk)
 
 1. Go to `Reports` -> `Forecast`.
 2. Verify totals:
@@ -229,7 +253,7 @@ Expected:
 Expected:
 - Totals and tier breakdown update as filters change.
 
-## 15) Partner Sales variant (required partner + product)
+## 16) Partner Sales variant (required partner + product)
 
 1. Create a new Lead with Sales Motion Type = `Partner Sales`.
 2. Provide Partner + Product (required in the lead form).
