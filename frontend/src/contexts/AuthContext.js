@@ -35,6 +35,25 @@ export const AuthProvider = ({ children }) => {
     return config;
   });
 
+  // Auto-logout on auth errors (common after demo resets / token expiry)
+  api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      const status = error?.response?.status;
+      if (status === 401) {
+        setToken(null);
+        setUser(null);
+        setCurrentWorkspace(null);
+        setWorkspaces([]);
+        localStorage.removeItem('crm_token');
+        localStorage.removeItem('currentWorkspaceId');
+        localStorage.removeItem('currentTenantId');
+        localStorage.removeItem('crm_tenant');
+      }
+      return Promise.reject(error);
+    }
+  );
+
   // Initialize auth on mount
   useEffect(() => {
     const initAuth = async () => {

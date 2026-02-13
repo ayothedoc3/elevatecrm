@@ -143,7 +143,7 @@ const LeadsPage = () => {
       setTotal(response.data.total || 0);
     } catch (error) {
       console.error('Error fetching leads:', error);
-      toast.error('Failed to load leads');
+      toast.error(error?.response?.data?.detail || error?.message || 'Failed to load leads');
     } finally {
       setLoading(false);
     }
