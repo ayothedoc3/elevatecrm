@@ -54,25 +54,34 @@ const APP_PHASE = Number.parseInt(process.env.REACT_APP_APP_PHASE || '1', 10) ||
 const isFeatureEnabled = (minPhase = 1) => APP_PHASE >= minPhase;
 
 const navItems = [
-  // Phase 1 core (go-live for Sales)
-  { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', minPhase: 1 },
-  { path: '/contacts', icon: Users, label: 'Contacts', minPhase: 1 },
-  { path: '/leads', icon: Target, label: 'Leads', minPhase: 1 },
-  { path: '/pipeline', icon: GitBranch, label: 'Pipeline', minPhase: 1 },
-  { path: '/activity', icon: Activity, label: 'Activity', minPhase: 1 },
-  { path: '/reports', icon: BarChart3, label: 'Reports', minPhase: 1 },
+  // Section 1 — Sales CRM
+  { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', minPhase: 1, section: 'sales' },
+  { path: '/contacts', icon: Users, label: 'Contacts', minPhase: 1, section: 'sales' },
+  { path: '/leads', icon: Target, label: 'Leads', minPhase: 1, section: 'sales' },
+  { path: '/pipeline', icon: GitBranch, label: 'Pipeline', minPhase: 1, section: 'sales' },
+  { path: '/activity', icon: Activity, label: 'Activity', minPhase: 1, section: 'sales' },
+  { path: '/reports', icon: BarChart3, label: 'Reports', minPhase: 1, section: 'sales' },
+  { path: '/affiliates', icon: UserPlus, label: 'Affiliates', minPhase: 2, section: 'sales' },
 
-  // Phase 2+ (execution layer / additional modules; enable once backend supports Postgres for these)
-  { path: '/affiliates', icon: UserPlus, label: 'Affiliates', minPhase: 2 },
-  { path: '/landing-pages', icon: LayoutTemplate, label: 'AI Page Builder', minPhase: 2 },
-  { path: '/lists', icon: List, label: 'Lists', minPhase: 2 },
-  { path: '/campaigns', icon: Mail, label: 'Campaigns', minPhase: 2 },
-  { path: '/inbox', icon: MessageSquare, label: 'Inbox', minPhase: 2 },
-  { path: '/workflows', icon: GitBranch, label: 'Workflows', minPhase: 2 },
-  { path: '/forms', icon: FileText, label: 'Forms', minPhase: 3 },
-  { path: '/custom-objects', icon: Box, label: 'Objects', minPhase: 2 },
-  { path: '/blueprints', icon: GitBranch, label: 'Blueprints', minPhase: 2 },
+  // Section 2 — Marketing & AI
+  { path: '/landing-pages', icon: LayoutTemplate, label: 'AI Page Builder', minPhase: 2, section: 'marketing' },
+  { path: '/lists', icon: List, label: 'Lists', minPhase: 2, section: 'marketing' },
+  { path: '/campaigns', icon: Mail, label: 'Campaigns', minPhase: 2, section: 'marketing' },
+  { path: '/forms', icon: FileText, label: 'Forms', minPhase: 3, section: 'marketing' },
+
+  // Section 3 — Operations
+  { path: '/inbox', icon: MessageSquare, label: 'Inbox', minPhase: 2, section: 'operations' },
+  { path: '/workflows', icon: GitBranch, label: 'Workflows', minPhase: 2, section: 'operations' },
+  { path: '/custom-objects', icon: Box, label: 'Objects', minPhase: 2, section: 'operations' },
+  { path: '/blueprints', icon: GitBranch, label: 'Blueprints', minPhase: 2, section: 'operations' },
+
   { path: '/settings', icon: Settings, label: 'Settings', bottom: true, minPhase: 2 },
+];
+
+const navSections = [
+  { key: 'sales', label: 'Sales CRM' },
+  { key: 'marketing', label: 'Marketing & AI' },
+  { key: 'operations', label: 'Operations' },
 ];
 
 const Sidebar = ({ collapsed, setCollapsed }) => {
@@ -80,6 +89,16 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { isDark } = useTheme();
+
+  const dividerColor = isDark ? 'border-slate-800' : 'border-slate-200';
+
+  const visibleNavItems = navItems.filter(item => !item.bottom && isFeatureEnabled(item.minPhase));
+  const visibleSections = navSections
+    .map((section) => ({
+      ...section,
+      items: visibleNavItems.filter((item) => item.section === section.key),
+    }))
+    .filter((section) => section.items.length > 0);
 
   return (
     <div 
@@ -103,34 +122,50 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+      <nav className="flex-1 p-3 overflow-y-auto">
         <TooltipProvider>
-          {navItems.filter(item => !item.bottom && isFeatureEnabled(item.minPhase)).map(item => {
-            const isActive = location.pathname === item.path;
-            return (
-              <Tooltip key={item.path} delayDuration={0}>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={isActive ? 'secondary' : 'ghost'}
-                    className={`w-full justify-start gap-3 ${
-                      isActive 
-                        ? isDark ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-900'
-                        : isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800/50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                    } ${collapsed ? 'px-3' : ''}`}
-                    onClick={() => navigate(item.path)}
-                  >
-                    <item.icon className="w-5 h-5 flex-shrink-0" />
-                    {!collapsed && <span>{item.label}</span>}
-                  </Button>
-                </TooltipTrigger>
-                {collapsed && (
-                  <TooltipContent side="right">
-                    {item.label}
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            );
-          })}
+          {visibleSections.map((section, sectionIdx) => (
+            <div
+              key={section.key}
+              className={sectionIdx > 0 ? `mt-3 pt-3 border-t ${dividerColor}` : ''}
+            >
+              {!collapsed && (
+                <div className="px-2 pb-2">
+                  <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                    {section.label}
+                  </p>
+                </div>
+              )}
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <Tooltip key={item.path} delayDuration={0}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={isActive ? 'secondary' : 'ghost'}
+                          className={`w-full justify-start gap-3 ${
+                            isActive
+                              ? isDark ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-900'
+                              : isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800/50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                          } ${collapsed ? 'px-3' : ''}`}
+                          onClick={() => navigate(item.path)}
+                        >
+                          <item.icon className="w-5 h-5 flex-shrink-0" />
+                          {!collapsed && <span>{item.label}</span>}
+                        </Button>
+                      </TooltipTrigger>
+                      {collapsed && (
+                        <TooltipContent side="right">
+                          {item.label}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </TooltipProvider>
       </nav>
 
