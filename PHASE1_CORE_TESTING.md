@@ -364,9 +364,9 @@ Expected:
 - Every tile displays a visual page preview derived from that page content.
 - Tile actions (Preview, Edit, Publish/Unpublish, Copy URL, Delete) continue to work.
 
-## 24) AI Page Builder end-to-end editing loop
+## 24) AI Landing Page Creator (Create with AI)
 
-1. Open `Landing Pages` and click `Create with AI`.
+1. Open `AI Page Builder` / `Landing Pages` and click `Create with AI`.
 2. Generate a page from prompt inputs.
 3. Save the page, then reopen it in the builder.
 4. Modify content in chat (or section editor), save, and publish.
