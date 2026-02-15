@@ -365,6 +365,7 @@ async def list_landing_pages(
     page_type: Optional[str] = None,
     status: Optional[str] = None,
     search: Optional[str] = None,
+    include_schema: bool = Query(False),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     user: dict = Depends(get_current_user),
@@ -393,7 +394,7 @@ async def list_landing_pages(
     pages = res.scalars().all()
 
     return {
-        "pages": [_page_to_dict(p, include_schema=False) for p in pages],
+        "pages": [_page_to_dict(p, include_schema=include_schema) for p in pages],
         "total": total,
         "page": page,
         "page_size": page_size,

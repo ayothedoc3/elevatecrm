@@ -51,6 +51,137 @@ const AI_MODELS = [
   { value: 'gpt-5.2', label: 'GPT-5.2 (Latest)', provider: 'OpenAI' }
 ];
 
+const escapeHtml = (value) => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const safeColor = (value, fallback) => {
+  if (typeof value !== 'string') return fallback;
+  const color = value.trim();
+  return color || fallback;
+};
+
+const buildTilePreviewSrcDoc = (page) => {
+  const schema = page?.page_schema || {};
+  const sections = Array.isArray(schema.sections) ? schema.sections : [];
+  const hero = sections.find((section) => section?.type === 'hero') || sections[0] || {};
+  const infoSection = sections.find((section) => ['features', 'benefits', 'social_proof'].includes(section?.type)) || {};
+  const items = Array.isArray(infoSection.items) ? infoSection.items.slice(0, 3) : [];
+
+  const pageTitle = escapeHtml(schema.page_title || page?.name || 'Landing Page');
+  const headline = escapeHtml(hero.headline || page?.name || 'Landing Page');
+  const subheadline = escapeHtml(hero.subheadline || hero.body_text || '')
+    .slice(0, 180);
+  const ctaText = escapeHtml(hero.cta_text || 'Learn More');
+
+  const brandColors = schema.brand_colors || {};
+  const colorScheme = schema.color_scheme || {};
+  const primary = safeColor(brandColors.primary || colorScheme.primary, '#ff6b35');
+  const secondary = safeColor(brandColors.secondary || colorScheme.secondary, '#1a1a2e');
+  const accent = safeColor(brandColors.accent || colorScheme.accent, '#4ecdc4');
+
+  const cards = items.map((item) => {
+    const title = escapeHtml(item?.title || item?.question || 'Feature');
+    const desc = escapeHtml(item?.description || item?.answer || '').slice(0, 60);
+    return `<div class="card"><div class="card-title">${title}</div><div class="card-desc">${desc}</div></div>`;
+  }).join('');
+
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>${pageTitle}</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #111827;
+        background: #f8fafc;
+      }
+      .hero {
+        background: linear-gradient(135deg, ${primary} 0%, ${secondary} 100%);
+        color: #ffffff;
+        padding: 28px 26px;
+      }
+      .headline {
+        margin: 0 0 10px 0;
+        font-size: 28px;
+        line-height: 1.15;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+      .subheadline {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.45;
+        opacity: 0.9;
+      }
+      .cta {
+        margin-top: 16px;
+        display: inline-block;
+        background: #ffffff;
+        color: #111827;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 8px 12px;
+      }
+      .content {
+        padding: 14px 14px 18px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 10px;
+        min-height: 66px;
+      }
+      .card-title {
+        font-size: 11px;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 4px;
+      }
+      .card-desc {
+        font-size: 10px;
+        color: #64748b;
+        line-height: 1.3;
+      }
+      .accent {
+        height: 4px;
+        width: 100%;
+        margin-top: 10px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, ${accent} 0%, ${primary} 100%);
+      }
+    </style>
+  </head>
+  <body>
+    <section class="hero">
+      <h1 class="headline">${headline}</h1>
+      ${subheadline ? `<p class="subheadline">${subheadline}</p>` : ''}
+      <span class="cta">${ctaText}</span>
+    </section>
+    <section class="content">
+      <div class="cards">
+        ${cards || '<div class="card"><div class="card-title">Landing Page Preview</div><div class="card-desc">This page is ready for editing and publishing.</div></div>'}
+      </div>
+      <div class="accent"></div>
+    </section>
+  </body>
+</html>`;
+};
+
 const LandingPagesPage = () => {
   const { api } = useAuth();
   const navigate = useNavigate();
@@ -100,7 +231,7 @@ const LandingPagesPage = () => {
     setLoading(true);
     try {
       const [pagesRes, programsRes] = await Promise.all([
-        api.get('/landing-pages'),
+        api.get('/landing-pages?include_schema=true'),
         api.get('/affiliates/programs')
       ]);
       setPages(pagesRes.data.pages || []);
@@ -837,8 +968,18 @@ const LandingPagesPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredPages.map(page => (
             <Card key={page.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-              <div className="h-32 bg-gradient-to-br from-orange-500 to-red-500 p-4 flex items-end">
-                <h3 className="font-bold text-white text-lg truncate">{page.name}</h3>
+              <div className="relative h-44 border-b bg-slate-100 overflow-hidden">
+                <iframe
+                  title={`Preview ${page.name}`}
+                  srcDoc={buildTilePreviewSrcDoc(page)}
+                  sandbox=""
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full border-0 pointer-events-none"
+                />
+                <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                <div className="absolute bottom-3 left-3 right-3">
+                  <h3 className="font-semibold text-white text-base truncate">{page.name}</h3>
+                </div>
               </div>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">

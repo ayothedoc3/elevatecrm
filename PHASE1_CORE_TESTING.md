@@ -336,3 +336,58 @@ Expected:
 Expected:
 - A `Mention` task exists and is clickable.
 - Clicking it opens the related deal.
+
+## 22) Sidebar grouped navigation (scanability by role)
+
+1. Open the left sidebar.
+2. Verify sections are grouped with headers:
+   - `Sales CRM`
+   - `Marketing & AI`
+   - `Operations`
+3. Verify links are under the expected group:
+   - Sales: Dashboard, Contacts, Leads, Pipeline, Activity, Reports, Affiliates
+   - Marketing: AI Page Builder, Lists, Campaigns
+   - Operations: Inbox, Workflows, Objects, Blueprints
+4. Collapse and expand the sidebar.
+
+Expected:
+- Grouping remains clear when expanded and navigation still works when collapsed.
+
+## 23) Landing page tile visual previews
+
+1. Go to `AI Page Builder` / `Landing Pages`.
+2. Confirm each page tile shows a mini visual preview (screenshot-style render), not a plain color block.
+3. Create a new page (quick create or AI create), then return to the grid.
+4. Confirm the new page tile shows its own preview and page name.
+
+Expected:
+- Every tile displays a visual page preview derived from that page content.
+- Tile actions (Preview, Edit, Publish/Unpublish, Copy URL, Delete) continue to work.
+
+## 24) AI Page Builder end-to-end editing loop
+
+1. Open `Landing Pages` and click `Create with AI`.
+2. Generate a page from prompt inputs.
+3. Save the page, then reopen it in the builder.
+4. Modify content in chat (or section editor), save, and publish.
+5. Click `View Live` / open `/pages/{slug}`.
+
+Expected:
+- AI-generated content persists after save.
+- Edits made after creation are reflected in builder and live page.
+- Publish state toggles correctly and slug URL resolves.
+
+## 25) Settings SLA controls and live enforcement
+
+1. Login as Admin.
+2. Go to `Settings` -> `Workspace`.
+3. Update SLA values:
+   - `speed_to_lead_minutes`
+   - `lead_cadence_hours`
+   - `deal_cadence_hours`
+4. Save settings.
+5. Return to Leads and Pipeline views.
+
+Expected:
+- SLA values are persisted.
+- Speed-to-lead and cadence breach indicators reflect the updated thresholds.
