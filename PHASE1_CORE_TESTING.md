@@ -1,393 +1,413 @@
-# Elev8 CRM - Phase 1 ("Core") End-to-End Test Script (PostgreSQL)
+# Elev8 CRM — Phase 1 End-to-End QA Script
 
-This is a **manual QA script** to verify Phase 1 is usable end-to-end for the core motion:
-**Lead -> Assign -> Scoring -> Qualify -> Push to Sales -> Work Deal (next step + stage gating) -> Close -> Handoff -> Forecast**
+**Core motion under test:**
+Lead → Assign → Score → Qualify → Push to Sales → Work Deal (next step + stage gating) → Close → Handoff → Forecast
 
-This QA script is run against the deployed Railway environment (no local setup required).
+**Environment:** Deployed Railway app (no local setup required).
+**URL:** `https://frontend-production-9a2f.up.railway.app`
 
-## 2) Reset demo data (clean run) - do this BEFORE QA starts
+---
 
-This script assumes a clean `demo` tenant state so every rep is testing the same baseline.
+## 1) Login
 
-Reset is typically done by an admin/ops user with Railway access.
+**Tenant slug:** `demo`
 
-**Railway (recommended)**
-1. Open the backend service in Railway.
-2. Run the demo reset script in the backend container:
-   - `cd backend && python reset_demo_pg.py`
-3. Restart/redeploy the backend service (demo data is seeded on startup).
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | `admin@demo.com` | `admin123` |
+| Manager | `manager@demo.com` | `manager123` |
+| Sales | `sales@demo.com` | `sales123` |
 
-If you cannot reset, ask an admin/ops owner to reset the `demo` tenant and then begin QA at **Section 3 (Login)**.
+**Expected:** You land on the Dashboard with sidebar navigation visible.
 
-## 3) Login (demo tenant)
+---
 
-Use tenant slug: `demo`
+## 2) Create a Lead and assign an Owner
 
-Credentials:
-- Admin: `admin@demo.com` / `admin123`
-- Manager: `manager@demo.com` / `manager123`
-- Sales: `sales@demo.com` / `sales123`
-
-Expected:
-- You land in the app with navigation working.
-
-## 4) Lead -> Assign -> Working (Qualification discipline)
-
-1. Go to `Leads`.
-2. Click `+ New Lead`.
-3. Create a lead with:
-   - First/Last name
-   - Company name (so we can validate Account linking)
+1. Go to **Leads**.
+2. Click **+ New Lead**.
+3. Fill in:
+   - First name / Last name
+   - Company name
+   - Owner (select a Sales user from the dropdown)
    - Sales Motion Type: `Partnership Sales`
-4. Open the lead detail sheet.
-5. In `Workflow`:
-   - Select an Owner (Sales user)
-   - Click `Assign`
+4. Click **Create Lead**.
 
-Expected:
-- Lead owner is set.
-- Lead status automatically becomes `working`.
+**Expected:**
+- Lead appears in the list.
+- Owner is set to the selected user.
+- Status is automatically `working` (because an owner was assigned on creation).
 
-## 5) Lead Scoring (mandatory inputs; no extra questionnaire)
+> **Alternative:** You can also create the lead without an owner, then open the lead detail → Workflow section → select Owner → click **Assign**. The status will change to `working` on assignment.
 
-1. In the lead sheet, open `Scoring Inputs`.
-2. Fill the required fields:
+---
+
+## 3) Lead Scoring
+
+1. Open the lead detail sheet.
+2. Scroll to **Scoring Inputs** and fill in all required fields:
    - Economic Units
    - Usage Volume
-   - Urgency (1-5)
-   - Decision Process Clarity (1-5)
+   - Urgency (1–5)
+   - Decision Process Clarity (1–5)
    - Trigger Event
    - Primary Motivation
    - Decision Role
-3. Click `Save Score`.
+3. Click **Compute Score**.
 
-Expected:
-- Lead `score (0-100)` updates.
-- Lead tier updates automatically (A/B/C/D).
+**Expected:**
+- Lead score updates (0–100).
+- Lead tier updates automatically (A / B / C / D).
 
-## 6) Touchpoints -> Unresponsive gating (min 3)
+---
 
-1. In the lead sheet `Workflow`, use the `Touchpoints` section:
-   - Log 1 touchpoint
+## 4) Touchpoints and Unresponsive gating
 
-Expected (SLA UI):
-- Speed-to-lead shows a minutes value (and stops increasing after first touchpoint is logged).
-- Cadence shows hours since last touchpoint (updates after each touchpoint).
-2. Try to change Status to `Unresponsive` and click `Save Changes`.
+1. In the lead detail → **Workflow** → **Touchpoints** section, log **1 touchpoint**.
 
-Expected:
-- Save is blocked with an error stating **at least 3 touchpoints** required.
+**Expected (SLA indicators):**
+- Speed-to-lead badge shows elapsed minutes since creation (stops increasing after the first touchpoint).
+- Cadence badge shows hours since last touchpoint.
 
-3. Log 2 more touchpoints (total 3).
-4. Set Status to `Unresponsive` and `Save Changes`.
+2. Change Status to `Unresponsive` and click **Save Changes**.
 
-Expected:
-- Status save succeeds.
-- Touchpoint count increments and "Last" timestamp updates.
+**Expected:**
+- Save is **blocked** with an error: at least 3 touchpoints required.
 
-## 7) Qualify -> Push to Sales (creates Contact + Deal + Next Step task)
+3. Log **2 more touchpoints** (total: 3).
+4. Change Status to `Unresponsive` and click **Save Changes**.
 
-1. Set Status to `Qualified` and `Save Changes`.
-2. Click `Push to Sales`.
-3. Provide:
+**Expected:**
+- Status saves successfully.
+- Touchpoint count and "Last touchpoint" timestamp both update.
+
+---
+
+## 5) Qualify and Push to Sales
+
+1. Change Status to `Qualified` and click **Save Changes**.
+2. Click **Push to Sales**.
+3. Fill in:
    - Deal name (optional)
    - Amount
    - Next step date/time (**required**)
    - Next step note (optional)
-4. Confirm push.
+4. Confirm the push.
 
-Expected:
-- Lead is converted (removed from active Lead workflow).
-- A Contact is created (or reused) for the deal.
-- An Account is created/upserted from Company name and linked.
-- A Deal is created in the Sales Pipeline.
-- A **Next Step task** exists for the deal (open).
+**Expected:**
+- Lead is marked as converted.
+- A **Contact** is created (or reused if email matches).
+- An **Account** is created (or upserted from the company name).
+- A **Deal** is created in the Sales Pipeline at the first stage.
+- A **Next Step task** (kind = `next_step`) is created for the deal.
 
-## 8) Deal discipline: Contact required + Next step required
+---
 
-1. Go to `Pipeline`.
-2. Open the new deal.
+## 6) Deal detail: Contact + Next Step + Lead data
 
-Expected (Details tab):
-- Contact shows and is editable (required).
-- Next Step shows (required) and can be updated.
-- Lead Tier + Lead Score display on the deal.
+1. Go to **Pipeline**.
+2. Open the deal that was just created.
 
-## 9) Tasks panel (Next Step task + manual tasks)
+**Expected (Details tab):**
+- Contact is shown and editable.
+- Next Step is shown with date/time and note (editable).
+- Lead Tier and Lead Score are displayed on the deal.
 
-1. Open the deal `Tasks` tab.
+---
 
-Expected:
-- You see an open task with badge `Next Step` (kind = next_step).
+## 7) Tasks panel
 
-2. Create a manual task:
-   - Click `New`
-   - Title + Due date/time
-   - Create
+1. Open the deal **Tasks** tab.
 
-Expected:
-- Manual task appears in the list.
+**Expected:**
+- An open task with a `Next Step` badge is visible.
 
-3. Mark the manual task `Complete`.
+2. Click **New** to create a manual task (title + due date). Click **Create**.
 
-Expected:
-- Task disappears from open list (status becomes completed).
+**Expected:**
+- The manual task appears in the list.
 
-## 10) Activity logging rotates Next Step tasks
+3. Mark the manual task as **Complete**.
 
-1. Open `Activity` tab.
-2. Click `Log Activity`.
-3. Log an outbound call (any notes).
-4. Return to `Tasks`.
+**Expected:**
+- The task disappears from the open list.
 
-Expected:
-- There is still an open `Next Step` task (previous next-step tasks are completed and a fresh one is created).
+---
 
-## 11) Stage gating: "Demo Scheduled" requires completed calculation
+## 8) Activity logging rotates Next Step tasks
 
-1. Drag the deal from `Calculations / Analysis In Progress` -> `Discovery / Demo Scheduled`.
+1. Open the deal **Activity** tab.
+2. Click **Log Activity** and log an outbound call with notes.
+3. Return to the **Tasks** tab.
 
-Expected:
-- Move is blocked with a message about the calculation being required (unless overridden by admin/manager with reason).
+**Expected:**
+- The previous Next Step task is marked completed.
+- A **new** Next Step task has been created automatically.
 
-2. Open the deal `Calculator` tab.
-3. Fill required calculator inputs and `Save`.
-4. Open the deal `Demo` tab.
-5. Set `Scheduled At` and click `Save Demo`.
-6. Drag to `Discovery / Demo Scheduled` again.
+---
 
-Expected:
-- Move succeeds (no override required).
+## 9) Stage gating: "Demo Scheduled" requires calculation
 
-## 12) Stage gating: "Demo Completed" requires Demo completion + SPICED
+1. Drag the deal from `Calculations / Analysis In Progress` → `Discovery / Demo Scheduled`.
 
-1. Drag the deal from `Discovery / Demo Scheduled` -> `Discovery / Demo Completed`.
+**Expected:**
+- Move is **blocked** with a message that the calculation must be completed first.
+- Admin/manager can override by providing a reason.
 
-Expected:
-- Move is blocked until:
-  - Demo is marked completed, and
-  - SPICED summary is complete.
+2. Open the deal → **Calculator** tab → fill required inputs → click **Save**.
+3. Open the deal → **Demo** tab → set **Scheduled At** → click **Save Demo**.
+4. Drag the deal to `Discovery / Demo Scheduled` again.
 
-2. Open the deal `SPICED` tab and fill all fields. Click `Save SPICED`.
-3. Open the deal `Demo` tab and either:
-   - Set Status = `Completed` and click `Save Demo`, or
-   - Set `Completed At` and click `Save Demo`.
-4. Drag to `Discovery / Demo Completed` again.
+**Expected:**
+- Move succeeds without override.
 
-Expected:
-- Move succeeds (no override required).
+---
 
-## 13) Close Won / Lost locks stages by default
+## 10) Stage gating: "Demo Completed" requires Demo + SPICED
 
-1. Drag deal to `Closed Won`.
+1. Drag the deal from `Discovery / Demo Scheduled` → `Discovery / Demo Completed`.
 
-Expected:
+**Expected:**
+- Move is **blocked** until both conditions are met:
+  - Demo is marked completed.
+  - SPICED summary is filled out.
+
+2. Open the deal → **SPICED** tab → fill all fields → click **Save SPICED**.
+3. Open the deal → **Demo** tab → set Status to `Completed` (or set `Completed At`) → click **Save Demo**.
+4. Drag the deal to `Discovery / Demo Completed` again.
+
+**Expected:**
+- Move succeeds without override.
+
+---
+
+## 11) Close Won / Lost locks stages
+
+1. Drag the deal to `Closed Won`.
+
+**Expected:**
 - Deal status becomes `won`.
-- Stage changes back to open stages are blocked unless you use admin override.
+- Dragging back to an open stage is **blocked** ("Deal is closed...").
+- Admin/manager can override with a reason.
 
-2. (Optional) Try dragging `Closed Won` -> an open stage.
+---
 
-Expected:
-- Blocked with "Deal is closed..." message (override allowed for admin/manager).
+## 12) Handoff to Delivery
 
-## 14) Handoff to Delivery gating (must be completed)
+1. After Closed Won, drag the deal to `Handoff to Delivery`.
 
-1. After `Closed Won`, try to drag the deal into `Handoff to Delivery`.
+**Expected:**
+- Move is **blocked** until the handoff packet is complete.
 
-Expected:
-- Blocked until handoff packet is complete.
-
-2. Open the deal `Handoff` tab and complete:
+2. Open the deal → **Handoff** tab and complete:
    - Delivery Owner (required)
    - Kickoff Scheduled (required)
-   - All checklist items (required)
-3. Click `Save Handoff`.
-4. Drag deal to `Handoff to Delivery`.
+   - All checklist items checked (SPICED summary, gap analysis, proposal, contract, risk notes, kickoff readiness)
+3. Click **Save Handoff**.
+4. Drag the deal to `Handoff to Delivery`.
 
-Expected:
+**Expected:**
 - Stage move succeeds.
 
-## 15) Forecast (weighted pipeline + SLA risk)
+---
 
-1. Go to `Reports` -> `Forecast`.
+## 13) Forecast
+
+1. Go to **Reports** → **Forecast** tab.
 2. Verify totals:
    - Pipeline Value
-   - Weighted Forecast
+   - Weighted Forecast (tier-based probability)
    - Deals Count
    - Missing Next Steps / Overdue Next Steps
-   - Stale Deals (no activity >= N days)
+   - Stale Deals (no activity beyond threshold)
 3. Change filters and confirm results update:
-   - Motion type (Partner Sales vs Partnership Sales)
-   - Tier A/B/C/D
+   - Motion type (Partnership Sales / Partner Sales)
+   - Tier (A / B / C / D)
    - Owner
-   - Partner/Product (only when Motion = Partner Sales)
+   - Partner / Product (visible when Motion = Partner Sales)
 
-Expected:
+**Expected:**
 - Totals and tier breakdown update as filters change.
 
-## 16) Partner Sales variant (required partner + product)
+---
+
+## 14) Partner Sales variant
 
 1. Create a new Lead with Sales Motion Type = `Partner Sales`.
-2. Provide Partner + Product (required in the lead form).
+2. Fill in Partner Name and Partner Product (both required for Partner Sales).
 3. Push to Sales.
-4. In `Reports` -> `Forecast`, set Motion = `Partner Sales` and filter by Partner/Product.
+4. In **Reports** → **Forecast**, filter by Motion = `Partner Sales` and select the partner/product.
 
-Expected:
-- Partner/Product values are present and filterable in Forecast.
+**Expected:**
+- Partner and Product values are present on the deal and filterable in Forecast.
 
-## 16) CSV Import/Export (HubSpot migration helpers)
+---
 
-### 16.1 Contacts CSV
+## 15) CSV Import / Export
 
-1. Go to `Contacts`.
-2. Click `Export` and confirm a `.csv` downloads successfully.
-3. Click `Import`, upload the same CSV (or a modified one with a new email), and run the import.
+### 15a) Contacts CSV
 
-Expected:
-- Import returns a summary: `created`, `updated`, `skipped`, and (if any) `errors`.
-- Imported contacts appear in the Contacts list.
+1. Go to **Contacts**.
+2. Click **Export** — confirm a `.csv` downloads.
+3. Click **Import** — upload the same CSV (or a modified one with a new email).
 
-### 16.2 Leads CSV
+**Expected:**
+- Import returns a summary: created, updated, skipped, errors.
+- Imported contacts appear in the list.
 
-1. Go to `Leads`.
-2. Click `Export` and confirm a `.csv` downloads successfully.
-3. Click `Import`, upload the exported CSV (or a modified one), and run the import.
+### 15b) Leads CSV
 
-Expected:
-- Import returns a summary: `created`, `updated`, `skipped`, and (if any) `errors`.
-- Imported leads appear in the Leads list.
+1. Go to **Leads**.
+2. Click **Export** — confirm a `.csv` downloads.
+3. Click **Import** — upload the exported CSV (or a modified one).
 
-Notes:
-- Minimum required per row: `Email` or `Phone`.
-- If you include scoring input columns, Lead Score/Tier will be auto-computed.
+**Expected:**
+- Import returns a summary: created, updated, skipped, errors.
+- Imported leads appear in the list.
+- If scoring input columns are included, Lead Score/Tier is auto-computed.
 
-## 17) KPI endpoint (server-side summary)
+---
 
-1. Go to `Reports`.
-2. Open browser devtools Network tab and refresh Reports.
+## 16) KPI endpoint
 
-Expected:
+1. Go to **Reports**.
+2. Open browser DevTools → Network tab and refresh.
+
+**Expected:**
 - The frontend calls `GET /api/kpis/summary?time_range=...` and receives `200`.
-- Reports load without client-side KPI aggregation logic.
+- KPIs are computed server-side (not aggregated client-side).
 
-## 18) Partner default pipeline routing (optional)
+---
+
+## 17) Partner default pipeline routing
+
+> **Prerequisite:** You must have created at least one Partner Sales lead (Step 14) so that a partner exists in the system.
 
 1. Login as Admin or Manager.
-2. Go to `Settings` -> `Workspace` -> `Partner Pipelines`.
-3. For a partner, choose a `Default Pipeline` (or click `Clone Default & Assign`).
-4. Create a `Partner Sales` lead for that partner + product and `Push to Sales`.
-5. Go to `Pipeline` and select the partner’s pipeline from the pipeline dropdown.
+2. Go to **Settings** → **Workspace** → scroll down to **Partner Pipelines**.
+3. For a partner, choose a Default Pipeline from the dropdown (or click **Clone Default & Assign**).
+4. Create a new `Partner Sales` lead for that partner and Push to Sales.
+5. Go to **Pipeline** and select the partner's pipeline from the pipeline dropdown.
 
-Expected:
-- The pushed deal is created in the partner’s default pipeline when no explicit pipeline is selected during push.
+**Expected:**
+- The deal was created in the partner's default pipeline (not the workspace default).
 
-## 19) Click-through UX: Dashboard + Notifications
+---
 
-1. Go to `Dashboard`.
+## 18) Dashboard click-through and notifications
+
+1. Go to **Dashboard**.
 2. Click each KPI card:
-   - `Total Contacts` -> goes to Contacts
-   - `Active Deals` / `Pipeline Value` -> goes to Pipeline
-   - `Deals Won` -> goes to Reports
-3. In `Recent Deals`, click a deal row.
+   - `Total Contacts` → navigates to Contacts
+   - `Active Deals` / `Pipeline Value` → navigates to Pipeline
+   - `Deals Won` → navigates to Reports
+3. In **Recent Deals**, click a deal row.
 
-Expected:
-- Clicking a deal opens the deal detail (Pipeline page with the deal sheet open).
+**Expected:**
+- Clicking a deal opens the Pipeline page with that deal's detail sheet open.
 
-4. Click the notification bell (top-right).
-5. Click a **Task** notification and a **Recent Activity** notification.
+4. Click the **notification bell** (top-right).
+5. Click a task notification and an activity notification.
 
-Expected:
-- Clicking a notification takes you to the related record:
-  - Deal notifications -> open the deal sheet
-  - Contact notifications -> open the contact sheet
-  - Otherwise -> opens Activity
+**Expected:**
+- Deal notifications → open the deal detail sheet.
+- Contact notifications → open the contact detail sheet.
+- Other notifications → open the Activity page.
 
-## 20) Discord integration (Admin UI)
+---
 
-1. Login as `Admin`.
-2. Go to `Settings` -> `Integrations`.
-3. Under `Communications`, find `Discord` and click `Add Webhook`.
-4. Paste a Discord webhook URL (created in your Discord channel settings).
-5. Click `Test Connection`.
-
-Expected:
-- A confirmation message posts to the Discord channel.
-
-6. Click `Save Integration`.
-
-Expected:
-- Discord shows as `Configured` in Integrations.
-
-7. Trigger Discord alerts:
-   - Assign a Lead to a user (lead assignment alert)
-   - Move a Deal to `Closed Won` (win alert)
-   - Move a Deal to `Closed Lost` (loss alert)
-
-Expected:
-- Each event posts a message to the Discord channel.
-
-## 21) @Mentions -> mention tasks + clickable notifications
-
-1. In any Deal, set/update a field that supports notes (example: `Next Step Note`) and include a mention like `@sales` or `@manager`.
-2. Save.
-3. Login as the mentioned user.
-4. Click the notification bell and click the `Mention` task.
-
-Expected:
-- A `Mention` task exists and is clickable.
-- Clicking it opens the related deal.
-
-## 22) Sidebar grouped navigation (scanability by role)
-
-1. Open the left sidebar.
-2. Verify sections are grouped with headers:
-   - `Sales CRM`
-   - `Marketing & AI`
-   - `Operations`
-3. Verify links are under the expected group:
-   - Sales: Dashboard, Contacts, Leads, Pipeline, Activity, Reports, Affiliates
-   - Marketing: AI Page Builder, Lists, Campaigns
-   - Operations: Inbox, Workflows, Objects, Blueprints
-4. Collapse and expand the sidebar.
-
-Expected:
-- Grouping remains clear when expanded and navigation still works when collapsed.
-
-## 23) Landing page tile visual previews
-
-1. Go to `AI Page Builder` / `Landing Pages`.
-2. Confirm each page tile shows a mini visual preview (screenshot-style render), not a plain color block.
-3. Create a new page (quick create or AI create), then return to the grid.
-4. Confirm the new page tile shows its own preview and page name.
-
-Expected:
-- Every tile displays a visual page preview derived from that page content.
-- Tile actions (Preview, Edit, Publish/Unpublish, Copy URL, Delete) continue to work.
-
-## 24) AI Landing Page Creator (Create with AI)
-
-1. Open `AI Page Builder` / `Landing Pages` and click `Create with AI`.
-2. Generate a page from prompt inputs.
-3. Save the page, then reopen it in the builder.
-4. Modify content in chat (or section editor), save, and publish.
-5. Click `View Live` / open `/pages/{slug}`.
-
-Expected:
-- AI-generated content persists after save.
-- Edits made after creation are reflected in builder and live page.
-- Publish state toggles correctly and slug URL resolves.
-
-## 25) Settings SLA controls and live enforcement
+## 19) Discord integration
 
 1. Login as Admin.
-2. Go to `Settings` -> `Workspace`.
-3. Update SLA values:
-   - `speed_to_lead_minutes`
-   - `lead_cadence_hours`
-   - `deal_cadence_hours`
-4. Save settings.
-5. Return to Leads and Pipeline views.
+2. Go to **Settings** → **Integrations**.
+3. Under **Communications**, find Discord and click **Add Webhook**.
+4. Paste a Discord webhook URL (from your Discord channel settings → Integrations → Webhooks).
+5. Click **Test Connection**.
 
-Expected:
-- SLA values are persisted.
-- Speed-to-lead and cadence breach indicators reflect the updated thresholds.
+**Expected:**
+- A test message posts to the Discord channel.
+
+6. Click **Save Integration**.
+
+**Expected:**
+- Discord shows as `Configured`.
+
+7. Trigger alerts by performing these actions:
+   - Assign a Lead to a user → lead assignment alert fires.
+   - Move a Deal to `Closed Won` → win alert fires.
+   - Move a Deal to `Closed Lost` → loss alert fires.
+
+**Expected:**
+- Each event posts a message to the Discord channel.
+
+---
+
+## 20) @Mentions
+
+1. Open any Deal and update a notes field (e.g. Next Step Note) with a mention: `@sales` or `@manager`.
+2. Save.
+3. Login as the mentioned user.
+4. Click the notification bell → click the **Mention** task.
+
+**Expected:**
+- A task with kind `mention` exists for the mentioned user.
+- Clicking it navigates to the related deal.
+
+---
+
+## 21) Sidebar grouped navigation
+
+1. Open the left sidebar (expand if collapsed).
+2. Verify three section headers are visible:
+   - **Sales CRM** — Dashboard, Contacts, Leads, Pipeline, Activity, Reports, Affiliates
+   - **Marketing & AI** — AI Page Builder, Lists, Campaigns
+   - **Operations** — Inbox, Workflows, Objects, Blueprints
+3. Collapse the sidebar.
+
+**Expected:**
+- Section grouping is clear when expanded.
+- Navigation still works when collapsed.
+
+---
+
+## 22) Landing page tile previews
+
+1. Go to **AI Page Builder**.
+2. Confirm each page tile shows a mini visual preview (not a plain color block).
+3. Create a new page, then return to the grid.
+
+**Expected:**
+- The new tile shows a visual preview derived from the page content.
+- Tile actions (Preview, Edit, Publish/Unpublish, Copy URL, Delete) all work.
+
+---
+
+## 23) AI Landing Page Creator
+
+1. In **AI Page Builder**, click **Create with AI**.
+2. Generate a page from the prompt inputs.
+3. Save the page, then reopen it in the builder.
+4. Edit content, save, and publish.
+5. Open the live page via the slug URL.
+
+**Expected:**
+- AI-generated content persists after save.
+- Edits are reflected in the builder and on the live page.
+- Publish/unpublish toggles correctly.
+
+---
+
+## 24) SLA settings
+
+1. Login as Admin.
+2. Go to **Settings** → **Workspace** → scroll to **Sales SLAs**.
+3. Update the three thresholds:
+   - Speed-to-Lead (minutes)
+   - Lead Cadence (hours)
+   - Deal Cadence (hours)
+4. Click **Save Changes**.
+5. Return to Leads and Pipeline.
+
+**Expected:**
+- SLA values persist after save.
+- Speed-to-lead and cadence breach indicators on leads and deals reflect the updated thresholds.
