@@ -115,7 +115,8 @@ const LeadsPage = () => {
     partner_name: '',
     product_name: '',
     score: 0,
-    notes: ''
+    notes: '',
+    owner_id: ''
   });
 
   useEffect(() => {
@@ -286,7 +287,9 @@ const LeadsPage = () => {
 
     setCreating(true);
     try {
-      await api.post('/leads', newLead);
+      const payload = { ...newLead };
+      if (!payload.owner_id) delete payload.owner_id;
+      await api.post('/leads', payload);
       toast.success('Lead created successfully');
       setShowCreateModal(false);
       setNewLead({
@@ -300,7 +303,8 @@ const LeadsPage = () => {
         partner_name: '',
         product_name: '',
         score: 0,
-        notes: ''
+        notes: '',
+        owner_id: ''
       });
       fetchLeads();
       fetchStats();
@@ -1564,6 +1568,25 @@ const LeadsPage = () => {
                 onChange={(e) => setNewLead({ ...newLead, company_name: e.target.value })}
                 placeholder="Acme Inc."
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Owner</Label>
+              <Select
+                value={newLead.owner_id || 'unassigned'}
+                onValueChange={(v) => setNewLead({ ...newLead, owner_id: v === 'unassigned' ? '' : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Unassigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {users.map(u => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.first_name} {u.last_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Sales Motion Type *</Label>

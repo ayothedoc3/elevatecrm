@@ -53,6 +53,7 @@ class LeadCreate(BaseModel):
     product_name: Optional[str] = None
     notes: Optional[str] = None
     tags: List[str] = []
+    owner_id: Optional[str] = None
 
 
 class LeadUpdate(BaseModel):
@@ -691,6 +692,21 @@ async def create_lead(
         actor_id=user["id"],
     )
 
+    # Validate owner if provided
+    owner_name = None
+    assigned_at = None
+    status = "new"
+    if data.owner_id:
+        owner_res = await db.execute(
+            select(User).where(and_(User.id == data.owner_id, User.tenant_id == tenant_id))
+        )
+        owner = owner_res.scalar_one_or_none()
+        if not owner:
+            raise HTTPException(status_code=400, detail="Assigned user not found")
+        owner_name = f"{owner.first_name} {owner.last_name}".strip()
+        assigned_at = now
+        status = "working"
+
     lead = Lead(
         id=str(uuid.uuid4()),
         tenant_id=tenant_id,
@@ -708,11 +724,11 @@ async def create_lead(
         product_id=resolved.get("product_id"),
         partner_name=resolved.get("partner_name"),
         product_name=resolved.get("product_name"),
-        status="new",
+        status=status,
         notes=data.notes,
         tags=list(data.tags or []),
-        owner_id=None,
-        assigned_at=None,
+        owner_id=data.owner_id,
+        assigned_at=assigned_at,
         converted_at=None,
         contact_id=None,
         touchpoints_count=0,
@@ -724,7 +740,7 @@ async def create_lead(
     db.add(lead)
     await db.flush()
 
-    return _lead_to_dict(lead, owner_name=None)
+    return _lead_to_dict(lead, owner_name=owner_name)
 
 
 @router.get("/{lead_id}")
