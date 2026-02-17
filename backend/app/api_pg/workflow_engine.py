@@ -1,0 +1,640 @@
+from __future__ import annotations
+
+import asyncio
+import uuid
+from datetime import timedelta
+from typing import Any, Dict, List, Optional
+
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api_pg.messaging_service import MessagingProviderError, send_outbound_message_via_provider
+from app.api_pg.services import create_timeline_event
+from app.api_pg.utils import now_utc
+from app.core.database import AsyncSessionLocal
+from app.pg_models.models import Contact, Conversation, Deal, Message, Task, Workflow, WorkflowRun
+
+_scheduled_tasks: set[asyncio.Task] = set()
+
+
+def _track_task(task: asyncio.Task) -> None:
+    _scheduled_tasks.add(task)
+    task.add_done_callback(lambda t: _scheduled_tasks.discard(t))
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        if value is None:
+            return default
+        return int(value)
+    except Exception:
+        return default
+
+
+def _as_text(value: Any) -> str:
+    return "" if value is None else str(value)
+
+
+def _render_template(text: Optional[str], values: Dict[str, Any]) -> str:
+    rendered = _as_text(text)
+    for key, value in (values or {}).items():
+        rendered = rendered.replace(f"{{{{{key}}}}}", _as_text(value))
+    return rendered
+
+
+def _action_config(action: Dict[str, Any]) -> Dict[str, Any]:
+    config = dict(action.get("config") or {})
+    for key in ["title", "description", "due_days", "due_hours", "tag", "property", "value", "object_type", "subject", "body", "to"]:
+        if key not in config and key in action:
+            config[key] = action.get(key)
+    return config
+
+
+def _trigger_matches(workflow: Workflow, trigger_data: Dict[str, Any]) -> bool:
+    cfg = dict(workflow.trigger_config or {})
+    if not cfg:
+        return True
+    data = trigger_data or {}
+    for key, expected in cfg.items():
+        if expected is None or expected == "":
+            continue
+        actual = data.get(key)
+        if str(actual).strip().lower() != str(expected).strip().lower():
+            return False
+    return True
+
+
+async def _get_or_create_conversation(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    contact_id: str,
+    channel: str,
+    subject: Optional[str],
+) -> Conversation:
+    conv_res = await db.execute(
+        select(Conversation).where(
+            and_(
+                Conversation.tenant_id == tenant_id,
+                Conversation.contact_id == contact_id,
+                Conversation.channel == channel,
+            )
+        )
+    )
+    conv = conv_res.scalar_one_or_none()
+    if conv:
+        return conv
+
+    now = now_utc()
+    conv = Conversation(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        contact_id=contact_id,
+        channel=channel,
+        subject=subject,
+        is_open=True,
+        is_read=True,
+        message_count=0,
+        unread_count=0,
+        last_message_preview=None,
+        last_message_at=None,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(conv)
+    await db.flush()
+    return conv
+
+
+async def _load_contact(db: AsyncSession, tenant_id: str, contact_id: Optional[str]) -> Optional[Contact]:
+    if not contact_id:
+        return None
+    res = await db.execute(select(Contact).where(and_(Contact.id == contact_id, Contact.tenant_id == tenant_id)))
+    return res.scalar_one_or_none()
+
+
+async def _load_deal(db: AsyncSession, tenant_id: str, deal_id: Optional[str]) -> Optional[Deal]:
+    if not deal_id:
+        return None
+    res = await db.execute(select(Deal).where(and_(Deal.id == deal_id, Deal.tenant_id == tenant_id)))
+    return res.scalar_one_or_none()
+
+
+def _template_values(contact: Optional[Contact], deal: Optional[Deal], trigger_data: Dict[str, Any]) -> Dict[str, Any]:
+    values: Dict[str, Any] = dict(trigger_data or {})
+    if contact:
+        values.update(
+            {
+                "contact_id": contact.id,
+                "first_name": contact.first_name or "",
+                "last_name": contact.last_name or "",
+                "full_name": contact.full_name or "",
+                "email": contact.email or "",
+                "phone": contact.phone or "",
+                "company_name": contact.company_name or "",
+            }
+        )
+    if deal:
+        values.update(
+            {
+                "deal_id": deal.id,
+                "deal_name": deal.name or "",
+                "deal_amount": float(deal.amount or 0),
+                "deal_stage_id": deal.stage_id or "",
+                "deal_status": deal.status or "",
+            }
+        )
+    return values
+
+
+async def _execute_send_message_action(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    action_type: str,
+    config: Dict[str, Any],
+    contact: Optional[Contact],
+    deal: Optional[Deal],
+    values: Dict[str, Any],
+) -> None:
+    channel = "sms" if action_type == "send_sms" else "email"
+    to_address = _render_template(config.get("to") or config.get("to_address"), values).strip()
+    if not to_address and contact:
+        to_address = (contact.phone or "").strip() if channel == "sms" else (contact.email or "").strip()
+    if not to_address:
+        to_address = _render_template(values.get("phone") if channel == "sms" else values.get("email"), values).strip()
+    if not to_address:
+        raise RuntimeError(f"Workflow action '{action_type}' has no recipient")
+
+    subject = _render_template(config.get("subject") or "Message from Elev8 CRM", values) if channel == "email" else None
+    body = _render_template(config.get("body") or config.get("template") or "", values)
+    if not body.strip():
+        raise RuntimeError(f"Workflow action '{action_type}' has empty body")
+
+    conversation: Optional[Conversation] = None
+    if contact:
+        conversation = await _get_or_create_conversation(
+            db=db,
+            tenant_id=tenant_id,
+            contact_id=contact.id,
+            channel=channel,
+            subject=subject,
+        )
+
+    now = now_utc()
+    message = Message(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        conversation_id=conversation.id if conversation else str(uuid.uuid4()),
+        channel=channel,
+        direction="outbound",
+        status="pending",
+        from_address=None,
+        to_address=to_address,
+        subject=subject,
+        body=body,
+        body_html=None,
+        sent_by_user_id=None,
+        sent_by_name="Automation",
+        sent_at=now,
+        created_at=now,
+    )
+
+    if conversation is None:
+        synthetic = Conversation(
+            id=message.conversation_id,
+            tenant_id=tenant_id,
+            contact_id=contact.id if contact else None,
+            channel=channel,
+            subject=subject,
+            is_open=True,
+            is_read=True,
+            message_count=0,
+            unread_count=0,
+            last_message_preview=None,
+            last_message_at=None,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(synthetic)
+        conversation = synthetic
+
+    db.add(message)
+
+    try:
+        result = await send_outbound_message_via_provider(
+            db=db,
+            tenant_id=tenant_id,
+            channel=channel,
+            to_address=to_address,
+            subject=subject,
+            body=body,
+            body_html=None,
+            message_id=message.id,
+            campaign_id=None,
+        )
+        message.status = result.get("status") or "sent"
+    except MessagingProviderError:
+        message.status = "failed"
+
+    preview = body[:100] + ("..." if len(body) > 100 else "")
+    conversation.message_count = int(conversation.message_count or 0) + 1
+    conversation.last_message_preview = preview
+    conversation.last_message_at = now
+    conversation.updated_at = now
+    conversation.is_read = True
+    conversation.unread_count = 0
+
+    await create_timeline_event(
+        db=db,
+        tenant_id=tenant_id,
+        event_type="sms_sent" if channel == "sms" else "email_sent",
+        title="Workflow sent SMS" if channel == "sms" else "Workflow sent email",
+        description=body[:500],
+        deal_id=deal.id if deal else None,
+        contact_id=contact.id if contact else None,
+        metadata={"workflow": True, "message_id": message.id, "channel": channel},
+    )
+
+
+async def _execute_create_task_action(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    config: Dict[str, Any],
+    contact: Optional[Contact],
+    deal: Optional[Deal],
+    values: Dict[str, Any],
+) -> None:
+    title = _render_template(config.get("title") or "Workflow task", values).strip() or "Workflow task"
+    description = _render_template(config.get("description"), values).strip() or None
+    due_days = _safe_int(config.get("due_days"), 0)
+    due_hours = _safe_int(config.get("due_hours"), 0)
+    if due_days <= 0 and due_hours <= 0:
+        due_hours = 24
+
+    due_at = now_utc() + timedelta(days=max(0, due_days), hours=max(0, due_hours))
+    owner_id = (config.get("owner_id") or "").strip() or (deal.owner_id if deal else None) or (contact.owner_id if contact else None)
+    related_type = "deal" if deal else ("contact" if contact else None)
+    related_id = deal.id if deal else (contact.id if contact else None)
+
+    task = Task(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        title=title,
+        description=description,
+        due_at=due_at,
+        owner_id=owner_id,
+        created_by=None,
+        status="open",
+        kind="manual",
+        related_type=related_type,
+        related_id=related_id,
+        completed_at=None,
+        completed_by=None,
+        meta={"workflow": True},
+        created_at=now_utc(),
+        updated_at=now_utc(),
+    )
+    db.add(task)
+
+
+async def _execute_add_tag_action(
+    *,
+    db: AsyncSession,
+    config: Dict[str, Any],
+    contact: Optional[Contact],
+    values: Dict[str, Any],
+) -> None:
+    if not contact:
+        return
+    tag = _render_template(config.get("tag"), values).strip()
+    if not tag:
+        return
+    tags = list(contact.tags or [])
+    if tag not in tags:
+        tags.append(tag)
+        contact.tags = tags
+        contact.updated_at = now_utc()
+        await db.flush()
+
+
+async def _execute_set_property_action(
+    *,
+    db: AsyncSession,
+    config: Dict[str, Any],
+    contact: Optional[Contact],
+    deal: Optional[Deal],
+    values: Dict[str, Any],
+) -> None:
+    prop = (config.get("property") or "").strip()
+    if not prop:
+        return
+    val = _render_template(config.get("value"), values)
+    object_type = (config.get("object_type") or "contact").strip().lower()
+
+    if object_type == "deal" and deal:
+        allowed = {"status", "next_step_note", "lead_score", "lead_tier"}
+        if prop in allowed:
+            setattr(deal, prop, val)
+            deal.updated_at = now_utc()
+        return
+
+    if contact:
+        allowed = {"lifecycle_stage", "lead_score", "lead_tier", "status", "company_name", "phone", "email"}
+        if prop in allowed:
+            if prop == "lead_score":
+                setattr(contact, prop, _safe_int(val, contact.lead_score or 0))
+            else:
+                setattr(contact, prop, val)
+            contact.updated_at = now_utc()
+
+
+async def _execute_action(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    action: Dict[str, Any],
+    contact: Optional[Contact],
+    deal: Optional[Deal],
+    trigger_data: Dict[str, Any],
+) -> None:
+    action_type = (action.get("type") or "").strip().lower()
+    config = _action_config(action)
+    values = _template_values(contact, deal, trigger_data)
+
+    if action_type in {"send_email", "send_sms"}:
+        await _execute_send_message_action(
+            db=db,
+            tenant_id=tenant_id,
+            action_type=action_type,
+            config=config,
+            contact=contact,
+            deal=deal,
+            values=values,
+        )
+        return
+
+    if action_type == "create_task":
+        await _execute_create_task_action(
+            db=db,
+            tenant_id=tenant_id,
+            config=config,
+            contact=contact,
+            deal=deal,
+            values=values,
+        )
+        return
+
+    if action_type == "add_tag":
+        await _execute_add_tag_action(db=db, config=config, contact=contact, values=values)
+        return
+
+    if action_type == "set_property":
+        await _execute_set_property_action(db=db, config=config, contact=contact, deal=deal, values=values)
+        return
+
+    if action_type == "create_notification":
+        title = _render_template(config.get("title") or "Workflow notification", values)
+        description = _render_template(config.get("description"), values) or None
+        await create_timeline_event(
+            db=db,
+            tenant_id=tenant_id,
+            event_type="internal_notification",
+            title=title,
+            description=description,
+            deal_id=deal.id if deal else None,
+            contact_id=contact.id if contact else None,
+            metadata={"workflow": True},
+        )
+        return
+
+    # Affiliate-specific action types and unknown actions are currently ignored.
+    return
+
+
+async def _resume_after_delay(
+    *,
+    tenant_id: str,
+    workflow_id: str,
+    run_id: str,
+    contact_id: Optional[str],
+    deal_id: Optional[str],
+    trigger_data: Dict[str, Any],
+    next_index: int,
+    delay_minutes: int,
+) -> None:
+    await asyncio.sleep(max(0, delay_minutes) * 60)
+    async with AsyncSessionLocal() as db:
+        workflow = (
+            await db.execute(
+                select(Workflow).where(and_(Workflow.id == workflow_id, Workflow.tenant_id == tenant_id))
+            )
+        ).scalar_one_or_none()
+        run = (
+            await db.execute(
+                select(WorkflowRun).where(and_(WorkflowRun.id == run_id, WorkflowRun.tenant_id == tenant_id))
+            )
+        ).scalar_one_or_none()
+
+        if not workflow or not run:
+            return
+        if run.status in {"completed", "failed"}:
+            return
+
+        try:
+            await _execute_workflow_run(
+                db=db,
+                workflow=workflow,
+                run=run,
+                trigger_data=trigger_data,
+                contact_id=contact_id,
+                deal_id=deal_id,
+                start_index=next_index,
+            )
+        except Exception as exc:
+            run.status = "failed"
+            run.error = str(exc)
+            run.completed_at = now_utc()
+            workflow.failed_runs = int(workflow.failed_runs or 0) + 1
+            await db.flush()
+        await db.commit()
+
+
+async def _execute_workflow_run(
+    *,
+    db: AsyncSession,
+    workflow: Workflow,
+    run: WorkflowRun,
+    trigger_data: Dict[str, Any],
+    contact_id: Optional[str],
+    deal_id: Optional[str],
+    start_index: int = 0,
+) -> None:
+    try:
+        actions = list(workflow.actions or [])
+    except Exception:
+        actions = []
+
+    contact = await _load_contact(db, workflow.tenant_id, contact_id)
+    deal = await _load_deal(db, workflow.tenant_id, deal_id)
+
+    index = max(0, start_index)
+    while index < len(actions):
+        action = dict(actions[index] or {})
+        action_type = (action.get("type") or "").strip().lower()
+        delay_minutes = _safe_int(action.get("delay_minutes"), 0)
+
+        if action_type == "delay":
+            delay_minutes = max(1, delay_minutes)
+            run.status = "waiting"
+            run.error = None
+            await db.flush()
+            task = asyncio.create_task(
+                _resume_after_delay(
+                    tenant_id=workflow.tenant_id,
+                    workflow_id=workflow.id,
+                    run_id=run.id,
+                    contact_id=contact_id,
+                    deal_id=deal_id,
+                    trigger_data=trigger_data,
+                    next_index=index + 1,
+                    delay_minutes=delay_minutes,
+                )
+            )
+            _track_task(task)
+            return
+
+        if delay_minutes > 0:
+            run.status = "waiting"
+            run.error = None
+            await db.flush()
+            task = asyncio.create_task(
+                _resume_after_delay(
+                    tenant_id=workflow.tenant_id,
+                    workflow_id=workflow.id,
+                    run_id=run.id,
+                    contact_id=contact_id,
+                    deal_id=deal_id,
+                    trigger_data=trigger_data,
+                    next_index=index,
+                    delay_minutes=delay_minutes,
+                )
+            )
+            _track_task(task)
+            return
+
+        await _execute_action(
+            db=db,
+            tenant_id=workflow.tenant_id,
+            action=action,
+            contact=contact,
+            deal=deal,
+            trigger_data=trigger_data,
+        )
+        index += 1
+
+    run.status = "completed"
+    run.completed_at = now_utc()
+    run.error = None
+    workflow.successful_runs = int(workflow.successful_runs or 0) + 1
+    await db.flush()
+
+
+async def trigger_workflow_by_id(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    workflow_id: str,
+    trigger_type: str,
+    trigger_data: Optional[Dict[str, Any]] = None,
+    contact_id: Optional[str] = None,
+    deal_id: Optional[str] = None,
+) -> Optional[WorkflowRun]:
+    res = await db.execute(
+        select(Workflow).where(
+            and_(
+                Workflow.id == workflow_id,
+                Workflow.tenant_id == tenant_id,
+                Workflow.status == "active",
+            )
+        )
+    )
+    workflow = res.scalar_one_or_none()
+    if not workflow:
+        return None
+
+    run = WorkflowRun(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        workflow_id=workflow.id,
+        status="running",
+        trigger_type=trigger_type,
+        trigger_data=trigger_data or {},
+        contact_id=contact_id,
+        deal_id=deal_id,
+        error=None,
+        started_at=now_utc(),
+        completed_at=None,
+    )
+    db.add(run)
+
+    workflow.total_runs = int(workflow.total_runs or 0) + 1
+    await db.flush()
+
+    try:
+        await _execute_workflow_run(
+            db=db,
+            workflow=workflow,
+            run=run,
+            trigger_data=trigger_data or {},
+            contact_id=contact_id,
+            deal_id=deal_id,
+            start_index=0,
+        )
+    except Exception as exc:
+        run.status = "failed"
+        run.error = str(exc)
+        run.completed_at = now_utc()
+        workflow.failed_runs = int(workflow.failed_runs or 0) + 1
+        await db.flush()
+
+    return run
+
+
+async def trigger_workflows_for_event(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    trigger_type: str,
+    trigger_data: Optional[Dict[str, Any]] = None,
+    contact_id: Optional[str] = None,
+    deal_id: Optional[str] = None,
+) -> List[WorkflowRun]:
+    data = trigger_data or {}
+    workflows_res = await db.execute(
+        select(Workflow).where(
+            and_(
+                Workflow.tenant_id == tenant_id,
+                Workflow.status == "active",
+                Workflow.trigger_type == trigger_type,
+            )
+        )
+    )
+    workflows = workflows_res.scalars().all()
+    runs: List[WorkflowRun] = []
+    for workflow in workflows:
+        if not _trigger_matches(workflow, data):
+            continue
+        run = await trigger_workflow_by_id(
+            db=db,
+            tenant_id=tenant_id,
+            workflow_id=workflow.id,
+            trigger_type=trigger_type,
+            trigger_data=data,
+            contact_id=contact_id,
+            deal_id=deal_id,
+        )
+        if run:
+            runs.append(run)
+    return runs

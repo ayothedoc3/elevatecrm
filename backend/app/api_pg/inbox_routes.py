@@ -9,6 +9,7 @@ from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api_pg.deps import get_current_user
+from app.api_pg.messaging_service import MessagingProviderError, send_outbound_message_via_provider
 from app.api_pg.utils import dt_to_iso, now_utc
 from app.core.database import get_db
 from app.pg_models.models import Contact, Conversation, Message
@@ -238,7 +239,7 @@ async def send_message(
         conversation_id=conv.id,
         channel=data.channel,
         direction="outbound",
-        status="sent",
+        status="pending",
         from_address=user.get("email"),
         to_address=data.to_address,
         subject=data.subject,
@@ -250,6 +251,24 @@ async def send_message(
         created_at=now,
     )
     db.add(msg)
+
+    provider_error = None
+    try:
+        send_result = await send_outbound_message_via_provider(
+            db=db,
+            tenant_id=tenant_id,
+            channel=data.channel,
+            to_address=data.to_address,
+            subject=data.subject,
+            body=data.body,
+            body_html=data.body_html,
+            message_id=message_id,
+            campaign_id=None,
+        )
+        msg.status = send_result.get("status") or "sent"
+    except MessagingProviderError as exc:
+        msg.status = "failed"
+        provider_error = str(exc)
 
     await db.execute(
         update(Conversation)
@@ -266,5 +285,8 @@ async def send_message(
 
     await db.flush()
 
-    return _message_to_dict(msg)
+    out = _message_to_dict(msg)
+    if provider_error:
+        out["provider_error"] = provider_error
+    return out
 

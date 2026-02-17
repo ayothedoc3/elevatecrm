@@ -8,6 +8,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api_pg.workflow_engine import trigger_workflows_for_event
 from app.api_pg.utils import now_utc
 from app.core.database import get_db
 from app.pg_models.models import AffiliateEvent, AffiliateLink, AffiliateProgram
@@ -59,6 +60,20 @@ async def public_referral_redirect(
 
     await db.execute(
         update(AffiliateLink).where(AffiliateLink.id == link.id).values(click_count=int(link.click_count or 0) + 1)
+    )
+    await trigger_workflows_for_event(
+        db=db,
+        tenant_id=link.tenant_id,
+        trigger_type="affiliate_link_clicked",
+        trigger_data={
+            "link_id": link.id,
+            "affiliate_id": link.affiliate_id,
+            "program_id": link.program_id,
+            "referral_code": referral_code,
+            "landing_page_url": link.landing_page_url,
+        },
+        contact_id=None,
+        deal_id=None,
     )
 
     redirect_url = link.landing_page_url or "/"

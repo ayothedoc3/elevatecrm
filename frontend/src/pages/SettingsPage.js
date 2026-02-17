@@ -108,6 +108,7 @@ const SettingsPage = () => {
   const [showAddIntegration, setShowAddIntegration] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState(null);
   const [newApiKey, setNewApiKey] = useState('');
+  const [providerConfig, setProviderConfig] = useState({});
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
   
@@ -483,6 +484,24 @@ const SettingsPage = () => {
       setSaving(false);
     }
   };
+
+  const cleanProviderConfig = () => {
+    const out = {};
+    Object.entries(providerConfig || {}).forEach(([key, value]) => {
+      const normalized = (value ?? '').toString().trim();
+      if (normalized) out[key] = normalized;
+    });
+    return out;
+  };
+
+  const isProviderConfigValid = () => {
+    if (!selectedProvider) return false;
+    const type = selectedProvider.type;
+    const cfg = cleanProviderConfig();
+    if (type === 'sendgrid') return !!cfg.from_email;
+    if (type === 'twilio') return !!cfg.account_sid && !!cfg.from_number;
+    return true;
+  };
   
   const addIntegration = async () => {
     if (!selectedProvider || !newApiKey) {
@@ -497,7 +516,8 @@ const SettingsPage = () => {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           provider_type: selectedProvider.type,
-          api_key: newApiKey
+          api_key: newApiKey,
+          config: cleanProviderConfig()
         })
       });
       
@@ -528,7 +548,8 @@ const SettingsPage = () => {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           provider_type: selectedProvider.type,
-          api_key: newApiKey || null
+          api_key: newApiKey || null,
+          config: cleanProviderConfig()
         })
       });
       
@@ -1586,6 +1607,7 @@ const SettingsPage = () => {
           if (!open) {
             setSelectedProvider(null);
             setNewApiKey('');
+            setProviderConfig({});
             setShowKey(false);
             setTesting(false);
           }
@@ -1613,6 +1635,7 @@ const SettingsPage = () => {
                   ];
                   const provider = allProviders.find(p => p.type === v);
                   setSelectedProvider(provider);
+                  setProviderConfig({});
                 }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choose a provider" />
@@ -1683,6 +1706,53 @@ const SettingsPage = () => {
                     )}
                   </p>
                 </div>
+
+                {selectedProvider.type === 'sendgrid' && (
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="sendgrid-from-email">From Email</Label>
+                      <Input
+                        id="sendgrid-from-email"
+                        type="email"
+                        value={providerConfig.from_email || ''}
+                        onChange={(e) => setProviderConfig((prev) => ({ ...prev, from_email: e.target.value }))}
+                        placeholder="noreply@yourdomain.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sendgrid-from-name">From Name (optional)</Label>
+                      <Input
+                        id="sendgrid-from-name"
+                        value={providerConfig.from_name || ''}
+                        onChange={(e) => setProviderConfig((prev) => ({ ...prev, from_name: e.target.value }))}
+                        placeholder="Elev8 CRM"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {selectedProvider.type === 'twilio' && (
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="twilio-account-sid">Account SID</Label>
+                      <Input
+                        id="twilio-account-sid"
+                        value={providerConfig.account_sid || ''}
+                        onChange={(e) => setProviderConfig((prev) => ({ ...prev, account_sid: e.target.value }))}
+                        placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="twilio-from-number">From Number</Label>
+                      <Input
+                        id="twilio-from-number"
+                        value={providerConfig.from_number || ''}
+                        onChange={(e) => setProviderConfig((prev) => ({ ...prev, from_number: e.target.value }))}
+                        placeholder="+15551234567"
+                      />
+                    </div>
+                  </div>
+                )}
                 
                 <Alert>
                   <Shield className="h-4 w-4" />
@@ -1696,12 +1766,12 @@ const SettingsPage = () => {
           
           <DialogFooter className="flex gap-2">
             {selectedProvider && (
-              <Button variant="outline" onClick={testConnection} disabled={testing || !newApiKey}>
+              <Button variant="outline" onClick={testConnection} disabled={testing || !newApiKey || !isProviderConfigValid()}>
                 {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
                 Test Connection
               </Button>
             )}
-            <Button onClick={addIntegration} disabled={saving || !selectedProvider || !newApiKey}>
+            <Button onClick={addIntegration} disabled={saving || !selectedProvider || !newApiKey || !isProviderConfigValid()}>
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
               Save Integration
             </Button>

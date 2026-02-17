@@ -177,7 +177,7 @@ const FaqSection = ({ section, colors }) => {
   );
 };
 
-const CtaSection = ({ section, colors, formData, setFormData, submitting, submitted, onSubmit, onCtaClick }) => (
+const CtaSection = ({ section, colors, formData, setFormData, submitting, submitted, submissionError, onSubmit, onCtaClick }) => (
   <section
     id="signup-form"
     className="py-20 px-6"
@@ -221,6 +221,23 @@ const CtaSection = ({ section, colors, formData, setFormData, submitting, submit
               required
               className="bg-white text-gray-900"
             />
+            <Input
+              type="tel"
+              placeholder="Phone (optional)"
+              value={formData?.phone || ''}
+              onChange={(e) => setFormData?.({ ...formData, phone: e.target.value })}
+              className="bg-white text-gray-900"
+            />
+            <Input
+              type="text"
+              placeholder="Company (optional)"
+              value={formData?.company || ''}
+              onChange={(e) => setFormData?.({ ...formData, company: e.target.value })}
+              className="bg-white text-gray-900"
+            />
+            {submissionError && (
+              <p className="text-sm text-red-200 text-left">{submissionError}</p>
+            )}
             <Button
               type="submit"
               size="lg"
@@ -242,6 +259,8 @@ const CtaSection = ({ section, colors, formData, setFormData, submitting, submit
       ) : (
         // Preview mode (builder) - just show the CTA button
         <div className="bg-white/10 backdrop-blur rounded-xl p-8 space-y-4">
+          <div className="h-10 bg-white/20 rounded mb-3" />
+          <div className="h-10 bg-white/20 rounded mb-3" />
           <div className="h-10 bg-white/20 rounded mb-3" />
           <div className="h-10 bg-white/20 rounded mb-3" />
           <Button
@@ -323,6 +342,7 @@ const SectionRenderer = ({
   setFormData,
   submitting,
   submitted,
+  submissionError,
   onSubmit,
 }) => {
   const colors = colorScheme || {
@@ -354,6 +374,7 @@ const SectionRenderer = ({
             setFormData={setFormData}
             submitting={submitting}
             submitted={submitted}
+            submissionError={submissionError}
             onSubmit={onSubmit}
             onCtaClick={onCtaClick}
           />

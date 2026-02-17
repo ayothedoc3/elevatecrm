@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -12,14 +12,18 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api_pg.deps import get_current_user
+from app.api_pg.services import create_timeline_event
 from app.api_pg.utils import dt_to_iso, now_utc, parse_iso_datetime
 from app.core.database import get_db
 from app.pg_models.models import (
+    Lead,
     LandingPage,
     LandingPageConversation,
     LandingPageEvent,
     LandingPageGeneration,
     LandingPageVersion,
+    Tenant,
+    User,
 )
 from app.services.ai_service import AIModel, get_ai_service
 
@@ -93,6 +97,24 @@ class ChatMessageResponse(BaseModel):
     modified_sections: List[int] = []
 
 
+class PublicFormSubmissionRequest(BaseModel):
+    name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    company: Optional[str] = None
+    company_name: Optional[str] = None
+    notes: Optional[str] = None
+    affiliate_ref: Optional[str] = None
+    utm_source: Optional[str] = None
+    utm_medium: Optional[str] = None
+    utm_campaign: Optional[str] = None
+    utm_content: Optional[str] = None
+    utm_term: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
 def _generate_slug(name: str) -> str:
     slug = name.lower().strip()
     slug = re.sub(r"[^a-z0-9]+", "-", slug)
@@ -125,6 +147,241 @@ def _page_to_dict(page: LandingPage, *, include_schema: bool) -> Dict[str, Any]:
     if include_schema:
         data["page_schema"] = page.page_schema or {}
     return data
+
+
+def _split_full_name(name: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    text = " ".join((name or "").strip().split())
+    if not text:
+        return None, None
+
+    parts = text.split(" ")
+    if len(parts) == 1:
+        return parts[0], None
+    return parts[0], " ".join(parts[1:])
+
+
+async def _select_round_robin_owner(db: AsyncSession, tenant_id: str) -> Optional[User]:
+    users_res = await db.execute(
+        select(User)
+        .where(
+            and_(
+                User.tenant_id == tenant_id,
+                User.is_active.is_(True),
+                func.lower(User.role).in_(["sales", "manager", "admin", "owner", "super_admin"]),
+            )
+        )
+        .order_by(User.created_at.asc())
+    )
+    users = users_res.scalars().all()
+    if not users:
+        return None
+
+    user_ids = [u.id for u in users]
+    stats_res = await db.execute(
+        select(
+            Lead.owner_id,
+            func.max(Lead.assigned_at).label("last_assigned_at"),
+            func.count(Lead.id).label("assigned_count"),
+        )
+        .where(
+            and_(
+                Lead.tenant_id == tenant_id,
+                Lead.owner_id.is_not(None),
+                Lead.owner_id.in_(user_ids),
+            )
+        )
+        .group_by(Lead.owner_id)
+    )
+    stats = {
+        str(owner_id): {
+            "last_assigned_at": last_assigned_at,
+            "assigned_count": int(assigned_count or 0),
+        }
+        for owner_id, last_assigned_at, assigned_count in stats_res.all()
+    }
+
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    ranked = sorted(
+        users,
+        key=lambda u: (
+            stats.get(u.id, {}).get("last_assigned_at") or epoch,
+            int(stats.get(u.id, {}).get("assigned_count") or 0),
+            u.created_at or epoch,
+            u.id,
+        ),
+    )
+    return ranked[0] if ranked else None
+
+
+async def submit_public_landing_form_internal(
+    *,
+    page: LandingPage,
+    slug: str,
+    data: PublicFormSubmissionRequest,
+    db: AsyncSession,
+    request: Optional[Request] = None,
+) -> Dict[str, Any]:
+    email = (data.email or "").strip() or None
+    phone = (data.phone or "").strip() or None
+    company_name = (data.company_name or data.company or "").strip() or None
+    provided_first_name = (data.first_name or "").strip() or None
+    provided_last_name = (data.last_name or "").strip() or None
+    first_name_from_name, last_name_from_name = _split_full_name(data.name)
+
+    first_name = provided_first_name or first_name_from_name
+    last_name = provided_last_name or last_name_from_name
+    full_name = " ".join([x for x in [first_name, last_name] if x]).strip() or None
+
+    if not email and not phone:
+        raise HTTPException(status_code=400, detail="Email or phone is required")
+    if not full_name and not company_name:
+        raise HTTPException(status_code=400, detail="Name or company is required")
+
+    now = now_utc()
+    owner = await _select_round_robin_owner(db, page.tenant_id)
+    owner_id = owner.id if owner else None
+    owner_name = (
+        f"{(owner.first_name or '').strip()} {(owner.last_name or '').strip()}".strip()
+        if owner
+        else None
+    )
+
+    lead = Lead(
+        id=str(uuid.uuid4()),
+        tenant_id=page.tenant_id,
+        first_name=first_name,
+        last_name=last_name,
+        full_name=full_name or company_name,
+        email=email,
+        phone=phone,
+        company_name=company_name,
+        source="landing_page",
+        sales_motion_type="partnership_sales",
+        partner_id=None,
+        product_id=None,
+        partner_name=None,
+        product_name=None,
+        score=0,
+        tier="D",
+        scoring_data={},
+        status="working" if owner_id else "new",
+        owner_id=owner_id,
+        assigned_at=now if owner_id else None,
+        notes=(data.notes or "").strip() or None,
+        touchpoints_count=0,
+        last_touchpoint_at=None,
+        first_touchpoint_at=None,
+        tags=[],
+        converted_at=None,
+        contact_id=None,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(lead)
+
+    affiliate_ref = (data.affiliate_ref or "").strip() or None
+    ip_address = request.client.host if request and request.client else None
+    user_agent = request.headers.get("user-agent", "") if request else ""
+    event_meta = {
+        "slug": slug,
+        "lead_id": lead.id,
+        "affiliate_ref": affiliate_ref,
+        "utm_source": (data.utm_source or "").strip() or None,
+        "utm_medium": (data.utm_medium or "").strip() or None,
+        "utm_campaign": (data.utm_campaign or "").strip() or None,
+        "utm_content": (data.utm_content or "").strip() or None,
+        "utm_term": (data.utm_term or "").strip() or None,
+        "ip_address": ip_address,
+        "user_agent": user_agent,
+        "form_metadata": data.metadata or {},
+    }
+
+    lp_event = LandingPageEvent(
+        id=str(uuid.uuid4()),
+        landing_page_id=page.id,
+        tenant_id=page.tenant_id,
+        event_type="form_submission",
+        affiliate_ref=affiliate_ref,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        meta=event_meta,
+        created_at=now,
+    )
+    db.add(lp_event)
+
+    await db.execute(
+        update(LandingPage)
+        .where(LandingPage.id == page.id)
+        .values(conversion_count=int(page.conversion_count or 0) + 1, updated_at=now)
+    )
+
+    lead_label = (
+        lead.full_name
+        or lead.company_name
+        or lead.email
+        or lead.phone
+        or "Website visitor"
+    )
+    page_label = page.name or page.slug
+    await create_timeline_event(
+        db=db,
+        tenant_id=page.tenant_id,
+        event_type="form_submitted",
+        title=f"Form submitted on {page_label}",
+        description=f"New lead captured: {lead_label}",
+        contact_id=None,
+        deal_id=None,
+        metadata={
+            **event_meta,
+            "landing_page_id": page.id,
+            "landing_page_name": page.name,
+        },
+    )
+    await create_timeline_event(
+        db=db,
+        tenant_id=page.tenant_id,
+        event_type="landing_page_conversion",
+        title=f"Landing page conversion: {page_label}",
+        description=f"Lead captured: {lead_label}",
+        metadata={
+            **event_meta,
+            "landing_page_id": page.id,
+            "landing_page_name": page.name,
+            "lead_id": lead.id,
+        },
+    )
+
+    if owner_id:
+        await create_timeline_event(
+            db=db,
+            tenant_id=page.tenant_id,
+            event_type="lead_assigned",
+            title=f"Lead assigned: {lead_label}",
+            description=f"Assigned to {owner_name or owner_id}",
+            metadata={
+                "lead_id": lead.id,
+                "source": "landing_page_form",
+                "landing_page_id": page.id,
+                "assigned_to_user_id": owner_id,
+                "assigned_to_user_name": owner_name,
+            },
+        )
+
+    await db.flush()
+
+    page.conversion_count = int(page.conversion_count or 0) + 1
+    page.updated_at = now
+
+    return {
+        "success": True,
+        "lead_id": lead.id,
+        "page_id": page.id,
+        "page_slug": page.slug,
+        "conversion_count": int(page.conversion_count or 0),
+        "assigned_owner_id": owner_id,
+        "assigned_owner_name": owner_name,
+        "message": "Lead captured successfully",
+    }
 
 
 @router.post("/generate")
@@ -579,6 +836,30 @@ async def rollback_to_version(
     return {"success": True}
 
 
+@router.post("/public/{slug}/submit", status_code=201)
+async def submit_public_page_form(
+    slug: str,
+    data: PublicFormSubmissionRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(
+        select(LandingPage).where(and_(LandingPage.slug == slug, LandingPage.status == PageStatus.PUBLISHED.value))
+    )
+    page = res.scalar_one_or_none()
+    if not page:
+        raise HTTPException(status_code=404, detail="Page not found")
+
+    payload = await submit_public_landing_form_internal(
+        page=page,
+        slug=slug,
+        data=data,
+        db=db,
+        request=request,
+    )
+    return payload
+
+
 @router.get("/public/{slug}")
 async def get_public_page(
     slug: str,
@@ -616,5 +897,22 @@ async def get_public_page(
     page.view_count = int(page.view_count or 0) + 1
     page.updated_at = now
 
-    return {"page": _page_to_dict(page, include_schema=True), "affiliate_ref": ref}
+    await create_timeline_event(
+        db=db,
+        tenant_id=page.tenant_id,
+        event_type="landing_page_view",
+        title=f"Landing page viewed: {page.name or page.slug}",
+        metadata={
+            "landing_page_id": page.id,
+            "landing_page_name": page.name,
+            "slug": page.slug,
+            "affiliate_ref": ref,
+            "ip_address": request.client.host if request and request.client else None,
+        },
+    )
+
+    tenant_slug_res = await db.execute(select(Tenant.slug).where(Tenant.id == page.tenant_id).limit(1))
+    tenant_slug = tenant_slug_res.scalar_one_or_none()
+
+    return {"page": _page_to_dict(page, include_schema=True), "affiliate_ref": ref, "tenant_slug": tenant_slug}
 

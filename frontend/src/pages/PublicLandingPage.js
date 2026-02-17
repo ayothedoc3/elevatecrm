@@ -13,9 +13,11 @@ const PublicLandingPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(null);
-  const [formData, setFormData] = useState({ name: '', email: '' });
+  const [tenantSlug, setTenantSlug] = useState(null);
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', company: '' });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submissionError, setSubmissionError] = useState(null);
 
   const affiliateRef = searchParams.get('ref');
 
@@ -28,6 +30,7 @@ const PublicLandingPage = () => {
           : `${BACKEND_URL}/api/landing-pages/public/${slug}`;
         const response = await axios.get(url);
         setPage(response.data.page);
+        setTenantSlug(response.data.tenant_slug || null);
       } catch (err) {
         setError(err.response?.status === 404 ? 'Page not found' : 'Failed to load page');
       } finally {
@@ -39,10 +42,29 @@ const PublicLandingPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmissionError(null);
     setSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setSubmitted(true);
-    setSubmitting(false);
+    try {
+      const payload = {
+        name: formData.name,
+        email: formData.email || undefined,
+        phone: formData.phone || undefined,
+        company: formData.company || undefined,
+        affiliate_ref: affiliateRef || undefined,
+      };
+
+      if (tenantSlug) {
+        await axios.post(`${BACKEND_URL}/api/public/forms/${tenantSlug}/${slug}`, payload);
+      } else {
+        await axios.post(`${BACKEND_URL}/api/landing-pages/public/${slug}/submit`, payload);
+      }
+
+      setSubmitted(true);
+    } catch (err) {
+      setSubmissionError(err?.response?.data?.detail || 'Failed to submit form');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -94,6 +116,7 @@ const PublicLandingPage = () => {
             setFormData={setFormData}
             submitting={submitting}
             submitted={submitted}
+            submissionError={submissionError}
             onSubmit={handleSubmit}
           />
         ))}

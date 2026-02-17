@@ -98,6 +98,8 @@ from app.api_pg.blueprints_routes import router as blueprints_router  # noqa: E4
 from app.api_pg.kpis_routes import router as kpis_router  # noqa: E402
 from app.api_pg.storage_routes import router as storage_router  # noqa: E402
 from app.api_pg.referral_routes import router as referral_router  # noqa: E402
+from app.api_pg.public_forms_routes import router as public_forms_router  # noqa: E402
+from app.api_pg.webhooks_routes import router as webhooks_router  # noqa: E402
 
 api_router.include_router(auth_router)
 api_router.include_router(workspaces_router)
@@ -126,6 +128,8 @@ api_router.include_router(blueprints_router)
 api_router.include_router(kpis_router)
 api_router.include_router(storage_router)
 api_router.include_router(referral_router)
+api_router.include_router(public_forms_router)
+api_router.include_router(webhooks_router)
 
 app.include_router(api_router)
 

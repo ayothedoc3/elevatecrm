@@ -10,6 +10,7 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api_pg.deps import get_current_user
+from app.api_pg.workflow_engine import trigger_workflows_for_event
 from app.api_pg.utils import dt_to_iso, normalize_lower, now_utc
 from app.core.database import get_db
 from app.pg_models.models import (
@@ -209,6 +210,14 @@ async def create_affiliate(
     )
     db.add(affiliate)
     await db.flush()
+    await trigger_workflows_for_event(
+        db=db,
+        tenant_id=user["tenant_id"],
+        trigger_type="affiliate_signup",
+        trigger_data={"affiliate_id": affiliate.id, "affiliate_email": affiliate.email, "affiliate_name": affiliate.name},
+        contact_id=None,
+        deal_id=None,
+    )
 
     return {
         "id": affiliate.id,
@@ -243,6 +252,14 @@ async def approve_affiliate(
     )
     if (res.rowcount or 0) == 0:
         raise HTTPException(status_code=404, detail="Affiliate not found")
+    await trigger_workflows_for_event(
+        db=db,
+        tenant_id=user["tenant_id"],
+        trigger_type="affiliate_approved",
+        trigger_data={"affiliate_id": affiliate_id},
+        contact_id=None,
+        deal_id=None,
+    )
     return {"success": True}
 
 
@@ -439,6 +456,26 @@ async def approve_commission(
     )
     if (res.rowcount or 0) == 0:
         raise HTTPException(status_code=404, detail="Commission not found")
+    commission_res = await db.execute(
+        select(AffiliateCommission).where(
+            and_(AffiliateCommission.id == commission_id, AffiliateCommission.tenant_id == user["tenant_id"])
+        )
+    )
+    commission = commission_res.scalar_one_or_none()
+    if commission:
+        await trigger_workflows_for_event(
+            db=db,
+            tenant_id=user["tenant_id"],
+            trigger_type="commission_earned",
+            trigger_data={
+                "commission_id": commission.id,
+                "affiliate_id": commission.affiliate_id,
+                "amount": float(commission.amount or 0),
+                "currency": commission.currency,
+            },
+            contact_id=None,
+            deal_id=commission.deal_id,
+        )
     return {"success": True}
 
 
@@ -457,6 +494,26 @@ async def pay_commission(
     )
     if (res.rowcount or 0) == 0:
         raise HTTPException(status_code=404, detail="Commission not found")
+    commission_res = await db.execute(
+        select(AffiliateCommission).where(
+            and_(AffiliateCommission.id == commission_id, AffiliateCommission.tenant_id == user["tenant_id"])
+        )
+    )
+    commission = commission_res.scalar_one_or_none()
+    if commission:
+        await trigger_workflows_for_event(
+            db=db,
+            tenant_id=user["tenant_id"],
+            trigger_type="commission_paid",
+            trigger_data={
+                "commission_id": commission.id,
+                "affiliate_id": commission.affiliate_id,
+                "amount": float(commission.amount or 0),
+                "currency": commission.currency,
+            },
+            contact_id=None,
+            deal_id=commission.deal_id,
+        )
     return {"success": True}
 
 

@@ -94,6 +94,7 @@ class AffiliateSettingsUpdate(BaseModel):
 class TestConnectionRequest(BaseModel):
     provider_type: str
     api_key: Optional[str] = None
+    config: Optional[Dict[str, Any]] = None
 
 
 @router.get("/workspace")
@@ -394,6 +395,10 @@ async def test_connection(
     if not api_key:
         return {"success": False, "error": "No API key provided"}
 
+    provider_config: Dict[str, Any] = dict((integration.config or {}) if integration else {})
+    if isinstance(data.config, dict):
+        provider_config.update(data.config)
+
     start = time.time()
     try:
         if provider_type == "discord":
@@ -409,6 +414,59 @@ async def test_connection(
 
             response_time_ms = int((time.time() - start) * 1000)
 
+            if integration:
+                integration.last_test_at = now_utc()
+                integration.test_status = "success"
+                integration.updated_at = now_utc()
+
+            await _log_audit(
+                db,
+                tenant_id=user["tenant_id"],
+                actor=user,
+                action="test_connection",
+                provider_type=provider_type,
+                metadata={"test_result": "success", "response_time_ms": response_time_ms},
+            )
+            await db.flush()
+            return {"success": True, "response_time_ms": response_time_ms}
+
+        if provider_type == "sendgrid":
+            headers = {"Authorization": f"Bearer {api_key.strip()}"}
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get("https://api.sendgrid.com/v3/user/profile", headers=headers)
+
+            if resp.status_code != 200:
+                raise RuntimeError(f"SendGrid returned HTTP {resp.status_code}")
+
+            response_time_ms = int((time.time() - start) * 1000)
+            if integration:
+                integration.last_test_at = now_utc()
+                integration.test_status = "success"
+                integration.updated_at = now_utc()
+
+            await _log_audit(
+                db,
+                tenant_id=user["tenant_id"],
+                actor=user,
+                action="test_connection",
+                provider_type=provider_type,
+                metadata={"test_result": "success", "response_time_ms": response_time_ms},
+            )
+            await db.flush()
+            return {"success": True, "response_time_ms": response_time_ms}
+
+        if provider_type == "twilio":
+            account_sid = (provider_config.get("account_sid") or "").strip()
+            if not account_sid:
+                raise ValueError("Twilio account_sid is required in integration config")
+
+            async with httpx.AsyncClient(timeout=10.0, auth=(account_sid, api_key.strip())) as client:
+                resp = await client.get(f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}.json")
+
+            if resp.status_code != 200:
+                raise RuntimeError(f"Twilio returned HTTP {resp.status_code}")
+
+            response_time_ms = int((time.time() - start) * 1000)
             if integration:
                 integration.last_test_at = now_utc()
                 integration.test_status = "success"

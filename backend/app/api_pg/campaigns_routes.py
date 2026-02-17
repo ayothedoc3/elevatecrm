@@ -9,9 +9,10 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api_pg.deps import get_current_user
+from app.api_pg.messaging_service import MessagingProviderError, send_outbound_message_via_provider
 from app.api_pg.utils import dt_to_iso, now_utc, parse_iso_datetime
 from app.core.database import get_db
-from app.pg_models.models import Campaign, ListMember
+from app.pg_models.models import Campaign, Contact, Conversation, ListMember, Message
 
 router = APIRouter(prefix="/campaigns", tags=["Campaigns"])
 
@@ -56,6 +57,48 @@ def _campaign_to_dict(c: Campaign) -> dict:
         "created_at": dt_to_iso(c.created_at),
         "updated_at": dt_to_iso(c.updated_at),
     }
+
+
+async def _get_or_create_conversation(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    contact_id: str,
+    channel: str,
+    subject: Optional[str],
+) -> Conversation:
+    res = await db.execute(
+        select(Conversation).where(
+            and_(
+                Conversation.tenant_id == tenant_id,
+                Conversation.contact_id == contact_id,
+                Conversation.channel == channel,
+            )
+        )
+    )
+    conv = res.scalar_one_or_none()
+    now = now_utc()
+    if conv:
+        return conv
+
+    conv = Conversation(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        contact_id=contact_id,
+        channel=channel,
+        subject=subject,
+        is_open=True,
+        is_read=True,
+        message_count=0,
+        unread_count=0,
+        last_message_preview=None,
+        last_message_at=None,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(conv)
+    await db.flush()
+    return conv
 
 
 @router.get("")
@@ -227,20 +270,114 @@ async def send_campaign(
         raise HTTPException(status_code=404, detail="Campaign not found")
     if campaign.status == "sent":
         raise HTTPException(status_code=400, detail="Campaign already sent")
+    if not campaign.list_id:
+        raise HTTPException(status_code=400, detail="Campaign must be linked to a contact list")
 
-    sent_count = 0
-    if campaign.list_id:
-        cnt_res = await db.execute(select(func.count(ListMember.id)).where(ListMember.list_id == campaign.list_id))
-        sent_count = int(cnt_res.scalar() or 0)
-
-    now = now_utc()
-    await db.execute(
-        update(Campaign)
-        .where(Campaign.id == campaign.id)
-        .values(status="sent", sent_at=now, sent_count=sent_count, updated_at=now)
+    recipients_res = await db.execute(
+        select(Contact)
+        .join(
+            ListMember,
+            and_(
+                ListMember.contact_id == Contact.id,
+                ListMember.tenant_id == user["tenant_id"],
+            ),
+        )
+        .where(and_(ListMember.list_id == campaign.list_id, Contact.tenant_id == user["tenant_id"]))
     )
+    recipients = recipients_res.scalars().all()
+    if not recipients:
+        raise HTTPException(status_code=400, detail="No recipients found in selected list")
 
-    return {"success": True, "message": f"Campaign sent to {sent_count} recipients"}
+    channel = "sms" if (campaign.campaign_type or "").strip().lower() == "sms" else "email"
+    now = now_utc()
+
+    attempted = 0
+    sent_ok = 0
+    failed = 0
+    skipped = 0
+    failures: list[str] = []
+    sender_name = (user.get("full_name") or "").strip() or user.get("email") or "System"
+
+    for contact in recipients:
+        to_address = (contact.phone or "").strip() if channel == "sms" else (contact.email or "").strip()
+        if not to_address:
+            skipped += 1
+            continue
+
+        conv = await _get_or_create_conversation(
+            db=db,
+            tenant_id=user["tenant_id"],
+            contact_id=contact.id,
+            channel=channel,
+            subject=campaign.subject,
+        )
+
+        sent_at = now_utc()
+        message_id = str(uuid.uuid4())
+        msg = Message(
+            id=message_id,
+            tenant_id=user["tenant_id"],
+            conversation_id=conv.id,
+            channel=channel,
+            direction="outbound",
+            status="pending",
+            from_address=user.get("email"),
+            to_address=to_address,
+            subject=campaign.subject if channel == "email" else None,
+            body=campaign.content or "",
+            body_html=None,
+            sent_by_user_id=user["id"],
+            sent_by_name=sender_name,
+            sent_at=sent_at,
+            created_at=sent_at,
+        )
+        db.add(msg)
+
+        preview = (campaign.content or "")[:100] + ("..." if len(campaign.content or "") > 100 else "")
+        conv.message_count = int(conv.message_count or 0) + 1
+        conv.last_message_preview = preview
+        conv.last_message_at = sent_at
+        conv.updated_at = sent_at
+        conv.is_read = True
+        conv.unread_count = 0
+
+        attempted += 1
+        try:
+            send_result = await send_outbound_message_via_provider(
+                db=db,
+                tenant_id=user["tenant_id"],
+                channel=channel,
+                to_address=to_address,
+                subject=campaign.subject,
+                body=campaign.content or "",
+                body_html=None,
+                message_id=message_id,
+                campaign_id=campaign.id,
+            )
+            msg.status = send_result.get("status") or "sent"
+            if msg.status == "failed":
+                failed += 1
+            else:
+                sent_ok += 1
+        except MessagingProviderError as exc:
+            msg.status = "failed"
+            failed += 1
+            failures.append(str(exc))
+
+    campaign.status = "sent" if sent_ok > 0 else "draft"
+    campaign.sent_at = now if sent_ok > 0 else campaign.sent_at
+    campaign.sent_count = attempted
+    campaign.delivered_count = int(campaign.delivered_count or 0)
+    campaign.bounce_count = int(campaign.bounce_count or 0) + failed
+    campaign.updated_at = now
+
+    await db.flush()
+
+    summary = f"Campaign processed: attempted {attempted}, sent {sent_ok}, failed {failed}, skipped {skipped}"
+    out = {"success": True, "message": summary, "attempted": attempted, "sent": sent_ok, "failed": failed, "skipped": skipped}
+    if failures:
+        out["errors"] = failures[:5]
+    return out
 
 
 @router.post("/{campaign_id}/duplicate")

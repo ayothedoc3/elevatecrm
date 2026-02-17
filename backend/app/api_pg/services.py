@@ -264,7 +264,7 @@ async def maybe_send_discord_notification_for_event(
         return
 
     evt = (event_type or "").strip().lower()
-    allowed = {"deal_won", "deal_lost", "lead_assigned"}
+    allowed = {"deal_won", "deal_lost", "lead_assigned", "form_submitted", "landing_page_conversion"}
     if evt not in allowed:
         return
 
@@ -527,6 +527,38 @@ async def create_timeline_event(
             actor_name=actor_name,
             metadata=metadata or {},
         )
+    except Exception:
+        pass
+
+    # Workflow automation trigger bus (real-time).
+    try:
+        trigger_map = {
+            "form_submitted": "form_submitted",
+            "stage_changed": "deal_stage_changed",
+            "deal_created": "deal_created",
+            "contact_created": "contact_created",
+            "landing_page_view": "landing_page_view",
+            "landing_page_conversion": "landing_page_conversion",
+            "message_received": "message_received",
+        }
+        trigger_type = trigger_map.get((event_type or "").strip().lower())
+        if trigger_type:
+            from app.api_pg.workflow_engine import trigger_workflows_for_event
+
+            trigger_payload = {
+                "event_type": event_type,
+                "title": title,
+                "description": description,
+                **(metadata or {}),
+            }
+            await trigger_workflows_for_event(
+                db=db,
+                tenant_id=tenant_id,
+                trigger_type=trigger_type,
+                trigger_data=trigger_payload,
+                contact_id=contact_id,
+                deal_id=deal_id,
+            )
     except Exception:
         pass
 
