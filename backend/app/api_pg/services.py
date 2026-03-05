@@ -17,6 +17,7 @@ from app.pg_models.models import (
     CalculationResult,
     Deal,
     DealHandoff,
+    Lead,
     Partner,
     Pipeline,
     PipelineStage,
@@ -39,6 +40,15 @@ DEFAULT_SLA_CONFIG: Dict[str, int] = {
     "lead_cadence_hours": 24,
     "deal_cadence_hours": 72,
 }
+
+LEAD_ACTIVE_STATUSES = {"new", "assigned", "new_assigned", "working", "info_collected", "qualified", "unresponsive", "nurture"}
+
+LEAD_SLA_TASK_KIND = "lead_sla"
+DEAL_RISK_TASK_KIND = "deal_risk"
+KICKOFF_TASK_KIND = "kickoff"
+
+FINANCE_ROLES = {"finance"}
+MANAGER_ROLES = {"manager", "admin", "owner", "super_admin"}
 
 TOUCHPOINT_EVENT_TYPES = {
     "call_log",
@@ -324,17 +334,55 @@ async def resolve_account(
     tenant_id: str,
     account_name: str,
     actor_id: Optional[str],
+    domain: Optional[str] = None,
+    industry: Optional[str] = None,
+    company_size: Optional[str] = None,
+    country: Optional[str] = None,
+    icp_tier: Optional[str] = None,
 ) -> Dict[str, Optional[str]]:
     name = " ".join((account_name or "").strip().split())
     if not name:
         raise HTTPException(status_code=400, detail="account_name is required")
 
     name_lower = normalize_lower(name)
-    existing = await db.execute(
-        select(Account).where(and_(Account.tenant_id == tenant_id, Account.name_lower == name_lower))
-    )
-    account = existing.scalar_one_or_none()
+    normalized_domain = (domain or "").strip().lower()
+    if normalized_domain.startswith("http://") or normalized_domain.startswith("https://"):
+        normalized_domain = normalized_domain.split("://", 1)[1]
+    if "/" in normalized_domain:
+        normalized_domain = normalized_domain.split("/", 1)[0]
+    if ":" in normalized_domain:
+        normalized_domain = normalized_domain.split(":", 1)[0]
+    normalized_domain = normalized_domain.strip().lstrip("www.")
+    if not normalized_domain:
+        normalized_domain = None
+
+    account: Optional[Account] = None
+    if normalized_domain:
+        existing = await db.execute(
+            select(Account).where(and_(Account.tenant_id == tenant_id, Account.domain_lower == normalized_domain))
+        )
+        account = existing.scalar_one_or_none()
+
+    if not account:
+        existing = await db.execute(
+            select(Account).where(and_(Account.tenant_id == tenant_id, Account.name_lower == name_lower))
+        )
+        account = existing.scalar_one_or_none()
+
     if account:
+        # Enrich existing records without overwriting deliberate values.
+        if normalized_domain and not account.domain_lower:
+            account.domain = normalized_domain
+            account.domain_lower = normalized_domain
+        if industry and not account.industry:
+            account.industry = industry.strip()[:100]
+        if company_size and not account.company_size:
+            account.company_size = company_size.strip()[:100]
+        if country and not account.country:
+            account.country = country.strip()[:100]
+        if icp_tier and not account.icp_tier:
+            account.icp_tier = str(icp_tier).strip().upper()[:2]
+        account.updated_at = now_utc()
         return {"account_id": account.id, "account_name": account.name or name}
 
     new_account = Account(
@@ -342,6 +390,12 @@ async def resolve_account(
         tenant_id=tenant_id,
         name=name,
         name_lower=name_lower,
+        domain=normalized_domain,
+        domain_lower=normalized_domain,
+        industry=(industry or "").strip()[:100] or None,
+        company_size=(company_size or "").strip()[:100] or None,
+        country=(country or "").strip()[:100] or None,
+        icp_tier=(str(icp_tier).strip().upper()[:2] if icp_tier else None),
         is_active=True,
         created_by=actor_id,
         created_at=now_utc(),
@@ -811,3 +865,385 @@ async def sync_deal_handoff_status(
         deal.handoff_status = "pending"
         deal.handoff_completed_at = None
         deal.updated_at = now
+
+
+async def _active_users_by_roles(db: AsyncSession, tenant_id: str, roles: set[str]) -> List[User]:
+    if not roles:
+        return []
+    rows = await db.execute(select(User).where(and_(User.tenant_id == tenant_id, User.is_active.is_(True))))
+    users = rows.scalars().all()
+    return [u for u in users if (u.role or "").strip().lower() in roles]
+
+
+async def _first_manager_id(db: AsyncSession, tenant_id: str) -> Optional[str]:
+    managers = await _active_users_by_roles(db, tenant_id, MANAGER_ROLES)
+    return managers[0].id if managers else None
+
+
+async def _finance_users(db: AsyncSession, tenant_id: str) -> List[User]:
+    return await _active_users_by_roles(db, tenant_id, FINANCE_ROLES)
+
+
+async def upsert_open_task_by_rule(
+    db: AsyncSession,
+    tenant_id: str,
+    rule_key: str,
+    title: str,
+    due_at: datetime,
+    owner_id: Optional[str],
+    created_by: Optional[str],
+    kind: str,
+    related_type: Optional[str],
+    related_id: Optional[str],
+    description: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> bool:
+    if not rule_key:
+        return False
+
+    existing_res = await db.execute(
+        select(Task).where(
+            and_(
+                Task.tenant_id == tenant_id,
+                Task.status == "open",
+                Task.meta["rule_key"].astext == rule_key,
+            )
+        )
+    )
+    existing = existing_res.scalar_one_or_none()
+    now = now_utc()
+    payload_meta = {"rule_key": rule_key, **(metadata or {})}
+
+    if existing:
+        existing.title = title
+        existing.description = description
+        existing.due_at = due_at
+        existing.owner_id = owner_id
+        existing.kind = kind
+        existing.related_type = related_type
+        existing.related_id = related_id
+        existing.meta = payload_meta
+        existing.updated_at = now
+        return False
+
+    task = Task(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        title=title,
+        description=description,
+        due_at=due_at,
+        owner_id=owner_id,
+        created_by=created_by,
+        status="open",
+        kind=kind,
+        related_type=related_type,
+        related_id=related_id,
+        completed_at=None,
+        completed_by=None,
+        meta=payload_meta,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(task)
+    await db.flush()
+    return True
+
+
+def _is_affiliate_source(source: Optional[str]) -> bool:
+    s = (source or "").strip().lower()
+    return "affiliate" in s
+
+
+def _default_handoff_checklist() -> Dict[str, bool]:
+    return {
+        "spiced_summary": False,
+        "gap_analysis": False,
+        "proposal": False,
+        "contract": False,
+        "risk_notes": False,
+        "kickoff_readiness_checklist": False,
+    }
+
+
+async def run_lead_sla_automations(
+    db: AsyncSession,
+    tenant_id: str,
+    actor_id: Optional[str] = None,
+    actor_name: Optional[str] = "System",
+) -> None:
+    now = now_utc()
+    manager_id = await _first_manager_id(db, tenant_id)
+    leads = (
+        await db.execute(
+            select(Lead).where(
+                and_(
+                    Lead.tenant_id == tenant_id,
+                    Lead.status.in_(list(LEAD_ACTIVE_STATUSES)),
+                )
+            )
+        )
+    ).scalars().all()
+
+    for lead in leads:
+        if (lead.status or "").strip().lower() in {"converted", "disqualified"}:
+            continue
+
+        created_at = lead.created_at or now
+        owner_id = lead.owner_id or manager_id or actor_id
+        no_touch = (lead.first_touchpoint_at is None) and int(lead.touchpoints_count or 0) == 0
+        elapsed_minutes = max(0.0, (now - created_at).total_seconds() / 60.0)
+
+        if no_touch and (lead.status or "").strip().lower() in {"new", "assigned", "new_assigned"}:
+            await upsert_open_task_by_rule(
+                db=db,
+                tenant_id=tenant_id,
+                rule_key=f"lead:first-response:{lead.id}",
+                title="First response required",
+                description="New lead requires first outreach within SLA window.",
+                due_at=created_at + timedelta(minutes=15),
+                owner_id=owner_id,
+                created_by=actor_id,
+                kind=LEAD_SLA_TASK_KIND,
+                related_type="lead",
+                related_id=lead.id,
+                metadata={"severity": "warning"},
+            )
+
+        if no_touch and _is_affiliate_source(lead.source) and elapsed_minutes >= 15:
+            created = await upsert_open_task_by_rule(
+                db=db,
+                tenant_id=tenant_id,
+                rule_key=f"lead:affiliate-15m:{lead.id}",
+                title="Affiliate lead SLA breach (15m)",
+                description="Affiliate lead has no activity for at least 15 minutes.",
+                due_at=now,
+                owner_id=owner_id,
+                created_by=actor_id,
+                kind=LEAD_SLA_TASK_KIND,
+                related_type="lead",
+                related_id=lead.id,
+                metadata={"severity": "high", "source": lead.source},
+            )
+            if created:
+                await create_timeline_event(
+                    db=db,
+                    tenant_id=tenant_id,
+                    event_type="lead_sla_breach_15m",
+                    title="Affiliate lead SLA breach",
+                    actor_id=actor_id,
+                    actor_name=actor_name,
+                    metadata={"lead_id": lead.id, "elapsed_minutes": round(elapsed_minutes, 1)},
+                )
+
+        if no_touch and elapsed_minutes >= 24 * 60:
+            escalation_owner = manager_id or owner_id
+            created = await upsert_open_task_by_rule(
+                db=db,
+                tenant_id=tenant_id,
+                rule_key=f"lead:escalation-24h:{lead.id}",
+                title="Lead escalation: no activity in 24h",
+                description="Lead has no activity after 24 hours and requires manager escalation.",
+                due_at=now,
+                owner_id=escalation_owner,
+                created_by=actor_id,
+                kind=LEAD_SLA_TASK_KIND,
+                related_type="lead",
+                related_id=lead.id,
+                metadata={"severity": "critical"},
+            )
+            if created:
+                await create_timeline_event(
+                    db=db,
+                    tenant_id=tenant_id,
+                    event_type="lead_sla_escalation_24h",
+                    title="Lead escalated after 24h inactivity",
+                    actor_id=actor_id,
+                    actor_name=actor_name,
+                    metadata={"lead_id": lead.id},
+                )
+
+
+async def run_deal_stale_automations(
+    db: AsyncSession,
+    tenant_id: str,
+    actor_id: Optional[str] = None,
+    actor_name: Optional[str] = "System",
+) -> None:
+    now = now_utc()
+    manager_id = await _first_manager_id(db, tenant_id)
+    deals = (
+        await db.execute(
+            select(Deal).where(
+                and_(
+                    Deal.tenant_id == tenant_id,
+                    Deal.status == "open",
+                )
+            )
+        )
+    ).scalars().all()
+
+    stage_ids = [d.stage_id for d in deals if d.stage_id]
+    stages: Dict[str, PipelineStage] = {}
+    if stage_ids:
+        stage_rows = (await db.execute(select(PipelineStage).where(PipelineStage.id.in_(stage_ids)))).scalars().all()
+        stages = {s.id: s for s in stage_rows}
+
+    updated_deals = False
+    for deal in deals:
+        baseline = deal.last_touchpoint_at or deal.updated_at or deal.created_at
+        if not baseline:
+            continue
+        stale_days = int((now - baseline).total_seconds() // 86400)
+        stage = stages.get(deal.stage_id) if deal.stage_id else None
+        stage_order = int(stage.display_order or 0) if stage else 0
+        early_stage = stage_order <= 4
+        owner_id = deal.owner_id or manager_id or actor_id
+
+        if early_stage and stale_days >= 3:
+            await upsert_open_task_by_rule(
+                db=db,
+                tenant_id=tenant_id,
+                rule_key=f"deal:stale-3d:{deal.id}",
+                title="Deal reminder: stale for 3 days",
+                description="No activity detected in an early-stage deal for 3 days.",
+                due_at=now,
+                owner_id=owner_id,
+                created_by=actor_id,
+                kind=DEAL_RISK_TASK_KIND,
+                related_type="deal",
+                related_id=deal.id,
+                metadata={"severity": "warning", "stale_days": stale_days},
+            )
+
+        if stale_days >= 7:
+            await upsert_open_task_by_rule(
+                db=db,
+                tenant_id=tenant_id,
+                rule_key=f"deal:stale-7d:{deal.id}",
+                title="Deal escalation: stale for 7 days",
+                description="Deal requires manager attention after 7 days without activity.",
+                due_at=now,
+                owner_id=manager_id or owner_id,
+                created_by=actor_id,
+                kind=DEAL_RISK_TASK_KIND,
+                related_type="deal",
+                related_id=deal.id,
+                metadata={"severity": "high", "stale_days": stale_days},
+            )
+
+        if stale_days >= 14:
+            await upsert_open_task_by_rule(
+                db=db,
+                tenant_id=tenant_id,
+                rule_key=f"deal:stale-14d:{deal.id}",
+                title="Deal at risk: stale for 14 days",
+                description="Deal auto-flagged as At Risk due to inactivity.",
+                due_at=now,
+                owner_id=manager_id or owner_id,
+                created_by=actor_id,
+                kind=DEAL_RISK_TASK_KIND,
+                related_type="deal",
+                related_id=deal.id,
+                metadata={"severity": "critical", "stale_days": stale_days},
+            )
+            if not bool(deal.at_risk):
+                deal.at_risk = True
+                deal.updated_at = now
+                updated_deals = True
+                await create_timeline_event(
+                    db=db,
+                    tenant_id=tenant_id,
+                    event_type="deal_at_risk",
+                    title="Deal auto-flagged At Risk",
+                    actor_id=actor_id,
+                    actor_name=actor_name,
+                    deal_id=deal.id,
+                    metadata={"stale_days": stale_days},
+                )
+        elif bool(deal.at_risk):
+            deal.at_risk = False
+            deal.updated_at = now
+            updated_deals = True
+
+    if updated_deals:
+        await db.flush()
+
+
+async def run_crm_automations(
+    db: AsyncSession,
+    tenant_id: str,
+    actor_id: Optional[str] = None,
+    actor_name: Optional[str] = "System",
+) -> None:
+    await run_lead_sla_automations(db, tenant_id=tenant_id, actor_id=actor_id, actor_name=actor_name)
+    await run_deal_stale_automations(db, tenant_id=tenant_id, actor_id=actor_id, actor_name=actor_name)
+
+
+async def apply_closed_won_automations(
+    db: AsyncSession,
+    tenant_id: str,
+    deal: Deal,
+    actor: Dict[str, Any],
+) -> None:
+    now = now_utc()
+    actor_id = actor.get("id")
+    actor_name = actor.get("full_name")
+
+    handoff = await get_or_create_deal_handoff(db, tenant_id, deal.id, actor_id)
+    if not handoff.checklist:
+        handoff.checklist = _default_handoff_checklist()
+    if not handoff.delivery_owner_id:
+        handoff.delivery_owner_id = await _first_manager_id(db, tenant_id) or deal.owner_id
+    handoff.updated_at = now
+
+    deal.deal_locked = True
+    deal.handoff_status = handoff.status or "pending"
+    deal.updated_at = now
+
+    kickoff_owner = handoff.delivery_owner_id or deal.owner_id or actor_id
+    await upsert_open_task_by_rule(
+        db=db,
+        tenant_id=tenant_id,
+        rule_key=f"deal:kickoff:{deal.id}",
+        title="Create delivery kickoff plan",
+        description="Closed Won trigger: set kickoff date and complete handoff checklist.",
+        due_at=now + timedelta(days=1),
+        owner_id=kickoff_owner,
+        created_by=actor_id,
+        kind=KICKOFF_TASK_KIND,
+        related_type="deal",
+        related_id=deal.id,
+        metadata={"closed_won": True},
+    )
+
+    finance_users = await _finance_users(db, tenant_id)
+    for finance_user in finance_users:
+        await upsert_open_task_by_rule(
+            db=db,
+            tenant_id=tenant_id,
+            rule_key=f"deal:finance-notify:{deal.id}:{finance_user.id}",
+            title="Finance review: closed won deal",
+            description=f"Deal '{deal.name}' requires finance review and commission processing.",
+            due_at=now,
+            owner_id=finance_user.id,
+            created_by=actor_id,
+            kind="finance_notice",
+            related_type="deal",
+            related_id=deal.id,
+            metadata={"closed_won": True},
+        )
+
+    await create_timeline_event(
+        db=db,
+        tenant_id=tenant_id,
+        event_type="deal_closed_won_automation",
+        title="Closed Won automations executed",
+        actor_id=actor_id,
+        actor_name=actor_name,
+        deal_id=deal.id,
+        metadata={
+            "deal_locked": True,
+            "delivery_owner_id": handoff.delivery_owner_id,
+            "finance_notifications": len(finance_users),
+        },
+    )

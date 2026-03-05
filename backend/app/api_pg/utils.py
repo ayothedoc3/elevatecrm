@@ -74,7 +74,29 @@ def get_by_path(obj: Any, path: str) -> Any:
 
 
 def scoring_inputs_complete(scoring_data: Dict[str, Any]) -> bool:
-    required_keys = [
+    data = scoring_data or {}
+
+    # Elev8 Matrix scoring model (preferred).
+    has_new_inputs = all(
+        [
+            str(data.get("icp_tier") or "").strip() != "",
+            str(data.get("company_size_fit") or "").strip() != "",
+            str(data.get("buying_role_strength") or data.get("buying_role") or "").strip() != "",
+        ]
+    )
+    has_engagement_inputs = (
+        data.get("engagement_score") is not None
+        or (
+            data.get("email_open") is not None
+            and data.get("link_click") is not None
+            and data.get("demo_booked") is not None
+        )
+    )
+    if has_new_inputs and has_engagement_inputs:
+        return True
+
+    # Backward-compatible scoring model (legacy workspaces).
+    legacy_required = [
         "economic_units",
         "usage_volume",
         "urgency",
@@ -83,8 +105,8 @@ def scoring_inputs_complete(scoring_data: Dict[str, Any]) -> bool:
         "decision_role",
         "decision_process_clarity",
     ]
-    for key in required_keys:
-        value = (scoring_data or {}).get(key)
+    for key in legacy_required:
+        value = data.get(key)
         if value is None:
             return False
         if isinstance(value, str) and value.strip() == "":
@@ -93,20 +115,7 @@ def scoring_inputs_complete(scoring_data: Dict[str, Any]) -> bool:
 
 
 def compute_universal_score(scoring_data: Dict[str, Any], lead_source: str) -> int:
-    """
-    Compute product-agnostic lead score (0-100) using Elev8 weights.
-
-    Required inputs (stored in scoring_data):
-    - economic_units (number)
-    - usage_volume (number)
-    - urgency (1-5)
-    - trigger_event (string)
-    - primary_motivation (string)
-    - decision_role (string)
-    - decision_process_clarity (1-5)
-
-    Lead source comes from the Lead.source field.
-    """
+    """Compute lead score (0-100) with Elev8 Matrix inputs and a legacy fallback."""
 
     def _to_float(value, default=0.0):
         try:
@@ -125,6 +134,78 @@ def compute_universal_score(scoring_data: Dict[str, Any], lead_source: str) -> i
             return default
 
     scoring_data = scoring_data or {}
+
+    # Elev8 Matrix model:
+    # ICP tier (40) + Engagement (30) + Company size fit (15) + Buying role strength (15)
+    icp_tier = (scoring_data.get("icp_tier") or "").strip().upper()
+    icp_points = {"A": 40, "B": 25, "C": 10, "D": 0}.get(icp_tier, 0)
+
+    if scoring_data.get("engagement_score") is not None:
+        engagement_points = max(0, min(30, _to_int(scoring_data.get("engagement_score"), 0)))
+    else:
+        email_open = _to_int(scoring_data.get("email_open"), 0) > 0
+        link_click = _to_int(scoring_data.get("link_click"), 0) > 0
+        demo_booked = bool(scoring_data.get("demo_booked"))
+        engagement_points = (10 if email_open else 0) + (10 if link_click else 0) + (10 if demo_booked else 0)
+
+    raw_company_fit = scoring_data.get("company_size_fit")
+    if raw_company_fit is None:
+        company_fit_points = 0
+    elif isinstance(raw_company_fit, (int, float)):
+        company_fit_points = max(0, min(15, int(raw_company_fit)))
+    else:
+        company_fit = str(raw_company_fit).strip().lower()
+        company_fit_points = {
+            "ideal": 15,
+            "high": 15,
+            "strong": 12,
+            "medium": 8,
+            "partial": 6,
+            "low": 3,
+            "poor": 0,
+        }.get(company_fit, 0)
+
+    raw_role_strength = scoring_data.get("buying_role_strength")
+    if raw_role_strength is None:
+        buying_role = str(scoring_data.get("buying_role") or "").strip().lower()
+        role_points = {
+            "decision_maker": 15,
+            "owner": 15,
+            "ceo": 15,
+            "cfo": 15,
+            "founder": 15,
+            "champion": 12,
+            "influencer": 10,
+            "manager": 8,
+            "director": 8,
+            "technical": 8,
+            "finance": 7,
+            "researcher": 4,
+            "assistant": 3,
+        }.get(buying_role, 0)
+    elif isinstance(raw_role_strength, (int, float)):
+        role_points = max(0, min(15, int(raw_role_strength)))
+    else:
+        role_label = str(raw_role_strength).strip().lower()
+        role_points = {
+            "strong": 15,
+            "high": 15,
+            "medium": 9,
+            "low": 4,
+            "poor": 0,
+        }.get(role_label, 0)
+
+    has_matrix_inputs = (
+        icp_tier in {"A", "B", "C", "D"}
+        and (scoring_data.get("engagement_score") is not None or scoring_data.get("email_open") is not None or scoring_data.get("link_click") is not None or scoring_data.get("demo_booked") is not None)
+        and raw_company_fit is not None
+        and (raw_role_strength is not None or scoring_data.get("buying_role") is not None)
+    )
+    matrix_score = int(max(0, min(100, icp_points + engagement_points + company_fit_points + role_points)))
+    if has_matrix_inputs:
+        return matrix_score
+
+    # Legacy fallback model (existing data compatibility).
     economic_units = max(0.0, _to_float(scoring_data.get("economic_units"), 0.0))
     usage_volume = max(0.0, _to_float(scoring_data.get("usage_volume"), 0.0))
     urgency = min(5, max(1, _to_int(scoring_data.get("urgency"), 1)))

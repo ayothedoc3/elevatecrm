@@ -15,7 +15,7 @@ from app.core.database import get_db
 from app.pg_models.models import Tenant, User
 
 ADMIN_ROLES = {"admin", "manager", "owner", "super_admin"}
-VALID_USER_ROLES = {"admin", "manager", "sales", "viewer"}
+VALID_USER_ROLES = {"admin", "manager", "sales", "finance", "viewer"}
 
 
 def _require_admin(user: dict) -> None:

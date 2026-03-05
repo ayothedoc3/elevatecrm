@@ -18,7 +18,7 @@ from app.models import (
     CalculationDefinition, StageTransitionRule,
     WorkspaceStatus, ProvisioningStatus, WorkspaceRole
 )
-from app.blueprints.frylow_blueprint import get_blueprint_json, get_all_blueprints, FRYLOW_BLUEPRINT, BLANK_BLUEPRINT, NLA_ACCOUNTING_BLUEPRINT
+from app.blueprints.registry import get_blueprint_json, get_all_blueprints
 
 logger = logging.getLogger(__name__)
 
@@ -211,14 +211,15 @@ class ProvisioningService:
         
         # Create new blueprint from template
         config = get_blueprint_json(slug)
+        blueprint_meta = next((bp for bp in get_all_blueprints() if bp.get("slug") == slug), {}) or {}
         blueprint = CRMBlueprint(
             id=str(uuid.uuid4()),
-            name=config.get('name', slug),
+            name=blueprint_meta.get("name") or config.get('name', slug),
             slug=slug,
             description=config.get('description', ''),
             version=config.get('version', 1),
             is_system=True,
-            is_default=(slug == 'frylow-sales'),
+            is_default=bool(blueprint_meta.get("is_default")),
             config=json.dumps(config),
             icon=config.get('icon', 'briefcase'),
             color=config.get('color', '#6366F1')

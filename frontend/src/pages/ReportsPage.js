@@ -26,7 +26,10 @@ const ReportsPage = () => {
     contacts: { total: 0, new: 0 },
     pipeline: { stages: [], velocity: 0 },
     outreach: { calls: 0, emails: 0, meetings: 0, totalTouchpoints: 0 },
-    conversion: { rate: 0, avgDealSize: 0, avgDaysToClose: 0 }
+    conversion: { rate: 0, avgDealSize: 0, avgDaysToClose: 0 },
+    qualification_dashboard: { speed_to_lead_minutes: 0, contact_rate: 0, qualification_rate: 0, disqualification_reasons: {} },
+    sales_dashboard: { stage_conversion_percent: {}, weighted_pipeline: 0, forecast_by_month: {}, revenue_by_sales_motion: {}, revenue_by_client: {} },
+    agent_dashboard: { agents: [] },
   });
   const [forecastLoading, setForecastLoading] = useState(false);
   const [forecast, setForecast] = useState(null);
@@ -53,6 +56,9 @@ const ReportsPage = () => {
         pipeline: data.pipeline || { stages: [], velocity: 0 },
         outreach: data.outreach || { calls: 0, emails: 0, meetings: 0, totalTouchpoints: 0 },
         conversion: data.conversion || { rate: 0, avgDealSize: 0, avgDaysToClose: 0 },
+        qualification_dashboard: data.qualification_dashboard || { speed_to_lead_minutes: 0, contact_rate: 0, qualification_rate: 0, disqualification_reasons: {} },
+        sales_dashboard: data.sales_dashboard || { stage_conversion_percent: {}, weighted_pipeline: 0, forecast_by_month: {}, revenue_by_sales_motion: {}, revenue_by_client: {} },
+        agent_dashboard: data.agent_dashboard || { agents: [] },
       });
     } catch (error) {
       console.error('Error fetching report data:', error);
@@ -234,6 +240,9 @@ const ReportsPage = () => {
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="qualification">Qualification</TabsTrigger>
+            <TabsTrigger value="sales_dashboard">Sales Dashboard</TabsTrigger>
+            <TabsTrigger value="agents">Agents</TabsTrigger>
             <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
             <TabsTrigger value="forecast">Forecast</TabsTrigger>
             <TabsTrigger value="outreach">Outreach</TabsTrigger>
@@ -348,6 +357,158 @@ const ReportsPage = () => {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="qualification" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <MetricCard
+                title="Speed to Lead"
+                value={`${(stats.qualification_dashboard?.speed_to_lead_minutes || 0).toFixed(1)}m`}
+                subtitle="Average first response"
+                icon={Timer}
+                color="text-blue-500"
+              />
+              <MetricCard
+                title="Contact Rate"
+                value={`${(stats.qualification_dashboard?.contact_rate || 0).toFixed(1)}%`}
+                subtitle="Leads with touchpoints"
+                icon={Phone}
+                color="text-green-500"
+              />
+              <MetricCard
+                title="Qualification Rate"
+                value={`${(stats.qualification_dashboard?.qualification_rate || 0).toFixed(1)}%`}
+                subtitle="Qualified / total leads"
+                icon={Target}
+                color="text-purple-500"
+              />
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Disqualification Reasons</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {Object.keys(stats.qualification_dashboard?.disqualification_reasons || {}).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No disqualification data yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {Object.entries(stats.qualification_dashboard?.disqualification_reasons || {}).map(([reason, count]) => (
+                      <div key={reason} className="flex items-center justify-between p-3 border rounded-lg">
+                        <span className="text-sm">{reason}</span>
+                        <Badge variant="secondary">{count}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="sales_dashboard" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <MetricCard
+                title="Weighted Pipeline"
+                value={formatCurrency(stats.sales_dashboard?.weighted_pipeline || 0)}
+                icon={TrendingUp}
+                color="text-primary"
+              />
+              <MetricCard
+                title="Revenue by Motion"
+                value={Object.keys(stats.sales_dashboard?.revenue_by_sales_motion || {}).length}
+                subtitle="Active motion groups"
+                icon={Activity}
+                color="text-emerald-500"
+              />
+              <MetricCard
+                title="Revenue by Client"
+                value={Object.keys(stats.sales_dashboard?.revenue_by_client || {}).length}
+                subtitle="Distinct clients"
+                icon={Users}
+                color="text-blue-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Stage Conversion %</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {Object.keys(stats.sales_dashboard?.stage_conversion_percent || {}).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No stage conversion events yet.</p>
+                  ) : (
+                    Object.entries(stats.sales_dashboard?.stage_conversion_percent || {}).map(([stage, pct]) => (
+                      <div key={stage} className="flex items-center justify-between p-2 border rounded-md">
+                        <span className="text-sm">{stage}</span>
+                        <Badge variant="secondary">{Number(pct || 0).toFixed(1)}%</Badge>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Forecast by Month</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {Object.keys(stats.sales_dashboard?.forecast_by_month || {}).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No forecasted close months yet.</p>
+                  ) : (
+                    Object.entries(stats.sales_dashboard?.forecast_by_month || {}).map(([month, value]) => (
+                      <div key={month} className="flex items-center justify-between p-2 border rounded-md">
+                        <span className="text-sm">{month}</span>
+                        <span className="text-sm font-medium">{formatCurrency(Number(value || 0))}</span>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="agents" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Agent Performance</CardTitle>
+                <CardDescription>Activities/day, leads worked, deals advanced, win rate, average sales cycle.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {(stats.agent_dashboard?.agents || []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No agent data available for this range.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {(stats.agent_dashboard?.agents || []).map((agent) => (
+                      <div key={agent.user_id} className="grid grid-cols-2 md:grid-cols-6 gap-3 p-3 border rounded-lg">
+                        <div className="md:col-span-2">
+                          <p className="text-sm font-medium">{agent.name || 'Unknown'}</p>
+                          <p className="text-xs text-muted-foreground">{agent.user_id}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Activities/Day</p>
+                          <p className="text-sm font-medium">{Number(agent.activities_per_day || 0).toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Leads Worked</p>
+                          <p className="text-sm font-medium">{agent.leads_worked || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Deals Advanced</p>
+                          <p className="text-sm font-medium">{agent.deals_advanced || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Win Rate / Cycle</p>
+                          <p className="text-sm font-medium">
+                            {Number(agent.win_rate || 0).toFixed(1)}% / {Number(agent.average_sales_cycle_days || 0).toFixed(1)}d
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Pipeline Tab */}
@@ -586,7 +747,7 @@ const ReportsPage = () => {
                   <MetricCard
                     title="Stale Deals"
                     value={forecast.totals?.stale_no_activity || 0}
-                    subtitle={`No activity ≥ ${forecast.filters?.stale_days || forecastStaleDays} days`}
+                    subtitle={`No activity >= ${forecast.filters?.stale_days || forecastStaleDays} days`}
                     icon={Activity}
                     color="text-purple-500"
                   />
@@ -627,6 +788,53 @@ const ReportsPage = () => {
                     </div>
                   </CardContent>
                 </Card>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Stage Breakdown</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {Object.keys(forecast.by_stage || {}).length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No stage data available.</p>
+                      ) : (
+                        Object.entries(forecast.by_stage || {}).map(([stage, row]) => (
+                          <div key={stage} className="flex items-center justify-between p-2 border rounded-md">
+                            <div>
+                              <p className="text-sm">{stage}</p>
+                              <p className="text-xs text-muted-foreground">{(Number(row.probability || 0) * 100).toFixed(0)}% probability</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-medium">{formatCurrency(row.pipeline_value || 0)}</p>
+                              <p className="text-xs text-muted-foreground">{row.deal_count || 0} deals</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Forecast by Month</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {Object.keys(forecast.forecast_by_month || {}).length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No monthly forecast data.</p>
+                      ) : (
+                        Object.entries(forecast.forecast_by_month || {}).map(([month, row]) => (
+                          <div key={month} className="flex items-center justify-between p-2 border rounded-md">
+                            <span className="text-sm">{month}</span>
+                            <div className="text-right">
+                              <p className="text-sm font-medium">{formatCurrency(row.weighted_value || 0)}</p>
+                              <p className="text-xs text-muted-foreground">Weighted</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
               </>
             ) : (
               <Card>

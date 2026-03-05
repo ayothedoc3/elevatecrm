@@ -509,6 +509,7 @@ async def get_pipeline_kanban(
     db: AsyncSession = Depends(get_db),
 ):
     tenant_id = user["tenant_id"]
+    is_finance = (user.get("role") or "").strip().lower() == "finance"
     sla = await get_workspace_sla_config(db, tenant_id)
     now = now_utc()
     cadence_threshold = int(sla.get("deal_cadence_hours") or 72)
@@ -524,9 +525,10 @@ async def get_pipeline_kanban(
         )
     ).scalars().all()
 
-    deals = (
-        await db.execute(select(Deal).where(and_(Deal.pipeline_id == pipeline_id, Deal.tenant_id == tenant_id)))
-    ).scalars().all()
+    deal_filters = [Deal.pipeline_id == pipeline_id, Deal.tenant_id == tenant_id]
+    if is_finance:
+        deal_filters.append(Deal.status == "won")
+    deals = (await db.execute(select(Deal).where(and_(*deal_filters)))).scalars().all()
 
     contact_ids = [d.contact_id for d in deals if d.contact_id]
     contacts_map: Dict[str, Contact] = {}
@@ -564,6 +566,7 @@ async def get_pipeline_kanban(
                     "amount": float(deal.amount or 0.0),
                     "currency": deal.currency,
                     "status": deal.status,
+                    "origin_lead_id": deal.origin_lead_id,
                     "contact_id": deal.contact_id,
                     "contact_name": contact_name,
                     "contact_email": contact.email if contact else None,
@@ -574,6 +577,8 @@ async def get_pipeline_kanban(
                     "stage_name": stage.name,
                     "next_step_at": dt_to_iso(deal.next_step_at),
                     "next_step_note": deal.next_step_note,
+                    "estimated_close_date": dt_to_iso(deal.estimated_close_date),
+                    "product_service_type": deal.product_service_type,
                     "last_touchpoint_at": dt_to_iso(deal.last_touchpoint_at),
                     "cadence_hours_since_touch": round(max(0.0, cadence_hours), 1),
                     "cadence_breached": bool(cadence_breached),
@@ -584,6 +589,9 @@ async def get_pipeline_kanban(
                     "product_id": deal.product_id,
                     "partner_name": deal.partner_name,
                     "product_name": deal.product_name,
+                    "client_name": deal.client_name,
+                    "partner_commission_structure": deal.partner_commission_structure,
+                    "product_category": deal.product_category,
                     "spiced": deal.spiced or {},
                     "spiced_complete": _spiced_complete(deal.spiced or {}),
                     "demo_title": deal.demo_title,
@@ -595,6 +603,13 @@ async def get_pipeline_kanban(
                     "demo_calendar_url": deal.demo_calendar_url,
                     "demo_completed_at": dt_to_iso(deal.demo_completed_at),
                     "demo_notes": deal.demo_notes,
+                    "proposal_value": float(deal.proposal_value) if deal.proposal_value is not None else None,
+                    "commercial_summary_url": deal.commercial_summary_url,
+                    "stakeholder_map": deal.stakeholder_map or {},
+                    "contract_final_value": float(deal.contract_final_value) if deal.contract_final_value is not None else None,
+                    "payment_terms": deal.payment_terms,
+                    "deal_locked": bool(deal.deal_locked),
+                    "at_risk": bool(deal.at_risk),
                     "owner_id": deal.owner_id,
                     "handoff_status": deal.handoff_status,
                     "created_at": dt_to_iso(deal.created_at),

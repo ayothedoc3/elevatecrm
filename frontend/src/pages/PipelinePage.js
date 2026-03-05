@@ -57,6 +57,17 @@ const PipelinePage = () => {
   const [nextStepAt, setNextStepAt] = useState('');
   const [nextStepNote, setNextStepNote] = useState('');
   const [savingNextStep, setSavingNextStep] = useState(false);
+  const [estimatedCloseAt, setEstimatedCloseAt] = useState('');
+  const [productServiceType, setProductServiceType] = useState('');
+  const [proposalValue, setProposalValue] = useState('');
+  const [commercialSummaryUrl, setCommercialSummaryUrl] = useState('');
+  const [stakeholderMapText, setStakeholderMapText] = useState('{}');
+  const [paymentTerms, setPaymentTerms] = useState('');
+  const [contractFinalValue, setContractFinalValue] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [partnerCommissionStructure, setPartnerCommissionStructure] = useState('');
+  const [productCategory, setProductCategory] = useState('');
+  const [savingDealMeta, setSavingDealMeta] = useState(false);
   const [dealContactId, setDealContactId] = useState('');
   const [savingDealContact, setSavingDealContact] = useState(false);
   const [movingDeal, setMovingDeal] = useState(null);
@@ -86,9 +97,14 @@ const PipelinePage = () => {
     stage_id: '',
     next_step_at: '',
     next_step_note: '',
+    estimated_close_date: '',
+    product_service_type: '',
     sales_motion_type: 'partnership_sales',
     partner_name: '',
-    product_name: ''
+    product_name: '',
+    client_name: '',
+    partner_commission_structure: '',
+    product_category: ''
   });
 
   const toDateTimeLocal = (isoString) => {
@@ -122,6 +138,7 @@ const PipelinePage = () => {
         setNextStepAt(toDateTimeLocal(d.next_step_at));
         setNextStepNote(d.next_step_note || '');
         setDealContactId(d.contact_id || '');
+        syncDealMetaFromDeal(d);
         setDealSheetTab('details');
         setShowDealSheet(true);
         await fetchDealCalculation(d.id);
@@ -176,6 +193,7 @@ const PipelinePage = () => {
     // Set default pipeline and stage
     if (selectedPipeline && kanbanData?.columns?.length > 0) {
       const defaultNextStep = toDateTimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
+      const defaultCloseDate = toDateTimeLocal(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString());
       setNewDeal({
         name: '',
         amount: '',
@@ -184,9 +202,14 @@ const PipelinePage = () => {
         stage_id: kanbanData.columns[0].id, // First stage
         next_step_at: defaultNextStep,
         next_step_note: '',
+        estimated_close_date: defaultCloseDate,
+        product_service_type: 'Elev8 Services',
         sales_motion_type: 'partnership_sales',
         partner_name: '',
-        product_name: ''
+        product_name: '',
+        client_name: '',
+        partner_commission_structure: '',
+        product_category: ''
       });
     }
     setShowAddDealDialog(true);
@@ -197,10 +220,27 @@ const PipelinePage = () => {
       toast.error('Deal name, contact, stage, and next step are required');
       return;
     }
+    const dealAmount = Number(newDeal.amount);
+    if (newDeal.amount === '' || Number.isNaN(dealAmount) || dealAmount < 0) {
+      toast.error('Estimated value is required');
+      return;
+    }
+    if (!newDeal.estimated_close_date) {
+      toast.error('Estimated close date is required');
+      return;
+    }
+    if (!newDeal.product_service_type?.trim()) {
+      toast.error('Product / service type is required');
+      return;
+    }
 
     if (newDeal.sales_motion_type === 'partner_sales') {
       if (!newDeal.partner_name?.trim() || !newDeal.product_name?.trim()) {
         toast.error('Partner name and product are required for Partner Sales');
+        return;
+      }
+      if (!newDeal.client_name?.trim() || !newDeal.partner_commission_structure?.trim() || !newDeal.product_category?.trim()) {
+        toast.error('Client name, commission structure, and product category are required for Partner Sales');
         return;
       }
     }
@@ -209,15 +249,20 @@ const PipelinePage = () => {
     try {
       await api.post('/deals', {
         name: newDeal.name.trim(),
-        amount: parseFloat(newDeal.amount) || 0,
+        amount: dealAmount,
         contact_id: newDeal.contact_id,
         pipeline_id: newDeal.pipeline_id,
         stage_id: newDeal.stage_id,
         next_step_at: fromDateTimeLocal(newDeal.next_step_at),
         next_step_note: newDeal.next_step_note || null,
+        estimated_close_date: fromDateTimeLocal(newDeal.estimated_close_date),
+        product_service_type: newDeal.product_service_type?.trim(),
         sales_motion_type: newDeal.sales_motion_type,
         partner_name: newDeal.sales_motion_type === 'partner_sales' ? newDeal.partner_name?.trim() : null,
-        product_name: newDeal.sales_motion_type === 'partner_sales' ? newDeal.product_name?.trim() : null
+        product_name: newDeal.sales_motion_type === 'partner_sales' ? newDeal.product_name?.trim() : null,
+        client_name: newDeal.sales_motion_type === 'partner_sales' ? newDeal.client_name?.trim() : null,
+        partner_commission_structure: newDeal.sales_motion_type === 'partner_sales' ? newDeal.partner_commission_structure?.trim() : null,
+        product_category: newDeal.sales_motion_type === 'partner_sales' ? newDeal.product_category?.trim() : null
       });
 
       // Refresh kanban data
@@ -232,9 +277,14 @@ const PipelinePage = () => {
         stage_id: '',
         next_step_at: '',
         next_step_note: '',
+        estimated_close_date: '',
+        product_service_type: '',
         sales_motion_type: 'partnership_sales',
         partner_name: '',
-        product_name: ''
+        product_name: '',
+        client_name: '',
+        partner_commission_structure: '',
+        product_category: ''
       });
       setShowAddDealDialog(false);
       toast.success('Deal created');
@@ -264,6 +314,7 @@ const PipelinePage = () => {
     setNextStepAt(toDateTimeLocal(deal.next_step_at));
     setNextStepNote(deal.next_step_note || '');
     setDealContactId(deal.contact_id || '');
+    syncDealMetaFromDeal(deal);
     setDealSheetTab('details');
     setShowDealSheet(true);
     await fetchDealCalculation(deal.id);
@@ -276,6 +327,16 @@ const PipelinePage = () => {
     setCalcInputs({});
     setNextStepAt('');
     setNextStepNote('');
+    setEstimatedCloseAt('');
+    setProductServiceType('');
+    setProposalValue('');
+    setCommercialSummaryUrl('');
+    setStakeholderMapText('{}');
+    setPaymentTerms('');
+    setContractFinalValue('');
+    setClientName('');
+    setPartnerCommissionStructure('');
+    setProductCategory('');
     setDealContactId('');
     setDealSheetTab('details');
   };
@@ -492,6 +553,48 @@ const PipelinePage = () => {
       toast.error(error.response?.data?.detail || 'Failed to update contact');
     } finally {
       setSavingDealContact(false);
+    }
+  };
+
+  const saveDealMeta = async () => {
+    if (!selectedDeal) return;
+    if (!estimatedCloseAt) {
+      toast.error('Estimated close date is required');
+      return;
+    }
+    if (!productServiceType?.trim()) {
+      toast.error('Product / service type is required');
+      return;
+    }
+
+    setSavingDealMeta(true);
+    try {
+      const payload = {
+        estimated_close_date: fromDateTimeLocal(estimatedCloseAt),
+        product_service_type: productServiceType.trim(),
+        proposal_value: proposalValue === '' ? null : Number(proposalValue),
+        commercial_summary_url: commercialSummaryUrl?.trim() || null,
+        stakeholder_map: parseStakeholderMap(stakeholderMapText),
+        payment_terms: paymentTerms?.trim() || null,
+        contract_final_value: contractFinalValue === '' ? null : Number(contractFinalValue),
+      };
+
+      if (selectedDeal.sales_motion_type === 'partner_sales') {
+        payload.client_name = clientName?.trim() || null;
+        payload.partner_commission_structure = partnerCommissionStructure?.trim() || null;
+        payload.product_category = productCategory?.trim() || null;
+      }
+
+      const res = await api.put(`/deals/${selectedDeal.id}`, payload);
+      setSelectedDeal(res.data);
+      syncDealMetaFromDeal(res.data);
+      await fetchKanbanData(selectedPipeline);
+      toast.success('Deal fields saved');
+    } catch (error) {
+      console.error('Error saving deal fields:', error);
+      toast.error(error.response?.data?.detail || 'Failed to save deal fields');
+    } finally {
+      setSavingDealMeta(false);
     }
   };
 
@@ -737,20 +840,20 @@ const PipelinePage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="deal-amount">Deal Value</Label>
+                  <Label htmlFor="deal-amount">Deal Value <span className="text-red-500">*</span></Label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="deal-amount"
-                      type="number"
+                      <Input
+                        id="deal-amount"
+                        type="number"
                       value={newDeal.amount}
                       onChange={(e) => setNewDeal({ ...newDeal, amount: e.target.value })}
                       placeholder="0.00"
                       className="pl-9"
-                      step="0.01"
-                    />
+                        step="0.01"
+                      />
+                    </div>
                   </div>
-                </div>
 
                 <div className="space-y-2">
                   <Label>Pipeline <span className="text-red-500">*</span></Label>
@@ -817,7 +920,7 @@ const PipelinePage = () => {
                       <Input
                         value={newDeal.partner_name}
                         onChange={(e) => setNewDeal({ ...newDeal, partner_name: e.target.value })}
-                        placeholder="Partner (e.g. Frylow)"
+                        placeholder="Partner"
                       />
                     </div>
                     <div className="space-y-2">
@@ -828,8 +931,51 @@ const PipelinePage = () => {
                         placeholder="Product"
                       />
                     </div>
+                    <div className="space-y-2">
+                      <Label>Client Name <span className="text-red-500">*</span></Label>
+                      <Input
+                        value={newDeal.client_name}
+                        onChange={(e) => setNewDeal({ ...newDeal, client_name: e.target.value })}
+                        placeholder="Client name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Commission Structure <span className="text-red-500">*</span></Label>
+                      <Input
+                        value={newDeal.partner_commission_structure}
+                        onChange={(e) => setNewDeal({ ...newDeal, partner_commission_structure: e.target.value })}
+                        placeholder="e.g. 12% of net"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Product Category <span className="text-red-500">*</span></Label>
+                      <Input
+                        value={newDeal.product_category}
+                        onChange={(e) => setNewDeal({ ...newDeal, product_category: e.target.value })}
+                        placeholder="Category"
+                      />
+                    </div>
                   </div>
                 )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Estimated Close Date <span className="text-red-500">*</span></Label>
+                    <Input
+                      type="datetime-local"
+                      value={newDeal.estimated_close_date}
+                      onChange={(e) => setNewDeal({ ...newDeal, estimated_close_date: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Product / Service Type <span className="text-red-500">*</span></Label>
+                    <Input
+                      value={newDeal.product_service_type}
+                      onChange={(e) => setNewDeal({ ...newDeal, product_service_type: e.target.value })}
+                      placeholder="e.g. Elev8 Services"
+                    />
+                  </div>
+                </div>
 
                 <div className="space-y-2">
                   <Label>Next Step <span className="text-red-500">*</span></Label>
@@ -883,16 +1029,33 @@ const PipelinePage = () => {
                 stage_id: '',
                 next_step_at: '',
                 next_step_note: '',
+                estimated_close_date: '',
+                product_service_type: '',
                 sales_motion_type: 'partnership_sales',
                 partner_name: '',
-                product_name: ''
+                product_name: '',
+                client_name: '',
+                partner_commission_structure: '',
+                product_category: ''
               });
             }}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleAddDeal}
-              disabled={!newDeal.name.trim() || !newDeal.pipeline_id || !newDeal.stage_id || !newDeal.next_step_at || addingDeal}
+              disabled={
+                !newDeal.name.trim() ||
+                !newDeal.pipeline_id ||
+                !newDeal.stage_id ||
+                !newDeal.contact_id ||
+                newDeal.amount === '' ||
+                Number.isNaN(Number(newDeal.amount)) ||
+                Number(newDeal.amount) < 0 ||
+                !newDeal.next_step_at ||
+                !newDeal.estimated_close_date ||
+                !newDeal.product_service_type?.trim() ||
+                addingDeal
+              }
             >
               {addingDeal ? (
                 <>
@@ -1000,8 +1163,16 @@ const PipelinePage = () => {
                             <p className="font-medium capitalize">{selectedDeal.status}</p>
                           </div>
                           <div>
+                            <Label className="text-xs text-muted-foreground">Risk Flag</Label>
+                            <p className="font-medium">{selectedDeal.at_risk ? 'At Risk' : 'Normal'}</p>
+                          </div>
+                          <div>
                             <Label className="text-xs text-muted-foreground">Lead Tier</Label>
                             <div className="mt-1">{getLeadTierBadge(selectedDeal.lead_tier)}</div>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Locked</Label>
+                            <p className="font-medium">{selectedDeal.deal_locked ? 'Yes' : 'No'}</p>
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">Sales Motion</Label>
@@ -1032,6 +1203,122 @@ const PipelinePage = () => {
                             </p>
                           </div>
                         </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Commercial & Stage Fields</CardTitle>
+                        <CardDescription>
+                          Required fields for Decision Pending, Contract Sent, and Closed Won are enforced here.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Estimated Close Date <span className="text-red-500">*</span></Label>
+                            <Input
+                              type="datetime-local"
+                              value={estimatedCloseAt}
+                              onChange={(e) => setEstimatedCloseAt(e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Product / Service Type <span className="text-red-500">*</span></Label>
+                            <Input
+                              value={productServiceType}
+                              onChange={(e) => setProductServiceType(e.target.value)}
+                              placeholder="e.g. Elev8 Services"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Proposal Value</Label>
+                            <Input
+                              type="number"
+                              value={proposalValue}
+                              onChange={(e) => setProposalValue(e.target.value)}
+                              placeholder="0.00"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Commercial Summary URL</Label>
+                            <Input
+                              value={commercialSummaryUrl}
+                              onChange={(e) => setCommercialSummaryUrl(e.target.value)}
+                              placeholder="https://..."
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Payment Terms</Label>
+                            <Input
+                              value={paymentTerms}
+                              onChange={(e) => setPaymentTerms(e.target.value)}
+                              placeholder="e.g. Net 30"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Final Contract Value</Label>
+                            <Input
+                              type="number"
+                              value={contractFinalValue}
+                              onChange={(e) => setContractFinalValue(e.target.value)}
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Stakeholder Map (JSON or comma-separated names)</Label>
+                          <Textarea
+                            value={stakeholderMapText}
+                            onChange={(e) => setStakeholderMapText(e.target.value)}
+                            rows={4}
+                            placeholder='{"decision_maker":"Jane","champion":"Mark"}'
+                          />
+                        </div>
+
+                        {selectedDeal.sales_motion_type === 'partner_sales' && (
+                          <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                              <Label>Client Name</Label>
+                              <Input
+                                value={clientName}
+                                onChange={(e) => setClientName(e.target.value)}
+                                placeholder="Client name"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Commission Structure</Label>
+                              <Input
+                                value={partnerCommissionStructure}
+                                onChange={(e) => setPartnerCommissionStructure(e.target.value)}
+                                placeholder="e.g. 12% of net"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Product Category</Label>
+                              <Input
+                                value={productCategory}
+                                onChange={(e) => setProductCategory(e.target.value)}
+                                placeholder="Category"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        <Button onClick={saveDealMeta} disabled={savingDealMeta} className="w-full">
+                          {savingDealMeta ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="w-4 h-4 mr-2" />
+                              Save Commercial Fields
+                            </>
+                          )}
+                        </Button>
                       </CardContent>
                     </Card>
 
@@ -1113,7 +1400,10 @@ const PipelinePage = () => {
                     <SpicedPanel
                       deal={selectedDeal}
                       api={api}
-                      onDealUpdated={(d) => setSelectedDeal(d)}
+                      onDealUpdated={(d) => {
+                        setSelectedDeal(d);
+                        syncDealMetaFromDeal(d);
+                      }}
                       onUpdate={() => fetchKanbanData(selectedPipeline)}
                     />
                   </TabsContent>
@@ -1122,7 +1412,10 @@ const PipelinePage = () => {
                     <DemoPanel
                       deal={selectedDeal}
                       api={api}
-                      onDealUpdated={(d) => setSelectedDeal(d)}
+                      onDealUpdated={(d) => {
+                        setSelectedDeal(d);
+                        syncDealMetaFromDeal(d);
+                      }}
                       onUpdate={() => fetchKanbanData(selectedPipeline)}
                     />
                   </TabsContent>
@@ -1418,6 +1711,48 @@ const DemoPanel = ({ deal, api, onDealUpdated, onUpdate }) => {
     return date.toISOString();
   };
 
+  const formatStakeholderMap = (value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length === 0) {
+      return '{}';
+    }
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch (_err) {
+      return '{}';
+    }
+  };
+
+  const parseStakeholderMap = (raw) => {
+    const text = (raw || '').trim();
+    if (!text || text === '{}') return {};
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch (_err) {
+      // fallback below
+    }
+    const names = text
+      .split(/[\n,]/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+    if (!names.length) return {};
+    return { stakeholders: names };
+  };
+
+  const syncDealMetaFromDeal = (deal) => {
+    if (!deal) return;
+    setEstimatedCloseAt(toDateTimeLocal(deal.estimated_close_date));
+    setProductServiceType(deal.product_service_type || '');
+    setProposalValue(deal.proposal_value === null || deal.proposal_value === undefined ? '' : String(deal.proposal_value));
+    setCommercialSummaryUrl(deal.commercial_summary_url || '');
+    setStakeholderMapText(formatStakeholderMap(deal.stakeholder_map || {}));
+    setPaymentTerms(deal.payment_terms || '');
+    setContractFinalValue(deal.contract_final_value === null || deal.contract_final_value === undefined ? '' : String(deal.contract_final_value));
+    setClientName(deal.client_name || '');
+    setPartnerCommissionStructure(deal.partner_commission_structure || '');
+    setProductCategory(deal.product_category || '');
+  };
+
   const [form, setForm] = React.useState({
     demo_title: '',
     demo_type: '',
@@ -1534,7 +1869,7 @@ const DemoPanel = ({ deal, api, onDealUpdated, onUpdate }) => {
             <Input
               value={form.demo_title}
               onChange={(e) => setForm((p) => ({ ...p, demo_title: e.target.value }))}
-              placeholder="e.g. David Laredo - The Nosh | Frylow Consultation"
+              placeholder="e.g. ACME Corp | Solution Consultation"
             />
           </div>
 

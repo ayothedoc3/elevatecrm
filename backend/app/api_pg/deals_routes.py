@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api_pg.deps import get_current_user
 from app.api_pg.services import (
+    apply_closed_won_automations,
     complete_open_next_step_tasks_for_deal,
     create_mention_tasks_from_text,
     create_timeline_event,
@@ -19,6 +20,7 @@ from app.api_pg.services import (
     handoff_complete,
     resolve_account,
     resolve_partner_and_product,
+    run_deal_stale_automations,
     sync_deal_handoff_status,
     upsert_open_next_step_task_for_deal,
 )
@@ -31,19 +33,22 @@ from app.api_pg.utils import (
     parse_iso_datetime,
 )
 from app.core.database import get_db
-from app.pg_models.models import Contact, Deal, DealHandoff, Pipeline, PipelineStage, User
+from app.pg_models.models import Contact, Deal, DealHandoff, Lead, Pipeline, PipelineStage, User
 
 router = APIRouter(tags=["Deals"])
 
 
 class DealCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    amount: float = 0
-    contact_id: Optional[str] = None
+    amount: float = Field(..., ge=0)
+    contact_id: str
+    origin_lead_id: Optional[str] = None
     pipeline_id: str
     stage_id: str
     next_step_at: Optional[str] = None
     next_step_note: Optional[str] = None
+    estimated_close_date: str = Field(..., min_length=1)
+    product_service_type: str = Field(..., min_length=1, max_length=255)
     spiced: Optional[Dict[str, Any]] = None
     demo_title: Optional[str] = None
     demo_type: Optional[str] = None
@@ -61,6 +66,9 @@ class DealCreate(BaseModel):
     product_id: Optional[str] = None
     partner_name: Optional[str] = None
     product_name: Optional[str] = None
+    client_name: Optional[str] = None
+    partner_commission_structure: Optional[str] = None
+    product_category: Optional[str] = None
 
 
 class DealUpdate(BaseModel):
@@ -69,6 +77,8 @@ class DealUpdate(BaseModel):
     contact_id: Optional[str] = None
     next_step_at: Optional[str] = None
     next_step_note: Optional[str] = None
+    estimated_close_date: Optional[str] = None
+    product_service_type: Optional[str] = None
     spiced: Optional[Dict[str, Any]] = None
     demo_title: Optional[str] = None
     demo_type: Optional[str] = None
@@ -86,6 +96,14 @@ class DealUpdate(BaseModel):
     product_id: Optional[str] = None
     partner_name: Optional[str] = None
     product_name: Optional[str] = None
+    client_name: Optional[str] = None
+    partner_commission_structure: Optional[str] = None
+    product_category: Optional[str] = None
+    proposal_value: Optional[float] = None
+    commercial_summary_url: Optional[str] = None
+    stakeholder_map: Optional[Dict[str, Any]] = None
+    contract_final_value: Optional[float] = None
+    payment_terms: Optional[str] = None
 
 
 class MoveDealStageRequest(BaseModel):
@@ -122,6 +140,7 @@ def _deal_to_dict(
         "amount": float(d.amount or 0.0),
         "currency": d.currency,
         "status": d.status,
+        "origin_lead_id": d.origin_lead_id,
         "contact_id": d.contact_id,
         "contact_name": contact_name,
         "account_id": d.account_id,
@@ -131,6 +150,8 @@ def _deal_to_dict(
         "stage_name": stage_name,
         "next_step_at": dt_to_iso(d.next_step_at),
         "next_step_note": d.next_step_note,
+        "estimated_close_date": dt_to_iso(d.estimated_close_date),
+        "product_service_type": d.product_service_type,
         "last_touchpoint_at": dt_to_iso(d.last_touchpoint_at),
         "lead_score": int(d.lead_score or 0),
         "lead_tier": d.lead_tier,
@@ -139,6 +160,9 @@ def _deal_to_dict(
         "product_id": d.product_id,
         "partner_name": d.partner_name,
         "product_name": d.product_name,
+        "client_name": d.client_name,
+        "partner_commission_structure": d.partner_commission_structure,
+        "product_category": d.product_category,
         "spiced": d.spiced or {},
         "spiced_complete": _spiced_complete(d.spiced or {}),
         "demo_title": d.demo_title,
@@ -150,6 +174,13 @@ def _deal_to_dict(
         "demo_calendar_url": d.demo_calendar_url,
         "demo_completed_at": dt_to_iso(d.demo_completed_at),
         "demo_notes": d.demo_notes,
+        "proposal_value": float(d.proposal_value) if d.proposal_value is not None else None,
+        "commercial_summary_url": d.commercial_summary_url,
+        "stakeholder_map": d.stakeholder_map or {},
+        "contract_final_value": float(d.contract_final_value) if d.contract_final_value is not None else None,
+        "payment_terms": d.payment_terms,
+        "deal_locked": bool(d.deal_locked),
+        "at_risk": bool(d.at_risk),
         "owner_id": d.owner_id,
         "owner_name": owner_name,
         "handoff_status": d.handoff_status,
@@ -199,6 +230,20 @@ def _stage_requires_calculation(stage: PipelineStage) -> bool:
     return ("demo" in name and ("schedule" in name or "scheduled" in name)) or ("discovery" in name and "scheduled" in name)
 
 
+def _is_finance_user(user: Dict[str, Any]) -> bool:
+    return (user.get("role") or "").strip().lower() == "finance"
+
+
+def _require_partner_sales_payload(payload: Dict[str, Any]) -> None:
+    required = ["client_name", "partner_commission_structure", "product_category"]
+    missing = [k for k in required if not is_non_empty(payload.get(k))]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required fields for partner_sales: {', '.join(missing)}",
+        )
+
+
 @router.get("/deals")
 async def list_deals(
     page: int = Query(1, ge=1),
@@ -210,7 +255,10 @@ async def list_deals(
     db: AsyncSession = Depends(get_db),
 ):
     tenant_id = user["tenant_id"]
+    await run_deal_stale_automations(db, tenant_id=tenant_id, actor_id=user.get("id"), actor_name=user.get("full_name"))
     filters: List[Any] = [Deal.tenant_id == tenant_id]
+    if _is_finance_user(user):
+        filters.append(Deal.status == "won")
     if status:
         filters.append(Deal.status == status)
     if pipeline_id:
@@ -271,6 +319,8 @@ async def create_deal(
     db: AsyncSession = Depends(get_db),
 ):
     tenant_id = user["tenant_id"]
+    if _is_finance_user(user):
+        raise HTTPException(status_code=403, detail="Finance users can access Closed Won deals only")
 
     pipeline = (
         await db.execute(select(Pipeline).where(and_(Pipeline.id == data.pipeline_id, Pipeline.tenant_id == tenant_id)))
@@ -286,13 +336,22 @@ async def create_deal(
     if not stage:
         raise HTTPException(status_code=404, detail="Stage not found")
 
-    contact: Optional[Contact] = None
-    if data.contact_id:
-        contact = (
-            await db.execute(select(Contact).where(and_(Contact.id == data.contact_id, Contact.tenant_id == tenant_id)))
-        ).scalar_one_or_none()
-        if not contact:
-            raise HTTPException(status_code=400, detail="Contact not found")
+    contact = (
+        await db.execute(select(Contact).where(and_(Contact.id == data.contact_id, Contact.tenant_id == tenant_id)))
+    ).scalar_one_or_none()
+    if not contact:
+        raise HTTPException(status_code=400, detail="Contact not found")
+
+    origin_lead_id = data.origin_lead_id or contact.converted_from_lead_id
+    if not origin_lead_id:
+        raise HTTPException(status_code=400, detail="Deal cannot be created without an originating lead")
+    origin_lead = (
+        await db.execute(select(Lead).where(and_(Lead.id == origin_lead_id, Lead.tenant_id == tenant_id)))
+    ).scalar_one_or_none()
+    if not origin_lead:
+        raise HTTPException(status_code=400, detail="Origin lead not found")
+    if (origin_lead.status or "").strip().lower() not in {"qualified", "converted"}:
+        raise HTTPException(status_code=400, detail="Origin lead must be Qualified before creating a deal")
 
     resolved = await resolve_partner_and_product(
         db=db,
@@ -305,22 +364,47 @@ async def create_deal(
         actor_id=user["id"],
     )
 
+    sales_motion_type = (data.sales_motion_type or "partnership_sales").strip()
+    if sales_motion_type == "partner_sales":
+        _require_partner_sales_payload(
+            {
+                "client_name": data.client_name,
+                "partner_commission_structure": data.partner_commission_structure,
+                "product_category": data.product_category,
+            }
+        )
+
     resolved_account = {"account_id": None, "account_name": None}
-    if contact:
-        account_name_input = contact.account_name or contact.company_name or contact.full_name
-        if account_name_input:
-            resolved_account = await resolve_account(db, tenant_id, account_name_input, user["id"])
-            if not contact.account_id:
-                contact.account_id = resolved_account.get("account_id")
-                contact.account_name = resolved_account.get("account_name")
-                contact.updated_at = now_utc()
+    account_name_input = contact.account_name or contact.company_name or origin_lead.company_name or contact.full_name
+    if account_name_input:
+        resolved_account = await resolve_account(
+            db=db,
+            tenant_id=tenant_id,
+            account_name=account_name_input,
+            actor_id=user["id"],
+            domain=((origin_lead.email or contact.email or "").split("@", 1)[1] if ("@" in (origin_lead.email or contact.email or "")) else None),
+            industry=((origin_lead.scoring_data or {}).get("industry") or None),
+            company_size=((origin_lead.scoring_data or {}).get("company_size") or (origin_lead.scoring_data or {}).get("company_size_fit") or None),
+            country=(origin_lead.country_region or (origin_lead.scoring_data or {}).get("country") or None),
+            icp_tier=((origin_lead.scoring_data or {}).get("icp_tier") or origin_lead.tier or None),
+        )
+        if not contact.account_id:
+            contact.account_id = resolved_account.get("account_id")
+            contact.account_name = resolved_account.get("account_name")
+            contact.updated_at = now_utc()
+    if not (resolved_account.get("account_id") or contact.account_id):
+        raise HTTPException(status_code=400, detail="Deal requires an associated company account")
 
     # Scoring fields
     lead_score = data.lead_score
     lead_tier = (data.lead_tier or "").strip().upper() if data.lead_tier else None
-    if lead_score is None and contact and contact.lead_score is not None:
+    if lead_score is None and origin_lead.score is not None:
+        lead_score = int(origin_lead.score)
+    if lead_score is None and contact.lead_score is not None:
         lead_score = int(contact.lead_score)
-    if not lead_tier and contact and contact.lead_tier:
+    if not lead_tier and origin_lead.tier:
+        lead_tier = str(origin_lead.tier).strip().upper()
+    if not lead_tier and contact.lead_tier:
         lead_tier = str(contact.lead_tier).strip().upper()
 
     if lead_score is not None:
@@ -337,6 +421,11 @@ async def create_deal(
         lead_tier = "D"
 
     next_step_dt = parse_iso_datetime(data.next_step_at) if data.next_step_at else None
+    estimated_close_dt = parse_iso_datetime((data.estimated_close_date or "").strip())
+    if not estimated_close_dt:
+        raise HTTPException(status_code=400, detail="estimated_close_date is required and must be a valid ISO datetime")
+    if not is_non_empty(data.product_service_type):
+        raise HTTPException(status_code=400, detail="product_service_type is required")
 
     spiced = data.spiced if data.spiced is not None else {}
     if not isinstance(spiced, dict):
@@ -365,24 +454,30 @@ async def create_deal(
         id=str(uuid.uuid4()),
         tenant_id=tenant_id,
         name=data.name,
-        amount=float(data.amount or 0.0),
+        amount=float(data.amount),
         currency="USD",
         status="open",
+        origin_lead_id=origin_lead.id,
         contact_id=data.contact_id,
-        account_id=resolved_account.get("account_id"),
-        account_name=resolved_account.get("account_name"),
+        account_id=contact.account_id or resolved_account.get("account_id"),
+        account_name=contact.account_name or resolved_account.get("account_name"),
         pipeline_id=data.pipeline_id,
         stage_id=data.stage_id,
         next_step_at=next_step_dt,
         next_step_note=data.next_step_note,
+        estimated_close_date=estimated_close_dt,
+        product_service_type=(data.product_service_type or "").strip(),
         last_touchpoint_at=None,
         lead_score=lead_score,
         lead_tier=lead_tier,
-        sales_motion_type=(data.sales_motion_type or "partnership_sales").strip(),
+        sales_motion_type=sales_motion_type,
         partner_id=resolved.get("partner_id"),
         product_id=resolved.get("product_id"),
         partner_name=resolved.get("partner_name"),
         product_name=resolved.get("product_name"),
+        client_name=data.client_name if sales_motion_type == "partner_sales" else None,
+        partner_commission_structure=data.partner_commission_structure if sales_motion_type == "partner_sales" else None,
+        product_category=data.product_category if sales_motion_type == "partner_sales" else None,
         spiced=spiced,
         demo_title=(data.demo_title or "").strip() or None,
         demo_type=(data.demo_type or "").strip() or None,
@@ -459,6 +554,7 @@ async def create_deal(
     except Exception:
         pass
 
+    await run_deal_stale_automations(db, tenant_id=tenant_id, actor_id=user.get("id"), actor_name=user.get("full_name"))
     return _deal_to_dict(deal, contact=contact, stage=stage)
 
 
@@ -469,9 +565,12 @@ async def get_deal(
     db: AsyncSession = Depends(get_db),
 ):
     tenant_id = user["tenant_id"]
+    await run_deal_stale_automations(db, tenant_id=tenant_id, actor_id=user.get("id"), actor_name=user.get("full_name"))
     deal = (await db.execute(select(Deal).where(and_(Deal.id == deal_id, Deal.tenant_id == tenant_id)))).scalar_one_or_none()
     if not deal:
         raise HTTPException(status_code=404, detail="Deal not found")
+    if _is_finance_user(user) and (deal.status or "").lower() != "won":
+        raise HTTPException(status_code=403, detail="Finance users can access Closed Won deals only")
 
     contact = None
     if deal.contact_id:
@@ -491,9 +590,14 @@ async def update_deal(
     db: AsyncSession = Depends(get_db),
 ):
     tenant_id = user["tenant_id"]
+    await run_deal_stale_automations(db, tenant_id=tenant_id, actor_id=user.get("id"), actor_name=user.get("full_name"))
     deal = (await db.execute(select(Deal).where(and_(Deal.id == deal_id, Deal.tenant_id == tenant_id)))).scalar_one_or_none()
     if not deal:
         raise HTTPException(status_code=404, detail="Deal not found")
+    if _is_finance_user(user):
+        raise HTTPException(status_code=403, detail="Finance users can access Closed Won deals only")
+    if bool(deal.deal_locked) and user.get("role") not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Deal is locked after Closed Won and cannot be edited")
 
     current_stage = None
     if deal.stage_id:
@@ -510,17 +614,15 @@ async def update_deal(
 
     if data.contact_id is not None:
         if not data.contact_id:
-            if "contact_id" in current_required:
-                raise HTTPException(status_code=400, detail="contact_id is required for the current stage")
-            deal.contact_id = None
-            deal.account_id = None
-            deal.account_name = None
+            raise HTTPException(status_code=400, detail="Deal must have a primary contact")
         else:
             contact = (
                 await db.execute(select(Contact).where(and_(Contact.id == data.contact_id, Contact.tenant_id == tenant_id)))
             ).scalar_one_or_none()
             if not contact:
                 raise HTTPException(status_code=400, detail="Contact not found")
+            if not contact.converted_from_lead_id:
+                raise HTTPException(status_code=400, detail="Deal contact must originate from a lead")
             deal.contact_id = data.contact_id
 
             account_name_input = contact.account_name or contact.company_name or contact.full_name
@@ -532,12 +634,23 @@ async def update_deal(
                     contact.account_id = resolved_account.get("account_id")
                     contact.account_name = resolved_account.get("account_name")
                     contact.updated_at = now
+            if not deal.account_id:
+                raise HTTPException(status_code=400, detail="Deal must have an associated company account")
+            if not deal.origin_lead_id:
+                deal.origin_lead_id = contact.converted_from_lead_id
 
             if data.lead_score is None and data.lead_tier is None:
                 if contact.lead_score is not None:
                     deal.lead_score = int(contact.lead_score)
                 if contact.lead_tier:
                     deal.lead_tier = str(contact.lead_tier).strip().upper()
+
+    if not deal.contact_id:
+        raise HTTPException(status_code=400, detail="Deal must have a primary contact")
+    if not deal.account_id:
+        raise HTTPException(status_code=400, detail="Deal must have an associated company account")
+    if not deal.origin_lead_id:
+        raise HTTPException(status_code=400, detail="Deal cannot exist without an originating lead")
 
     if data.next_step_at is not None:
         value = (data.next_step_at or "").strip()
@@ -564,6 +677,21 @@ async def update_deal(
             )
         except Exception:
             pass
+
+    if data.estimated_close_date is not None:
+        value = (data.estimated_close_date or "").strip()
+        dt = parse_iso_datetime(value) if value else None
+        if value and not dt:
+            raise HTTPException(status_code=400, detail="estimated_close_date must be a valid ISO datetime")
+        if not dt and "estimated_close_date" in current_required:
+            raise HTTPException(status_code=400, detail="estimated_close_date is required for the current stage")
+        deal.estimated_close_date = dt
+
+    if data.product_service_type is not None:
+        v = (data.product_service_type or "").strip() or None
+        if not v and "product_service_type" in current_required:
+            raise HTTPException(status_code=400, detail="product_service_type is required for the current stage")
+        deal.product_service_type = v
 
     if data.spiced is not None:
         incoming = data.spiced or {}
@@ -641,6 +769,35 @@ async def update_deal(
             raise HTTPException(status_code=400, detail="demo_status is required for the current stage")
         deal.demo_status = demo_status
 
+    if data.proposal_value is not None:
+        deal.proposal_value = float(data.proposal_value) if data.proposal_value is not None else None
+        if deal.proposal_value is None and "proposal_value" in current_required:
+            raise HTTPException(status_code=400, detail="proposal_value is required for the current stage")
+
+    if data.commercial_summary_url is not None:
+        v = (data.commercial_summary_url or "").strip() or None
+        if not v and "commercial_summary_url" in current_required:
+            raise HTTPException(status_code=400, detail="commercial_summary_url is required for the current stage")
+        deal.commercial_summary_url = v
+
+    if data.stakeholder_map is not None:
+        if not isinstance(data.stakeholder_map, dict):
+            raise HTTPException(status_code=400, detail="stakeholder_map must be an object")
+        deal.stakeholder_map = data.stakeholder_map
+        if (not data.stakeholder_map) and "stakeholder_map" in current_required:
+            raise HTTPException(status_code=400, detail="stakeholder_map is required for the current stage")
+
+    if data.contract_final_value is not None:
+        deal.contract_final_value = float(data.contract_final_value) if data.contract_final_value is not None else None
+        if deal.contract_final_value is None and "contract_final_value" in current_required:
+            raise HTTPException(status_code=400, detail="contract_final_value is required for the current stage")
+
+    if data.payment_terms is not None:
+        v = (data.payment_terms or "").strip() or None
+        if not v and "payment_terms" in current_required:
+            raise HTTPException(status_code=400, detail="payment_terms is required for the current stage")
+        deal.payment_terms = v
+
     if deal.demo_completed_at:
         deal.demo_status = "completed"
     elif deal.demo_scheduled_at and not deal.demo_status:
@@ -659,24 +816,52 @@ async def update_deal(
             data.product_id is not None,
             data.partner_name is not None,
             data.product_name is not None,
+            data.client_name is not None,
+            data.partner_commission_structure is not None,
+            data.product_category is not None,
         ]
     )
     if motion_update_requested:
+        next_sales_motion = data.sales_motion_type or deal.sales_motion_type
+        payload_values = {
+            "client_name": data.client_name if data.client_name is not None else deal.client_name,
+            "partner_commission_structure": data.partner_commission_structure if data.partner_commission_structure is not None else deal.partner_commission_structure,
+            "product_category": data.product_category if data.product_category is not None else deal.product_category,
+        }
+        if (next_sales_motion or "").strip() == "partner_sales":
+            _require_partner_sales_payload(payload_values)
         resolved = await resolve_partner_and_product(
             db=db,
             tenant_id=tenant_id,
-            sales_motion_type=data.sales_motion_type or deal.sales_motion_type,
+            sales_motion_type=next_sales_motion,
             partner_id=data.partner_id if data.partner_id is not None else deal.partner_id,
             product_id=data.product_id if data.product_id is not None else deal.product_id,
             partner_name=data.partner_name if data.partner_name is not None else deal.partner_name,
             product_name=data.product_name if data.product_name is not None else deal.product_name,
             actor_id=user["id"],
         )
-        deal.sales_motion_type = (data.sales_motion_type or deal.sales_motion_type or "partnership_sales").strip()
+        deal.sales_motion_type = (next_sales_motion or deal.sales_motion_type or "partnership_sales").strip()
         deal.partner_id = resolved.get("partner_id")
         deal.product_id = resolved.get("product_id")
         deal.partner_name = resolved.get("partner_name")
         deal.product_name = resolved.get("product_name")
+        if deal.sales_motion_type == "partner_sales":
+            deal.client_name = payload_values["client_name"]
+            deal.partner_commission_structure = payload_values["partner_commission_structure"]
+            deal.product_category = payload_values["product_category"]
+        else:
+            deal.client_name = None
+            deal.partner_commission_structure = None
+            deal.product_category = None
+
+    if (deal.sales_motion_type or "").strip() == "partner_sales":
+        _require_partner_sales_payload(
+            {
+                "client_name": deal.client_name,
+                "partner_commission_structure": deal.partner_commission_structure,
+                "product_category": deal.product_category,
+            }
+        )
 
     if data.lead_score is not None or data.lead_tier is not None:
         lead_score = data.lead_score
@@ -693,6 +878,12 @@ async def update_deal(
             deal.lead_score = lead_score
         if lead_tier:
             deal.lead_tier = lead_tier
+
+    origin_lead = (
+        await db.execute(select(Lead).where(and_(Lead.id == deal.origin_lead_id, Lead.tenant_id == tenant_id)))
+    ).scalar_one_or_none()
+    if not origin_lead:
+        raise HTTPException(status_code=400, detail="Deal cannot exist without an originating lead")
 
     deal.updated_at = now
     await db.flush()
@@ -728,6 +919,8 @@ async def get_deal_handoff(
     deal = (await db.execute(select(Deal).where(and_(Deal.id == deal_id, Deal.tenant_id == tenant_id)))).scalar_one_or_none()
     if not deal:
         raise HTTPException(status_code=404, detail="Deal not found")
+    if _is_finance_user(user) and (deal.status or "").lower() != "won":
+        raise HTTPException(status_code=403, detail="Finance users can access Closed Won deals only")
 
     handoff = await get_or_create_deal_handoff(db, tenant_id, deal_id, user["id"])
     complete = handoff_complete(handoff.delivery_owner_id, handoff.kickoff_at, handoff.checklist or {})
@@ -756,6 +949,8 @@ async def update_deal_handoff(
     db: AsyncSession = Depends(get_db),
 ):
     tenant_id = user["tenant_id"]
+    if _is_finance_user(user):
+        raise HTTPException(status_code=403, detail="Finance users can access Closed Won deals only")
     deal = (await db.execute(select(Deal).where(and_(Deal.id == deal_id, Deal.tenant_id == tenant_id)))).scalar_one_or_none()
     if not deal:
         raise HTTPException(status_code=404, detail="Deal not found")
@@ -848,6 +1043,8 @@ async def move_deal_stage(
     db: AsyncSession = Depends(get_db),
 ):
     tenant_id = user["tenant_id"]
+    if _is_finance_user(user):
+        raise HTTPException(status_code=403, detail="Finance users can access Closed Won deals only")
 
     if payload and payload.stage_id:
         new_stage_id = payload.stage_id
@@ -866,6 +1063,8 @@ async def move_deal_stage(
     deal = (await db.execute(select(Deal).where(and_(Deal.id == deal_id, Deal.tenant_id == tenant_id)))).scalar_one_or_none()
     if not deal:
         raise HTTPException(status_code=404, detail="Deal not found")
+    if bool(deal.deal_locked) and not override and user.get("role") not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Deal is locked and can only be moved by a manager")
 
     old_stage = None
     if deal.stage_id:
@@ -883,7 +1082,9 @@ async def move_deal_stage(
     moving_to_handoff = "handoff" in new_stage_name_lower
     moving_to_demo_scheduled = "demo" in new_stage_name_lower and ("schedule" in new_stage_name_lower or "scheduled" in new_stage_name_lower)
     moving_to_demo_completed = "demo" in new_stage_name_lower and "completed" in new_stage_name_lower
-    moving_to_verbal = "verbal commitment" in new_stage_name_lower
+    moving_to_verbal = "verbal" in new_stage_name_lower
+    moving_to_decision_pending = "decision pending" in new_stage_name_lower
+    moving_to_contract_sent = "contract sent" in new_stage_name_lower
 
     if not override:
         if (deal.status or "open").lower() in ["won", "lost"]:
@@ -907,15 +1108,41 @@ async def move_deal_stage(
 
         if moving_to_demo_scheduled and not _demo_is_scheduled(deal):
             raise HTTPException(status_code=400, detail="Demo must be scheduled (demo_scheduled_at) before moving to this stage")
+        if moving_to_demo_scheduled and not is_non_empty(deal.demo_calendar_url):
+            raise HTTPException(status_code=400, detail="Calendar event URL is required before moving to Demo Scheduled")
 
         if moving_to_demo_completed:
             if not _demo_is_completed(deal):
                 raise HTTPException(status_code=400, detail="Demo must be completed (demo_completed_at) before moving to this stage")
-            if not _spiced_complete(deal.spiced or {}):
-                raise HTTPException(status_code=400, detail="SPICED summary must be complete before moving to this stage")
+            if not is_non_empty(deal.demo_notes):
+                raise HTTPException(status_code=400, detail="demo_notes are required before moving to Demo Completed")
+            if not is_non_empty(deal.next_step_note):
+                raise HTTPException(status_code=400, detail="next_step_note is required before moving to Demo Completed")
+            if not is_non_empty(deal.stakeholder_map):
+                raise HTTPException(status_code=400, detail="stakeholder_map is required before moving to Demo Completed")
 
         if moving_to_verbal and not _demo_is_completed(deal):
-            raise HTTPException(status_code=400, detail="Demo must be completed before moving to Verbal Commitment")
+            raise HTTPException(status_code=400, detail="Demo must be completed before moving to Verbal Agreement")
+
+        if moving_to_decision_pending:
+            if deal.proposal_value is None:
+                raise HTTPException(status_code=400, detail="proposal_value is required before moving to Decision Pending")
+            if not is_non_empty(deal.commercial_summary_url):
+                raise HTTPException(status_code=400, detail="commercial_summary_url is required before moving to Decision Pending")
+
+        if moving_to_contract_sent and not is_non_empty(deal.payment_terms):
+            raise HTTPException(status_code=400, detail="payment_terms are required before moving to Contract Sent")
+
+        if moving_to_closed_won:
+            if deal.contract_final_value is None:
+                raise HTTPException(status_code=400, detail="contract_final_value is required before moving to Closed Won")
+            if not is_non_empty(deal.payment_terms):
+                raise HTTPException(status_code=400, detail="payment_terms are required before moving to Closed Won")
+            handoff = (
+                await db.execute(select(DealHandoff).where(and_(DealHandoff.tenant_id == tenant_id, DealHandoff.deal_id == deal_id)))
+            ).scalar_one_or_none()
+            if not handoff or not handoff_complete(handoff.delivery_owner_id, handoff.kickoff_at, handoff.checklist or {}):
+                raise HTTPException(status_code=400, detail="Handoff form must be complete before moving to Closed Won")
 
         if moving_to_handoff:
             handoff = (
@@ -935,6 +1162,7 @@ async def move_deal_stage(
         deal.status = "won"
         deal.closed_won_at = now
         deal.closed_at = now
+        deal.deal_locked = True
     elif moving_to_closed_lost:
         deal.status = "lost"
         deal.closed_lost_at = now
@@ -942,6 +1170,7 @@ async def move_deal_stage(
     elif previous_status in ["won", "lost"] and not moving_to_handoff:
         deal.status = "open"
         deal.reopened_at = now
+        deal.deal_locked = False
 
     if override:
         deal.last_override = {
@@ -984,9 +1213,7 @@ async def move_deal_stage(
             actor_name=user.get("full_name"),
             deal_id=deal_id,
         )
-        handoff = await get_or_create_deal_handoff(db, tenant_id, deal_id, user["id"])
-        deal.handoff_status = handoff.status
-        deal.updated_at = now
+        await apply_closed_won_automations(db=db, tenant_id=tenant_id, deal=deal, actor=user)
         await db.flush()
 
     if moving_to_closed_lost and previous_status != "lost":
@@ -1000,5 +1227,6 @@ async def move_deal_stage(
             deal_id=deal_id,
         )
 
+    await run_deal_stale_automations(db, tenant_id=tenant_id, actor_id=user.get("id"), actor_name=user.get("full_name"))
     return {"success": True, "new_stage_id": new_stage_id}
 

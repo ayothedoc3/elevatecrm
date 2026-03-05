@@ -706,7 +706,7 @@ const LandingPagesPage = () => {
                       <Textarea
                         value={genForm.page_goal}
                         onChange={(e) => setGenForm({...genForm, page_goal: e.target.value})}
-                        placeholder="e.g., Recruit affiliates for Frylow oil-saving product with 10% commission"
+                        placeholder="e.g., Recruit affiliates for a partner product with 10% commission"
                         rows={2}
                       />
                     </div>
@@ -764,7 +764,7 @@ const LandingPagesPage = () => {
                         <Input
                           value={genForm.brand_name}
                           onChange={(e) => setGenForm({...genForm, brand_name: e.target.value})}
-                          placeholder="e.g., Frylow"
+                          placeholder="e.g., Partner Brand"
                         />
                       </div>
                       <div className="space-y-2">
@@ -847,7 +847,7 @@ const LandingPagesPage = () => {
                         <Input
                           value={createForm.name}
                           onChange={(e) => setCreateForm({...createForm, name: e.target.value})}
-                          placeholder="e.g., Frylow Affiliate Recruitment Page"
+                          placeholder="e.g., Partner Affiliate Recruitment Page"
                         />
                       </div>
                       

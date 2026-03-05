@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api_pg.deps import get_password_hash
@@ -25,6 +25,7 @@ from app.pg_models.models import (
     MarketingList,
     MarketingMaterial,
     Message,
+    Deal,
     Pipeline,
     PipelineStage,
     Tenant,
@@ -63,6 +64,7 @@ async def seed_demo_data(db: AsyncSession) -> None:
         ("admin@demo.com", "admin123", "Admin", "User", "admin"),
         ("manager@demo.com", "manager123", "Manager", "User", "manager"),
         ("sales@demo.com", "sales123", "Sales", "Rep", "sales"),
+        ("finance@demo.com", "finance123", "Finance", "User", "finance"),
     ]
 
     user_ids: dict[str, str] = {}
@@ -108,40 +110,82 @@ async def seed_demo_data(db: AsyncSession) -> None:
 
     pipeline_id = pipeline.id
 
-    stage_res = await db.execute(select(PipelineStage).where(PipelineStage.pipeline_id == pipeline_id).limit(1))
-    stage_any = stage_res.scalar_one_or_none()
+    stages_data = [
+        {
+            "name": "Calculations / Qualification Validation",
+            "color": "#6366F1",
+            "probability": 10,
+            "required_fields": ["contact_id", "estimated_close_date", "product_service_type"],
+            "requires_calculation_complete": False,
+        },
+        {
+            "name": "Demo Scheduled",
+            "color": "#8B5CF6",
+            "probability": 25,
+            "required_fields": ["contact_id", "demo_scheduled_at", "demo_calendar_url", "estimated_close_date", "product_service_type"],
+            "requires_calculation_complete": True,
+        },
+        {
+            "name": "Demo Completed",
+            "color": "#A855F7",
+            "probability": 40,
+            "required_fields": ["demo_notes", "next_step_note", "stakeholder_map", "estimated_close_date", "product_service_type"],
+            "requires_calculation_complete": False,
+        },
+        {
+            "name": "Decision Pending",
+            "color": "#C084FC",
+            "probability": 60,
+            "required_fields": ["proposal_value", "commercial_summary_url"],
+            "requires_calculation_complete": False,
+        },
+        {
+            "name": "Pilot / Trial (if applicable)",
+            "color": "#D946EF",
+            "probability": 70,
+            "required_fields": ["next_step_at"],
+            "requires_calculation_complete": False,
+        },
+        {
+            "name": "Verbal Agreement",
+            "color": "#EC4899",
+            "probability": 85,
+            "required_fields": ["next_step_at"],
+            "requires_calculation_complete": False,
+        },
+        {
+            "name": "Contract Sent",
+            "color": "#F59E0B",
+            "probability": 90,
+            "required_fields": ["payment_terms"],
+            "requires_calculation_complete": False,
+        },
+        {"name": "Closed Won", "color": "#10B981", "probability": 100, "required_fields": ["contract_final_value", "payment_terms"]},
+        {"name": "Closed Lost", "color": "#EF4444", "probability": 0, "required_fields": []},
+        {"name": "Handoff to Delivery", "color": "#F97316", "probability": 100, "required_fields": []},
+    ]
+
+    stage_rows = (
+        await db.execute(select(PipelineStage).where(PipelineStage.pipeline_id == pipeline_id).order_by(PipelineStage.display_order.asc()))
+    ).scalars().all()
+
+    expected_stage_names = {(s.get("name") or "").strip().lower() for s in stages_data}
+    existing_stage_names = {(s.name or "").strip().lower() for s in stage_rows}
+    can_reseed_stages = not stage_rows
+    if stage_rows and existing_stage_names != expected_stage_names:
+        pipeline_deals_count = (
+            await db.execute(select(Deal.id).where(and_(Deal.tenant_id == tenant_id, Deal.pipeline_id == pipeline_id)).limit(1))
+        ).scalar_one_or_none()
+        can_reseed_stages = pipeline_deals_count is None
+
+    if can_reseed_stages and stage_rows:
+        for s in stage_rows:
+            await db.delete(s)
+        await db.flush()
+        stage_rows = []
 
     calc_stage_id: str | None = None
-
-    if not stage_any:
-        stages_data = [
-            {
-                "name": "Calculations / Analysis In Progress",
-                "color": "#6366F1",
-                "probability": 15,
-                "required_fields": ["next_step_at", "contact_id"],
-            },
-            {
-                "name": "Discovery / Demo Scheduled",
-                "color": "#8B5CF6",
-                "probability": 25,
-                "required_fields": ["next_step_at", "contact_id"],
-                "requires_calculation_complete": True,
-            },
-            {
-                "name": "Discovery / Demo Completed",
-                "color": "#A855F7",
-                "probability": 35,
-                "required_fields": ["next_step_at", "contact_id"],
-            },
-            {"name": "Decision Pending", "color": "#C084FC", "probability": 45, "required_fields": ["next_step_at", "contact_id"]},
-            {"name": "Trial / Pilot", "color": "#D946EF", "probability": 55, "required_fields": ["next_step_at", "contact_id"]},
-            {"name": "Verbal Commitment", "color": "#EC4899", "probability": 65, "required_fields": ["next_step_at", "contact_id"]},
-            {"name": "Closed Won", "color": "#10B981", "probability": 100, "required_fields": []},
-            {"name": "Closed Lost", "color": "#EF4444", "probability": 0, "required_fields": []},
-            {"name": "Handoff to Delivery", "color": "#F97316", "probability": 100, "required_fields": []},
-        ]
-
+    if not stage_rows:
         for order, cfg in enumerate(stages_data):
             stage_id = str(uuid.uuid4())
             if order == 0:
@@ -162,16 +206,18 @@ async def seed_demo_data(db: AsyncSession) -> None:
             )
         await db.flush()
     else:
-        stage0_res = await db.execute(
-            select(PipelineStage.id)
-            .where(and_(PipelineStage.pipeline_id == pipeline_id, PipelineStage.display_order == 0))
-            .limit(1)
-        )
-        calc_stage_id = stage0_res.scalar_one_or_none()
+        calc_stage = stage_rows[0]
+        calc_stage_id = calc_stage.id
 
     calc_res = await db.execute(
         select(CalculationDefinition).where(
-            and_(CalculationDefinition.tenant_id == tenant_id, CalculationDefinition.name == "Frylow ROI Calculator")
+            and_(
+                CalculationDefinition.tenant_id == tenant_id,
+                or_(
+                    CalculationDefinition.name == "Partner ROI Calculator",
+                    CalculationDefinition.name == "Frylow ROI Calculator",
+                ),
+            )
         )
     )
     if not calc_res.scalar_one_or_none():
@@ -180,8 +226,8 @@ async def seed_demo_data(db: AsyncSession) -> None:
             CalculationDefinition(
                 id=str(uuid.uuid4()),
                 tenant_id=tenant_id,
-                name="Frylow ROI Calculator",
-                description="Calculate oil savings and recommended device configuration",
+                name="Partner ROI Calculator",
+                description="Calculate projected savings and recommended configuration",
                 input_schema=[
                     {"name": "number_of_fryers", "type": "integer", "label": "Number of Fryers", "required": True, "min": 1, "max": 50},
                     {
@@ -254,7 +300,7 @@ async def seed_demo_data(db: AsyncSession) -> None:
     # -------------------- CRM Blueprints (Phase 2) --------------------
     bp_res = await db.execute(select(CRMBlueprint).where(CRMBlueprint.tenant_id == tenant_id).limit(1))
     if not bp_res.scalar_one_or_none():
-        from app.blueprints.frylow_blueprint import get_all_blueprints
+        from app.blueprints.registry import get_all_blueprints
 
         for bp in get_all_blueprints():
             cfg = bp.get("config") or {}

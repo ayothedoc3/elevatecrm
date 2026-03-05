@@ -51,7 +51,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
-    role = Column(String(30), nullable=False, default="viewer")  # admin | manager | sales | viewer
+    role = Column(String(30), nullable=False, default="viewer")  # admin | manager | sales | finance | viewer
     is_active = Column(Boolean, default=True, nullable=False)
 
     phone = Column(String(50), nullable=True)
@@ -75,6 +75,11 @@ class Account(Base):
     name = Column(String(255), nullable=False)
     name_lower = Column(String(255), nullable=False)
     domain = Column(String(255), nullable=True)
+    domain_lower = Column(String(255), nullable=True)
+    industry = Column(String(100), nullable=True)
+    company_size = Column(String(100), nullable=True)
+    country = Column(String(100), nullable=True)
+    icp_tier = Column(String(2), nullable=True, index=True)
     is_active = Column(Boolean, default=True, nullable=False)
 
     created_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
@@ -83,7 +88,9 @@ class Account(Base):
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "name_lower", name="uq_accounts_tenant_name_lower"),
+        UniqueConstraint("tenant_id", "domain_lower", name="uq_accounts_tenant_domain_lower"),
         Index("ix_accounts_tenant_name_lower", "tenant_id", "name_lower"),
+        Index("ix_accounts_tenant_domain_lower", "tenant_id", "domain_lower"),
     )
 
 
@@ -143,6 +150,7 @@ class Lead(Base):
     email = Column(String(255), nullable=True, index=True)
     phone = Column(String(50), nullable=True)
     company_name = Column(String(255), nullable=True)
+    country_region = Column(String(100), nullable=True)
     source = Column(String(100), nullable=True)
 
     sales_motion_type = Column(String(50), nullable=False, default="partnership_sales")
@@ -150,12 +158,16 @@ class Lead(Base):
     product_id = Column(String(36), nullable=True, index=True)
     partner_name = Column(String(255), nullable=True)
     product_name = Column(String(255), nullable=True)
+    client_name = Column(String(255), nullable=True)
+    partner_commission_structure = Column(String(255), nullable=True)
+    product_category = Column(String(255), nullable=True)
 
     score = Column(Integer, default=0, nullable=False)
     tier = Column(String(2), default="D", nullable=False, index=True)
     scoring_data = Column(JSONB, default=dict, nullable=False)
 
     status = Column(String(50), default="new", nullable=False, index=True)
+    disqualification_reason = Column(String(255), nullable=True)
     owner_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     assigned_at = Column(DateTime(timezone=True), nullable=True)
     notes = Column(Text, nullable=True)
@@ -194,6 +206,8 @@ class Contact(Base):
 
     account_id = Column(String(36), ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True, index=True)
     account_name = Column(String(255), nullable=True)
+    job_title = Column(String(255), nullable=True)
+    buying_role = Column(String(50), nullable=True)
 
     source = Column(String(100), nullable=True)
     lifecycle_stage = Column(String(50), default="lead", nullable=False)
@@ -268,6 +282,7 @@ class Deal(Base):
     currency = Column(String(10), default="USD", nullable=False)
     status = Column(String(20), default="open", nullable=False, index=True)  # open | won | lost
 
+    origin_lead_id = Column(String(36), nullable=True, index=True)
     contact_id = Column(String(36), ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True, index=True)
     account_id = Column(String(36), ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True, index=True)
     account_name = Column(String(255), nullable=True)
@@ -277,6 +292,8 @@ class Deal(Base):
 
     next_step_at = Column(DateTime(timezone=True), nullable=True, index=True)
     next_step_note = Column(Text, nullable=True)
+    estimated_close_date = Column(DateTime(timezone=True), nullable=True)
+    product_service_type = Column(String(255), nullable=True)
 
     last_touchpoint_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
@@ -288,6 +305,9 @@ class Deal(Base):
     product_id = Column(String(36), nullable=True, index=True)
     partner_name = Column(String(255), nullable=True)
     product_name = Column(String(255), nullable=True)
+    client_name = Column(String(255), nullable=True)
+    partner_commission_structure = Column(String(255), nullable=True)
+    product_category = Column(String(255), nullable=True)
 
     owner_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
@@ -309,6 +329,13 @@ class Deal(Base):
     demo_calendar_url = Column(String(1000), nullable=True)
     demo_completed_at = Column(DateTime(timezone=True), nullable=True)
     demo_notes = Column(Text, nullable=True)
+    proposal_value = Column(Float, nullable=True)
+    commercial_summary_url = Column(String(1000), nullable=True)
+    stakeholder_map = Column(JSONB, default=dict, nullable=False)
+    contract_final_value = Column(Float, nullable=True)
+    payment_terms = Column(String(255), nullable=True)
+    deal_locked = Column(Boolean, default=False, nullable=False)
+    at_risk = Column(Boolean, default=False, nullable=False, index=True)
 
     last_override = Column(JSONB, default=dict, nullable=False)
 

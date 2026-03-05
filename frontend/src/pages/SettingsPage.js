@@ -1454,6 +1454,7 @@ const SettingsPage = () => {
                           <Badge variant={
                             member.role === 'admin' ? 'default' :
                             member.role === 'manager' ? 'secondary' :
+                            member.role === 'finance' ? 'secondary' :
                             'outline'
                           }>
                             {member.role}
@@ -1824,6 +1825,7 @@ const SettingsPage = () => {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="sales">Sales</SelectItem>
+                  <SelectItem value="finance">Finance</SelectItem>
                   <SelectItem value="viewer">Viewer</SelectItem>
                 </SelectContent>
               </Select>
@@ -1884,6 +1886,7 @@ const SettingsPage = () => {
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
                     <SelectItem value="sales">Sales</SelectItem>
+                    <SelectItem value="finance">Finance</SelectItem>
                     <SelectItem value="viewer">Viewer</SelectItem>
                   </SelectContent>
                 </Select>

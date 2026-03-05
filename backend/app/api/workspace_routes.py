@@ -19,7 +19,7 @@ from app.models import (
     WorkspaceStatus, ProvisioningStatus, WorkspaceRole
 )
 from app.services.provisioning_service import ProvisioningService, seed_system_blueprints
-from app.blueprints.frylow_blueprint import get_all_blueprints
+from app.blueprints.registry import get_all_blueprints
 
 router = APIRouter(prefix="/workspaces", tags=["Workspaces"])
 
@@ -63,7 +63,7 @@ class CreateWorkspaceRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     slug: Optional[str] = None
     description: Optional[str] = None
-    blueprint_slug: str = "frylow-sales"
+    blueprint_slug: str = "blank"
     include_demo_data: bool = False
 
 

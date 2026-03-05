@@ -28,7 +28,7 @@ async def list_crm_blueprints(
 
     if not blueprints:
         # Fallback to code-defined blueprints until seed data is applied.
-        from app.blueprints.frylow_blueprint import get_all_blueprints
+        from app.blueprints.registry import get_all_blueprints
 
         blueprints = []
         for b in get_all_blueprints():
@@ -80,7 +80,7 @@ async def get_crm_blueprint(
     )
     bp = res.scalar_one_or_none()
     if not bp:
-        from app.blueprints.frylow_blueprint import get_blueprint_json, get_all_blueprints
+        from app.blueprints.registry import get_blueprint_json, get_all_blueprints
 
         cfg = get_blueprint_json(slug)
         meta = next((b for b in get_all_blueprints() if b.get("slug") == slug), None) or {}

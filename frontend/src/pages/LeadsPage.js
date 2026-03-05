@@ -54,6 +54,19 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+const LEAD_STATUS_OPTIONS = [
+  { value: 'new', label: 'New' },
+  { value: 'assigned', label: 'Assigned' },
+  { value: 'new_assigned', label: 'New / Assigned' },
+  { value: 'working', label: 'Working' },
+  { value: 'info_collected', label: 'Information Collected' },
+  { value: 'qualified', label: 'Qualified' },
+  { value: 'nurture', label: 'Nurture' },
+  { value: 'unresponsive', label: 'Unresponsive' },
+  { value: 'disqualified', label: 'Disqualified' },
+  { value: 'converted', label: 'Converted' },
+];
+
 const LeadsPage = () => {
   const { api } = useAuth();
   const navigate = useNavigate();
@@ -82,15 +95,24 @@ const LeadsPage = () => {
   const [workflowOwnerId, setWorkflowOwnerId] = useState('');
   const [workflowStatus, setWorkflowStatus] = useState('');
   const [workflowNotes, setWorkflowNotes] = useState('');
+  const [workflowDisqualificationReason, setWorkflowDisqualificationReason] = useState('');
   const [savingWorkflow, setSavingWorkflow] = useState(false);
   const [scoringData, setScoringData] = useState({
-    economic_units: '',
-    usage_volume: '',
-    urgency: '3',
-    trigger_event: '',
-    primary_motivation: '',
-    decision_role: 'decision_maker',
-    decision_process_clarity: '3',
+    icp_tier: '',
+    engagement_score: '',
+    company_size_fit: '',
+    buying_role_strength: '',
+    buying_role: '',
+    job_title: '',
+    industry: '',
+    company_size: '',
+    country: '',
+    budget_range: '',
+    authority_identified: '',
+    use_case_defined: '',
+    timeline_confirmed: '',
+    discovery_notes: '',
+    call_outcome: '',
   });
   const [savingScore, setSavingScore] = useState(false);
   const [showPushDialog, setShowPushDialog] = useState(false);
@@ -98,7 +120,9 @@ const LeadsPage = () => {
     deal_name: '',
     amount: '',
     next_step_at: '',
-    next_step_note: ''
+    next_step_note: '',
+    estimated_close_date: '',
+    product_service_type: ''
   });
   const [pushingToSales, setPushingToSales] = useState(false);
   const [touchpointType, setTouchpointType] = useState('call');
@@ -110,10 +134,14 @@ const LeadsPage = () => {
     email: '',
     phone: '',
     company_name: '',
+    country_region: '',
     source: 'manual',
     sales_motion_type: 'partnership_sales',
     partner_name: '',
     product_name: '',
+    client_name: '',
+    partner_commission_structure: '',
+    product_category: '',
     score: 0,
     notes: '',
     owner_id: ''
@@ -224,37 +252,77 @@ const LeadsPage = () => {
       setSelectedLead(fullLead);
 
       setWorkflowOwnerId(fullLead.owner_id || '');
-      setWorkflowStatus(fullLead.status || 'new');
+      setWorkflowStatus(fullLead.status || 'new_assigned');
       setWorkflowNotes(fullLead.notes || '');
+      setWorkflowDisqualificationReason(fullLead.disqualification_reason || '');
 
       const sd = fullLead.scoring_data || {};
       setScoringData({
-        economic_units: sd.economic_units ?? '',
-        usage_volume: sd.usage_volume ?? '',
-        urgency: String(sd.urgency ?? '3'),
-        trigger_event: sd.trigger_event ?? '',
-        primary_motivation: sd.primary_motivation ?? '',
-        decision_role: sd.decision_role ?? 'decision_maker',
-        decision_process_clarity: String(sd.decision_process_clarity ?? '3'),
+        icp_tier: sd.icp_tier ?? '',
+        engagement_score: sd.engagement_score ?? '',
+        company_size_fit: sd.company_size_fit ?? '',
+        buying_role_strength: sd.buying_role_strength ?? '',
+        buying_role: sd.buying_role ?? '',
+        job_title: sd.job_title ?? '',
+        industry: sd.industry ?? '',
+        company_size: sd.company_size ?? '',
+        country: sd.country ?? fullLead.country_region ?? '',
+        budget_range: sd.budget_range ?? '',
+        authority_identified: sd.authority_identified ?? '',
+        use_case_defined: sd.use_case_defined ?? '',
+        timeline_confirmed: sd.timeline_confirmed ?? '',
+        discovery_notes: sd.discovery_notes ?? fullLead.notes ?? '',
+        call_outcome: sd.call_outcome ?? '',
       });
 
       setTouchpointType('call');
       setTouchpointNotes('');
 
       const defaultNextStep = toDateTimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
+      const defaultCloseDate = toDateTimeLocal(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString());
       setPushForm({
         deal_name: (fullLead.company_name || fullLead.full_name || '').trim(),
         amount: '',
         next_step_at: defaultNextStep,
-        next_step_note: ''
+        next_step_note: '',
+        estimated_close_date: defaultCloseDate,
+        product_service_type: fullLead.product_name || fullLead.product_category || (fullLead.sales_motion_type === 'partner_sales' ? 'Partner Product' : 'Elev8 Services')
       });
     } catch (error) {
       console.error('Error fetching lead:', error);
       toast.error('Failed to load lead details');
       setSelectedLead(lead);
       setWorkflowOwnerId(lead.owner_id || '');
-      setWorkflowStatus(lead.status || 'new');
+      setWorkflowStatus(lead.status || 'new_assigned');
       setWorkflowNotes(lead.notes || '');
+      setWorkflowDisqualificationReason(lead.disqualification_reason || '');
+      setScoringData({
+        icp_tier: '',
+        engagement_score: '',
+        company_size_fit: '',
+        buying_role_strength: '',
+        buying_role: '',
+        job_title: '',
+        industry: '',
+        company_size: '',
+        country: lead.country_region || '',
+        budget_range: '',
+        authority_identified: '',
+        use_case_defined: '',
+        timeline_confirmed: '',
+        discovery_notes: lead.notes || '',
+        call_outcome: '',
+      });
+      const defaultNextStep = toDateTimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
+      const defaultCloseDate = toDateTimeLocal(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString());
+      setPushForm({
+        deal_name: (lead.company_name || lead.full_name || '').trim(),
+        amount: '',
+        next_step_at: defaultNextStep,
+        next_step_note: '',
+        estimated_close_date: defaultCloseDate,
+        product_service_type: lead.product_name || lead.product_category || (lead.sales_motion_type === 'partner_sales' ? 'Partner Product' : 'Elev8 Services')
+      });
       setTouchpointType('call');
       setTouchpointNotes('');
     }
@@ -277,10 +345,26 @@ const LeadsPage = () => {
       toast.error('First name and last name are required');
       return;
     }
+    if (!newLead.company_name?.trim()) {
+      toast.error('Company name is required');
+      return;
+    }
+    if (!newLead.country_region?.trim()) {
+      toast.error('Country / region is required');
+      return;
+    }
+    if (!newLead.source?.trim()) {
+      toast.error('Lead source is required');
+      return;
+    }
 
     if (newLead.sales_motion_type === 'partner_sales') {
       if (!newLead.partner_name?.trim() || !newLead.product_name?.trim()) {
         toast.error('Partner name and partner product are required for Partner Sales');
+        return;
+      }
+      if (!newLead.client_name?.trim() || !newLead.partner_commission_structure?.trim() || !newLead.product_category?.trim()) {
+        toast.error('Client name, commission structure, and product category are required for Partner Sales');
         return;
       }
     }
@@ -298,10 +382,14 @@ const LeadsPage = () => {
         email: '',
         phone: '',
         company_name: '',
+        country_region: '',
         source: 'manual',
         sales_motion_type: 'partnership_sales',
         partner_name: '',
         product_name: '',
+        client_name: '',
+        partner_commission_structure: '',
+        product_category: '',
         score: 0,
         notes: '',
         owner_id: ''
@@ -310,7 +398,7 @@ const LeadsPage = () => {
       fetchStats();
     } catch (error) {
       console.error('Error creating lead:', error);
-      toast.error('Failed to create lead');
+      toast.error(error?.response?.data?.detail || 'Failed to create lead');
     } finally {
       setCreating(false);
     }
@@ -377,13 +465,20 @@ const LeadsPage = () => {
 
     setSavingWorkflow(true);
     try {
-      const response = await api.put(`/leads/${selectedLead.id}`, {
+      const workflowPayload = {
         status: workflowStatus,
         notes: workflowNotes
+      };
+      if (workflowStatus === 'disqualified') {
+        workflowPayload.disqualification_reason = workflowDisqualificationReason?.trim() || null;
+      }
+      const response = await api.put(`/leads/${selectedLead.id}`, {
+        ...workflowPayload
       });
       updateLeadInState(response.data);
       setWorkflowStatus(response.data.status || workflowStatus);
       setWorkflowNotes(response.data.notes || workflowNotes);
+      setWorkflowDisqualificationReason(response.data.disqualification_reason || workflowDisqualificationReason || '');
       toast.success('Lead updated');
       fetchStats();
     } catch (error) {
@@ -401,13 +496,21 @@ const LeadsPage = () => {
     try {
       const payload = {
         scoring_data: {
-          economic_units: scoringData.economic_units,
-          usage_volume: scoringData.usage_volume,
-          urgency: Number(scoringData.urgency),
-          trigger_event: scoringData.trigger_event,
-          primary_motivation: scoringData.primary_motivation,
-          decision_role: scoringData.decision_role,
-          decision_process_clarity: Number(scoringData.decision_process_clarity),
+          icp_tier: scoringData.icp_tier,
+          engagement_score: scoringData.engagement_score === '' ? null : Number(scoringData.engagement_score),
+          company_size_fit: scoringData.company_size_fit,
+          buying_role_strength: scoringData.buying_role_strength,
+          buying_role: scoringData.buying_role,
+          job_title: scoringData.job_title,
+          industry: scoringData.industry,
+          company_size: scoringData.company_size,
+          country: scoringData.country,
+          budget_range: scoringData.budget_range,
+          authority_identified: scoringData.authority_identified,
+          use_case_defined: scoringData.use_case_defined,
+          timeline_confirmed: scoringData.timeline_confirmed,
+          discovery_notes: scoringData.discovery_notes || workflowNotes || '',
+          call_outcome: scoringData.call_outcome,
         }
       };
 
@@ -447,8 +550,21 @@ const LeadsPage = () => {
 
   const handlePushToSales = async () => {
     if (!selectedLead) return;
+    const dealAmount = Number(pushForm.amount);
+    if (pushForm.amount === '' || Number.isNaN(dealAmount) || dealAmount < 0) {
+      toast.error('Estimated deal size is required');
+      return;
+    }
     if (!pushForm.next_step_at) {
       toast.error('Next step is required');
+      return;
+    }
+    if (!pushForm.estimated_close_date) {
+      toast.error('Estimated close date is required');
+      return;
+    }
+    if (!pushForm.product_service_type?.trim()) {
+      toast.error('Product / service type is required');
       return;
     }
 
@@ -456,9 +572,11 @@ const LeadsPage = () => {
     try {
       const response = await api.post(`/leads/${selectedLead.id}/push-to-sales`, {
         deal_name: pushForm.deal_name?.trim() || null,
-        amount: parseFloat(pushForm.amount) || 0,
+        amount: dealAmount,
         next_step_at: fromDateTimeLocal(pushForm.next_step_at),
         next_step_note: pushForm.next_step_note?.trim() || null,
+        estimated_close_date: fromDateTimeLocal(pushForm.estimated_close_date),
+        product_service_type: pushForm.product_service_type?.trim(),
       });
 
       toast.success('Lead pushed to Sales Pipeline');
@@ -495,8 +613,10 @@ const LeadsPage = () => {
     const colors = {
       'new': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
       'assigned': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+      'new_assigned': 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
       'working': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
       'info_collected': 'bg-sky-500/20 text-sky-400 border-sky-500/30',
+      'nurture': 'bg-violet-500/20 text-violet-300 border-violet-500/30',
       'unresponsive': 'bg-gray-500/20 text-gray-300 border-gray-500/30',
       'qualified': 'bg-green-500/20 text-green-400 border-green-500/30',
       'converted': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
@@ -555,19 +675,24 @@ const LeadsPage = () => {
 
   const scoringInputsComplete = (sd) => {
     const required = [
-      'economic_units',
-      'usage_volume',
-      'urgency',
-      'trigger_event',
-      'primary_motivation',
-      'decision_role',
-      'decision_process_clarity',
+      'icp_tier',
+      'engagement_score',
+      'company_size_fit',
+      'buying_role_strength',
+      'job_title',
+      'buying_role',
+      'industry',
+      'company_size',
+      'country',
+      'budget_range',
+      'authority_identified',
+      'use_case_defined',
+      'timeline_confirmed',
+      'call_outcome',
     ];
     return required.every((key) => {
       const value = sd?.[key];
-      if (value === undefined || value === null) return false;
-      if (typeof value === 'string') return value.trim() !== '';
-      return true;
+      return !(value === undefined || value === null || (typeof value === 'string' && value.trim() === ''));
     });
   };
 
@@ -680,14 +805,9 @@ const LeadsPage = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="new">New</SelectItem>
-                <SelectItem value="assigned">Assigned</SelectItem>
-                <SelectItem value="working">Working</SelectItem>
-                <SelectItem value="info_collected">Info Collected</SelectItem>
-                <SelectItem value="unresponsive">Unresponsive</SelectItem>
-                <SelectItem value="disqualified">Disqualified</SelectItem>
-                <SelectItem value="qualified">Qualified</SelectItem>
-                <SelectItem value="converted">Converted</SelectItem>
+                {LEAD_STATUS_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
               <Button
@@ -840,10 +960,10 @@ const LeadsPage = () => {
                             <Edit className="w-4 h-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
-                          {lead.status !== 'converted' && (
+                          {lead.status === 'qualified' && (
                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleConvertLead(lead.id); }}>
                               <ArrowRight className="w-4 h-4 mr-2" />
-                              Convert to Contact
+                              Convert to Contact Only
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
@@ -999,7 +1119,7 @@ const LeadsPage = () => {
                         <div className="space-y-2">
                           <Label>Status</Label>
                           <Select
-                            value={workflowStatus || selectedLead.status || 'new'}
+                            value={workflowStatus || selectedLead.status || 'new_assigned'}
                             onValueChange={setWorkflowStatus}
                             disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
                           >
@@ -1007,21 +1127,28 @@ const LeadsPage = () => {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="new">New / Assigned</SelectItem>
-                              <SelectItem value="assigned">Assigned</SelectItem>
-                              <SelectItem value="working">Working</SelectItem>
-                              <SelectItem value="info_collected">Info Collected</SelectItem>
-                              <SelectItem value="unresponsive">Unresponsive</SelectItem>
-                              <SelectItem value="disqualified">Disqualified</SelectItem>
-                              <SelectItem value="qualified">Qualified</SelectItem>
-                              <SelectItem value="converted">Converted</SelectItem>
+                              {LEAD_STATUS_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                           <div className="text-xs text-muted-foreground">
-                            Note: moving to Info Collected / Qualified requires scoring inputs.
+                            Stage rules are enforced: Info Collected requires call outcome + discovery + next step task; Qualified requires budget, authority, use case, timeline, and complete scoring.
                           </div>
                         </div>
                       </div>
+
+                      {workflowStatus === 'disqualified' && (
+                        <div className="space-y-2">
+                          <Label>Disqualification Reason <span className="text-red-500">*</span></Label>
+                          <Input
+                            value={workflowDisqualificationReason}
+                            onChange={(e) => setWorkflowDisqualificationReason(e.target.value)}
+                            placeholder="e.g. No budget, not ICP, no authority"
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          />
+                        </div>
+                      )}
 
                       <div className="rounded-lg border p-4 space-y-3">
                         <div className="flex items-start justify-between gap-4">
@@ -1137,103 +1264,193 @@ const LeadsPage = () => {
                     <CardContent className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Economic Units *</Label>
-                          <Input
-                            type="number"
-                            value={scoringData.economic_units}
-                            onChange={(e) => setScoringData({ ...scoringData, economic_units: e.target.value })}
-                            placeholder="e.g. locations, sites, licenses"
-                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Usage Volume *</Label>
-                          <Input
-                            type="number"
-                            value={scoringData.usage_volume}
-                            onChange={(e) => setScoringData({ ...scoringData, usage_volume: e.target.value })}
-                            placeholder="e.g. units, users, lines"
-                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Urgency (1-5) *</Label>
+                          <Label>ICP Tier *</Label>
                           <Select
-                            value={String(scoringData.urgency)}
-                            onValueChange={(v) => setScoringData({ ...scoringData, urgency: v })}
+                            value={scoringData.icp_tier || ''}
+                            onValueChange={(v) => setScoringData({ ...scoringData, icp_tier: v })}
                             disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
                           >
                             <SelectTrigger>
-                              <SelectValue />
+                              <SelectValue placeholder="Select ICP tier" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="1">1</SelectItem>
-                              <SelectItem value="2">2</SelectItem>
-                              <SelectItem value="3">3</SelectItem>
-                              <SelectItem value="4">4</SelectItem>
-                              <SelectItem value="5">5</SelectItem>
+                              <SelectItem value="A">A</SelectItem>
+                              <SelectItem value="B">B</SelectItem>
+                              <SelectItem value="C">C</SelectItem>
+                              <SelectItem value="D">D</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label>Decision Process Clarity (1-5) *</Label>
+                          <Label>Engagement Score (0-30) *</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={30}
+                            value={scoringData.engagement_score}
+                            onChange={(e) => setScoringData({ ...scoringData, engagement_score: e.target.value })}
+                            placeholder="0-30"
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Company Size Fit *</Label>
                           <Select
-                            value={String(scoringData.decision_process_clarity)}
-                            onValueChange={(v) => setScoringData({ ...scoringData, decision_process_clarity: v })}
+                            value={scoringData.company_size_fit || ''}
+                            onValueChange={(v) => setScoringData({ ...scoringData, company_size_fit: v })}
                             disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
                           >
                             <SelectTrigger>
-                              <SelectValue />
+                              <SelectValue placeholder="Select fit" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="1">1</SelectItem>
-                              <SelectItem value="2">2</SelectItem>
-                              <SelectItem value="3">3</SelectItem>
-                              <SelectItem value="4">4</SelectItem>
-                              <SelectItem value="5">5</SelectItem>
+                              <SelectItem value="ideal">Ideal</SelectItem>
+                              <SelectItem value="strong">Strong</SelectItem>
+                              <SelectItem value="medium">Medium</SelectItem>
+                              <SelectItem value="low">Low</SelectItem>
+                              <SelectItem value="poor">Poor</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Buying Role Strength *</Label>
+                          <Select
+                            value={scoringData.buying_role_strength || ''}
+                            onValueChange={(v) => setScoringData({ ...scoringData, buying_role_strength: v })}
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select strength" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="strong">Strong</SelectItem>
+                              <SelectItem value="medium">Medium</SelectItem>
+                              <SelectItem value="low">Low</SelectItem>
+                              <SelectItem value="poor">Poor</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
 
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Job Title *</Label>
+                          <Input
+                            value={scoringData.job_title}
+                            onChange={(e) => setScoringData({ ...scoringData, job_title: e.target.value })}
+                            placeholder="e.g. Operations Director"
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Buying Role *</Label>
+                          <Select
+                            value={scoringData.buying_role || ''}
+                            onValueChange={(v) => setScoringData({ ...scoringData, buying_role: v })}
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="decision_maker">Decision Maker</SelectItem>
+                              <SelectItem value="champion">Champion</SelectItem>
+                              <SelectItem value="influencer">Influencer</SelectItem>
+                              <SelectItem value="technical">Technical</SelectItem>
+                              <SelectItem value="finance">Finance</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label>Industry *</Label>
+                          <Input
+                            value={scoringData.industry}
+                            onChange={(e) => setScoringData({ ...scoringData, industry: e.target.value })}
+                            placeholder="Industry"
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Company Size *</Label>
+                          <Input
+                            value={scoringData.company_size}
+                            onChange={(e) => setScoringData({ ...scoringData, company_size: e.target.value })}
+                            placeholder="e.g. 50-200"
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Country *</Label>
+                          <Input
+                            value={scoringData.country}
+                            onChange={(e) => setScoringData({ ...scoringData, country: e.target.value })}
+                            placeholder="Country"
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Budget Range *</Label>
+                          <Input
+                            value={scoringData.budget_range}
+                            onChange={(e) => setScoringData({ ...scoringData, budget_range: e.target.value })}
+                            placeholder="e.g. $15k-$30k"
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Authority Identified *</Label>
+                          <Input
+                            value={scoringData.authority_identified}
+                            onChange={(e) => setScoringData({ ...scoringData, authority_identified: e.target.value })}
+                            placeholder="Who approves?"
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Use Case Defined *</Label>
+                          <Input
+                            value={scoringData.use_case_defined}
+                            onChange={(e) => setScoringData({ ...scoringData, use_case_defined: e.target.value })}
+                            placeholder="Use case"
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Timeline Confirmed *</Label>
+                          <Input
+                            value={scoringData.timeline_confirmed}
+                            onChange={(e) => setScoringData({ ...scoringData, timeline_confirmed: e.target.value })}
+                            placeholder="e.g. Q2 close"
+                            disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
+                          />
+                        </div>
+                      </div>
+
                       <div className="space-y-2">
-                        <Label>Trigger Event *</Label>
+                        <Label>Call Outcome *</Label>
                         <Input
-                          value={scoringData.trigger_event}
-                          onChange={(e) => setScoringData({ ...scoringData, trigger_event: e.target.value })}
-                          placeholder="What's happening now that creates urgency?"
+                          value={scoringData.call_outcome}
+                          onChange={(e) => setScoringData({ ...scoringData, call_outcome: e.target.value })}
+                          placeholder="Latest call outcome summary"
                           disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Primary Motivation *</Label>
-                        <Input
-                          value={scoringData.primary_motivation}
-                          onChange={(e) => setScoringData({ ...scoringData, primary_motivation: e.target.value })}
-                          placeholder="e.g. cost savings, growth, efficiency"
+                        <Label>Discovery Notes</Label>
+                        <Textarea
+                          value={scoringData.discovery_notes}
+                          onChange={(e) => setScoringData({ ...scoringData, discovery_notes: e.target.value })}
+                          rows={3}
+                          placeholder="Discovery notes used for Working -> Information Collected"
                           disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
                         />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Decision Role *</Label>
-                        <Select
-                          value={scoringData.decision_role || 'decision_maker'}
-                          onValueChange={(v) => setScoringData({ ...scoringData, decision_role: v })}
-                          disabled={selectedLead.status === 'converted' || selectedLead.status === 'disqualified'}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="decision_maker">Decision Maker</SelectItem>
-                            <SelectItem value="owner">Owner / Founder</SelectItem>
-                            <SelectItem value="influencer">Influencer / Champion</SelectItem>
-                            <SelectItem value="manager">Manager / Director</SelectItem>
-                            <SelectItem value="researcher">Researcher</SelectItem>
-                          </SelectContent>
-                        </Select>
                       </div>
 
                       <Button
@@ -1296,6 +1513,10 @@ const LeadsPage = () => {
                           <p className="font-medium">{selectedLead.owner_name || 'Unassigned'}</p>
                         </div>
                         <div>
+                          <Label className="text-xs text-muted-foreground">Country / Region</Label>
+                          <p className="font-medium">{selectedLead.country_region || '-'}</p>
+                        </div>
+                        <div>
                           <Label className="text-xs text-muted-foreground">Sales Motion</Label>
                           <p className="font-medium">
                             {selectedLead.sales_motion_type === 'partner_sales'
@@ -1322,6 +1543,22 @@ const LeadsPage = () => {
                               : '-'}
                           </p>
                         </div>
+                        {selectedLead.sales_motion_type === 'partner_sales' && (
+                          <>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Client</Label>
+                              <p className="font-medium">{selectedLead.client_name || '-'}</p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Commission</Label>
+                              <p className="font-medium">{selectedLead.partner_commission_structure || '-'}</p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Product Category</Label>
+                              <p className="font-medium">{selectedLead.product_category || '-'}</p>
+                            </div>
+                          </>
+                        )}
                         <div>
                           <Label className="text-xs text-muted-foreground">Created</Label>
                           <p className="font-medium">{formatDate(selectedLead.created_at)}</p>
@@ -1352,10 +1589,10 @@ const LeadsPage = () => {
                     Push to Sales Pipeline
                   </Button>
                 )}
-                {selectedLead.status !== 'converted' && selectedLead.status !== 'qualified' && (
+                {selectedLead.status === 'qualified' && (
                   <Button onClick={() => handleConvertLead(selectedLead.id)}>
                     <ArrowRight className="w-4 h-4 mr-2" />
-                    Convert to Contact
+                    Convert to Contact Only
                   </Button>
                 )}
               </div>
@@ -1385,7 +1622,7 @@ const LeadsPage = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>Estimated Deal Size</Label>
+              <Label>Estimated Deal Size <span className="text-red-500">*</span></Label>
               <Input
                 type="number"
                 value={pushForm.amount}
@@ -1405,6 +1642,24 @@ const LeadsPage = () => {
             </div>
 
             <div className="space-y-2">
+              <Label>Estimated Close Date <span className="text-red-500">*</span></Label>
+              <Input
+                type="datetime-local"
+                value={pushForm.estimated_close_date}
+                onChange={(e) => setPushForm({ ...pushForm, estimated_close_date: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Product / Service Type <span className="text-red-500">*</span></Label>
+              <Input
+                value={pushForm.product_service_type}
+                onChange={(e) => setPushForm({ ...pushForm, product_service_type: e.target.value })}
+                placeholder="e.g. Elev8 Services, Partner Product"
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label>Next Step Note</Label>
               <Textarea
                 value={pushForm.next_step_note}
@@ -1419,7 +1674,18 @@ const LeadsPage = () => {
             <Button variant="outline" onClick={() => setShowPushDialog(false)} disabled={pushingToSales}>
               Cancel
             </Button>
-            <Button onClick={handlePushToSales} disabled={pushingToSales || !pushForm.next_step_at}>
+            <Button
+              onClick={handlePushToSales}
+              disabled={
+                pushingToSales
+                || pushForm.amount === ''
+                || Number.isNaN(Number(pushForm.amount))
+                || Number(pushForm.amount) < 0
+                || !pushForm.next_step_at
+                || !pushForm.estimated_close_date
+                || !pushForm.product_service_type?.trim()
+              }
+            >
               {pushingToSales ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -1448,7 +1714,7 @@ const LeadsPage = () => {
             <DialogHeader>
               <DialogTitle>Import Leads (CSV)</DialogTitle>
               <DialogDescription>
-                Import leads from a HubSpot CSV export (or a standard CSV). Minimum required: Email or Phone.
+                Import leads from a HubSpot CSV export (or a standard CSV). Minimum required: Email or Phone, Company, and Country/Region.
               </DialogDescription>
             </DialogHeader>
 
@@ -1461,8 +1727,7 @@ const LeadsPage = () => {
                   onChange={(e) => setImportFile(e.target.files?.[0] || null)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Tip: Include scoring columns (Economic Units, Usage Volume, Urgency, Trigger Event, Primary Motivation, Decision Role, Decision
-                  Process Clarity) to auto-compute Lead Score/Tier.
+                  Tip: Include scoring columns (ICP Tier, Engagement Score, Company Size Fit, Buying Role Strength) to auto-compute Lead Score/Tier.
                 </p>
               </div>
 
@@ -1562,11 +1827,19 @@ const LeadsPage = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label>Company</Label>
+              <Label>Company <span className="text-red-500">*</span></Label>
               <Input
                 value={newLead.company_name}
                 onChange={(e) => setNewLead({ ...newLead, company_name: e.target.value })}
                 placeholder="Acme Inc."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Country / Region <span className="text-red-500">*</span></Label>
+              <Input
+                value={newLead.country_region}
+                onChange={(e) => setNewLead({ ...newLead, country_region: e.target.value })}
+                placeholder="e.g. United States"
               />
             </div>
             <div className="space-y-2">
@@ -1610,7 +1883,7 @@ const LeadsPage = () => {
                   <Input
                     value={newLead.partner_name}
                     onChange={(e) => setNewLead({ ...newLead, partner_name: e.target.value })}
-                    placeholder="Partner (e.g. Frylow)"
+                    placeholder="Partner"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1621,11 +1894,35 @@ const LeadsPage = () => {
                     placeholder="Product"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>Client Name *</Label>
+                  <Input
+                    value={newLead.client_name}
+                    onChange={(e) => setNewLead({ ...newLead, client_name: e.target.value })}
+                    placeholder="Client this deal belongs to"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Commission Structure *</Label>
+                  <Input
+                    value={newLead.partner_commission_structure}
+                    onChange={(e) => setNewLead({ ...newLead, partner_commission_structure: e.target.value })}
+                    placeholder="e.g. 12% of net"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Product Category *</Label>
+                  <Input
+                    value={newLead.product_category}
+                    onChange={(e) => setNewLead({ ...newLead, product_category: e.target.value })}
+                    placeholder="e.g. Hardware"
+                  />
+                </div>
               </div>
             )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Source</Label>
+                <Label>Source <span className="text-red-500">*</span></Label>
                 <Select
                   value={newLead.source}
                   onValueChange={(v) => setNewLead({ ...newLead, source: v })}
@@ -1635,12 +1932,12 @@ const LeadsPage = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="manual">Manual</SelectItem>
-                    <SelectItem value="web">Website</SelectItem>
-                    <SelectItem value="referral">Referral</SelectItem>
-                    <SelectItem value="cold_call">Cold Call</SelectItem>
-                    <SelectItem value="email">Email Campaign</SelectItem>
-                    <SelectItem value="social">Social Media</SelectItem>
-                    <SelectItem value="event">Event</SelectItem>
+                    <SelectItem value="inbound_form">Inbound (Form)</SelectItem>
+                    <SelectItem value="affiliate">Inbound (Affiliate)</SelectItem>
+                    <SelectItem value="ads">Inbound (Ads)</SelectItem>
+                    <SelectItem value="outbound">Outbound</SelectItem>
+                    <SelectItem value="referral">Referral / Partner</SelectItem>
+                    <SelectItem value="event">Event / Trade Show</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

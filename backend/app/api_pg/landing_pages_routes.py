@@ -105,6 +105,7 @@ class PublicFormSubmissionRequest(BaseModel):
     phone: Optional[str] = None
     company: Optional[str] = None
     company_name: Optional[str] = None
+    country_region: Optional[str] = None
     notes: Optional[str] = None
     affiliate_ref: Optional[str] = None
     utm_source: Optional[str] = None
@@ -224,6 +225,9 @@ async def submit_public_landing_form_internal(
     email = (data.email or "").strip() or None
     phone = (data.phone or "").strip() or None
     company_name = (data.company_name or data.company or "").strip() or None
+    country_region = (data.country_region or "").strip() or None
+    if not country_region and isinstance(data.metadata, dict):
+        country_region = (str(data.metadata.get("country") or data.metadata.get("country_region") or "").strip() or None)
     provided_first_name = (data.first_name or "").strip() or None
     provided_last_name = (data.last_name or "").strip() or None
     first_name_from_name, last_name_from_name = _split_full_name(data.name)
@@ -234,8 +238,10 @@ async def submit_public_landing_form_internal(
 
     if not email and not phone:
         raise HTTPException(status_code=400, detail="Email or phone is required")
-    if not full_name and not company_name:
-        raise HTTPException(status_code=400, detail="Name or company is required")
+    if not company_name:
+        raise HTTPException(status_code=400, detail="Company name is required")
+    if not country_region:
+        raise HTTPException(status_code=400, detail="Country / region is required")
 
     now = now_utc()
     owner = await _select_round_robin_owner(db, page.tenant_id)
@@ -255,7 +261,8 @@ async def submit_public_landing_form_internal(
         email=email,
         phone=phone,
         company_name=company_name,
-        source="landing_page",
+        country_region=country_region,
+        source="inbound_form",
         sales_motion_type="partnership_sales",
         partner_id=None,
         product_id=None,
@@ -264,7 +271,7 @@ async def submit_public_landing_form_internal(
         score=0,
         tier="D",
         scoring_data={},
-        status="working" if owner_id else "new",
+        status="new_assigned" if owner_id else "new",
         owner_id=owner_id,
         assigned_at=now if owner_id else None,
         notes=(data.notes or "").strip() or None,
