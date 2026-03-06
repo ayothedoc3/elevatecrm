@@ -71,11 +71,18 @@ async def lifespan(app: FastAPI):
     await init_db()
 
     async with AsyncSessionLocal() as session:
-        await seed_demo_data(session)
-        await session.commit()
+        try:
+            await seed_demo_data(session)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            logger.exception("Seed data initialization failed; continuing startup without seeding")
 
-    scheduler_enabled = (os.getenv("CRM_AUTOMATION_SCHEDULER_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"})
-    scheduler_interval = int(os.getenv("CRM_AUTOMATION_INTERVAL_SECONDS", "300"))
+    scheduler_enabled = (os.getenv("CRM_AUTOMATION_SCHEDULER_ENABLED", "false").strip().lower() not in {"0", "false", "no", "off"})
+    try:
+        scheduler_interval = int(os.getenv("CRM_AUTOMATION_INTERVAL_SECONDS", "300"))
+    except Exception:
+        scheduler_interval = 300
     scheduler_stop = asyncio.Event()
     scheduler_task: asyncio.Task | None = None
     if scheduler_enabled:
