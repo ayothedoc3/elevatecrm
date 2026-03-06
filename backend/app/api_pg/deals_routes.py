@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api_pg.deps import get_current_user
@@ -33,7 +33,7 @@ from app.api_pg.utils import (
     parse_iso_datetime,
 )
 from app.core.database import get_db
-from app.pg_models.models import Contact, Deal, DealHandoff, Lead, Pipeline, PipelineStage, User
+from app.pg_models.models import Contact, Deal, DealContact, DealHandoff, Lead, Pipeline, PipelineStage, User
 
 router = APIRouter(tags=["Deals"])
 
@@ -119,15 +119,69 @@ class DealHandoffUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class DealContactUpsert(BaseModel):
+    contact_id: str
+    is_primary: bool = False
+    role: Optional[str] = Field(default=None, max_length=50)
+
+
 def _deal_to_dict(
     d: Deal,
     contact: Optional[Contact] = None,
     stage: Optional[PipelineStage] = None,
     owner: Optional[User] = None,
+    deal_contacts: Optional[List[DealContact]] = None,
+    contacts_map: Optional[Dict[str, Contact]] = None,
 ) -> Dict[str, Any]:
+    contacts_lookup = dict(contacts_map or {})
+    if contact and contact.id:
+        contacts_lookup.setdefault(contact.id, contact)
+
+    normalized_links = sorted(
+        list(deal_contacts or []),
+        key=lambda link: (0 if bool(link.is_primary) else 1, (link.created_at or now_utc())),
+    )
+    if not normalized_links and d.contact_id:
+        normalized_links = [
+            DealContact(
+                id="",
+                tenant_id=d.tenant_id,
+                deal_id=d.id,
+                contact_id=d.contact_id,
+                is_primary=True,
+                role=None,
+                created_by=None,
+                created_at=d.created_at,
+                updated_at=d.updated_at,
+            )
+        ]
+
+    primary_contact = contacts_lookup.get(d.contact_id) if d.contact_id else contact
     contact_name = None
-    if contact:
-        contact_name = (contact.full_name or f"{contact.first_name or ''} {contact.last_name or ''}").strip() or None
+    if primary_contact:
+        contact_name = (primary_contact.full_name or f"{primary_contact.first_name or ''} {primary_contact.last_name or ''}").strip() or None
+
+    deal_contact_rows: List[Dict[str, Any]] = []
+    secondary_contact_ids: List[str] = []
+    secondary_contacts: List[Dict[str, Any]] = []
+    for link in normalized_links:
+        linked_contact = contacts_lookup.get(link.contact_id)
+        row = _contact_brief(linked_contact, link=link)
+        if not row:
+            row = {
+                "contact_id": link.contact_id,
+                "full_name": None,
+                "email": None,
+                "job_title": None,
+                "buying_role": None,
+                "is_primary": bool(link.is_primary),
+                "role": link.role,
+            }
+        deal_contact_rows.append(row)
+        if not bool(link.is_primary):
+            secondary_contact_ids.append(link.contact_id)
+            secondary_contacts.append(row)
+
     stage_name = stage.name if stage else None
     owner_name = None
     if owner:
@@ -143,6 +197,10 @@ def _deal_to_dict(
         "origin_lead_id": d.origin_lead_id,
         "contact_id": d.contact_id,
         "contact_name": contact_name,
+        "primary_contact_id": d.contact_id,
+        "deal_contacts": deal_contact_rows,
+        "secondary_contact_ids": secondary_contact_ids,
+        "secondary_contacts": secondary_contacts,
         "account_id": d.account_id,
         "account_name": d.account_name,
         "pipeline_id": d.pipeline_id,
@@ -244,6 +302,176 @@ def _require_partner_sales_payload(payload: Dict[str, Any]) -> None:
         )
 
 
+async def _sync_primary_deal_contact(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    deal: Deal,
+    primary_contact_id: str,
+    actor_id: Optional[str],
+    role: Optional[str] = None,
+) -> None:
+    """Keep deal.contact_id and deal_contacts primary flag consistent."""
+    if not primary_contact_id:
+        raise HTTPException(status_code=400, detail="Deal must have a primary contact")
+
+    now = now_utc()
+    deal.contact_id = primary_contact_id
+
+    links = (
+        await db.execute(
+            select(DealContact).where(
+                and_(
+                    DealContact.tenant_id == tenant_id,
+                    DealContact.deal_id == deal.id,
+                )
+            )
+        )
+    ).scalars().all()
+
+    found = False
+    for link in links:
+        if link.contact_id == primary_contact_id:
+            link.is_primary = True
+            if role is not None:
+                link.role = role
+            link.updated_at = now
+            found = True
+        elif bool(link.is_primary):
+            link.is_primary = False
+            link.updated_at = now
+
+    if not found:
+        db.add(
+            DealContact(
+                id=str(uuid.uuid4()),
+                tenant_id=tenant_id,
+                deal_id=deal.id,
+                contact_id=primary_contact_id,
+                is_primary=True,
+                role=role,
+                created_by=actor_id,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+
+
+async def _ensure_deal_has_primary_contact_link(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    deal: Deal,
+    actor_id: Optional[str],
+) -> None:
+    if not deal.contact_id:
+        raise HTTPException(status_code=400, detail="Deal must have a primary contact")
+    await _sync_primary_deal_contact(
+        db=db,
+        tenant_id=tenant_id,
+        deal=deal,
+        primary_contact_id=deal.contact_id,
+        actor_id=actor_id,
+    )
+
+
+async def _load_deal_contact_map(
+    db: AsyncSession,
+    tenant_id: str,
+    deal_ids: List[str],
+) -> Dict[str, List[DealContact]]:
+    if not deal_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(DealContact).where(
+                and_(
+                    DealContact.tenant_id == tenant_id,
+                    DealContact.deal_id.in_(deal_ids),
+                )
+            )
+        )
+    ).scalars().all()
+    out: Dict[str, List[DealContact]] = {}
+    for row in rows:
+        out.setdefault(row.deal_id, []).append(row)
+    return out
+
+
+def _contact_brief(contact: Optional[Contact], link: Optional[DealContact] = None) -> Optional[Dict[str, Any]]:
+    if not contact:
+        return None
+    full_name = (contact.full_name or f"{contact.first_name or ''} {contact.last_name or ''}").strip() or None
+    payload: Dict[str, Any] = {
+        "contact_id": contact.id,
+        "full_name": full_name,
+        "email": contact.email,
+        "job_title": contact.job_title,
+        "buying_role": contact.buying_role,
+    }
+    if link is not None:
+        payload["is_primary"] = bool(link.is_primary)
+        payload["role"] = link.role
+    return payload
+
+
+async def _deal_contacts_payload(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    deal: Deal,
+) -> Dict[str, Any]:
+    links = (
+        await db.execute(
+            select(DealContact).where(
+                and_(
+                    DealContact.tenant_id == tenant_id,
+                    DealContact.deal_id == deal.id,
+                )
+            )
+        )
+    ).scalars().all()
+    links = sorted(links, key=lambda row: (0 if bool(row.is_primary) else 1, row.created_at or now_utc()))
+
+    contact_ids = list({row.contact_id for row in links if row.contact_id})
+    contacts_map: Dict[str, Contact] = {}
+    if contact_ids:
+        contacts = (
+            await db.execute(
+                select(Contact).where(
+                    and_(
+                        Contact.tenant_id == tenant_id,
+                        Contact.id.in_(contact_ids),
+                    )
+                )
+            )
+        ).scalars().all()
+        contacts_map = {c.id: c for c in contacts}
+
+    rows: List[Dict[str, Any]] = []
+    secondary_contact_ids: List[str] = []
+    for link in links:
+        row = _contact_brief(contacts_map.get(link.contact_id), link=link) or {
+            "contact_id": link.contact_id,
+            "full_name": None,
+            "email": None,
+            "job_title": None,
+            "buying_role": None,
+            "is_primary": bool(link.is_primary),
+            "role": link.role,
+        }
+        rows.append(row)
+        if not bool(link.is_primary):
+            secondary_contact_ids.append(link.contact_id)
+
+    return {
+        "deal_id": deal.id,
+        "primary_contact_id": deal.contact_id,
+        "deal_contacts": rows,
+        "secondary_contact_ids": secondary_contact_ids,
+    }
+
+
 @router.get("/deals")
 async def list_deals(
     page: int = Query(1, ge=1),
@@ -278,14 +506,19 @@ async def list_deals(
     )
     deals = (await db.execute(stmt)).scalars().all()
 
+    deal_ids = [d.id for d in deals if d.id]
     contact_ids = [d.contact_id for d in deals if d.contact_id]
     stage_ids = [d.stage_id for d in deals if d.stage_id]
     owner_ids = [d.owner_id for d in deals if d.owner_id]
+    deal_contacts_map = await _load_deal_contact_map(db, tenant_id, deal_ids)
+    for links in deal_contacts_map.values():
+        contact_ids.extend([link.contact_id for link in links if link.contact_id])
 
     contacts_map: Dict[str, Contact] = {}
     if contact_ids:
+        deduped_contact_ids = list({cid for cid in contact_ids if cid})
         contacts = (
-            await db.execute(select(Contact).where(and_(Contact.tenant_id == tenant_id, Contact.id.in_(contact_ids))))
+            await db.execute(select(Contact).where(and_(Contact.tenant_id == tenant_id, Contact.id.in_(deduped_contact_ids))))
         ).scalars().all()
         contacts_map = {c.id: c for c in contacts}
 
@@ -303,7 +536,14 @@ async def list_deals(
 
     return {
         "deals": [
-            _deal_to_dict(d, contact=contacts_map.get(d.contact_id), stage=stages_map.get(d.stage_id), owner=owners_map.get(d.owner_id))
+            _deal_to_dict(
+                d,
+                contact=contacts_map.get(d.contact_id),
+                stage=stages_map.get(d.stage_id),
+                owner=owners_map.get(d.owner_id),
+                deal_contacts=deal_contacts_map.get(d.id),
+                contacts_map=contacts_map,
+            )
             for d in deals
         ],
         "total": total,
@@ -505,6 +745,13 @@ async def create_deal(
 
     db.add(deal)
     await db.flush()
+    await _sync_primary_deal_contact(
+        db=db,
+        tenant_id=tenant_id,
+        deal=deal,
+        primary_contact_id=deal.contact_id,
+        actor_id=user.get("id"),
+    )
 
     await create_timeline_event(
         db=db,
@@ -555,7 +802,29 @@ async def create_deal(
         pass
 
     await run_deal_stale_automations(db, tenant_id=tenant_id, actor_id=user.get("id"), actor_name=user.get("full_name"))
-    return _deal_to_dict(deal, contact=contact, stage=stage)
+    deal_contacts_map = await _load_deal_contact_map(db, tenant_id, [deal.id])
+    linked_contact_ids = [deal.contact_id] if deal.contact_id else []
+    linked_contact_ids.extend([link.contact_id for link in deal_contacts_map.get(deal.id, []) if link.contact_id])
+    contacts_map: Dict[str, Contact] = {}
+    if linked_contact_ids:
+        contact_rows = (
+            await db.execute(
+                select(Contact).where(
+                    and_(
+                        Contact.tenant_id == tenant_id,
+                        Contact.id.in_(list({cid for cid in linked_contact_ids if cid})),
+                    )
+                )
+            )
+        ).scalars().all()
+        contacts_map = {c.id: c for c in contact_rows}
+    return _deal_to_dict(
+        deal,
+        contact=contacts_map.get(deal.contact_id),
+        stage=stage,
+        deal_contacts=deal_contacts_map.get(deal.id),
+        contacts_map=contacts_map,
+    )
 
 
 @router.get("/deals/{deal_id}")
@@ -573,13 +842,34 @@ async def get_deal(
         raise HTTPException(status_code=403, detail="Finance users can access Closed Won deals only")
 
     contact = None
-    if deal.contact_id:
-        contact = (await db.execute(select(Contact).where(and_(Contact.id == deal.contact_id, Contact.tenant_id == tenant_id)))).scalar_one_or_none()
     stage = None
     if deal.stage_id:
         stage = (await db.execute(select(PipelineStage).where(PipelineStage.id == deal.stage_id))).scalar_one_or_none()
+    deal_contacts_map = await _load_deal_contact_map(db, tenant_id, [deal.id])
+    linked_contact_ids = [deal.contact_id] if deal.contact_id else []
+    linked_contact_ids.extend([link.contact_id for link in deal_contacts_map.get(deal.id, []) if link.contact_id])
+    contacts_map: Dict[str, Contact] = {}
+    if linked_contact_ids:
+        contact_rows = (
+            await db.execute(
+                select(Contact).where(
+                    and_(
+                        Contact.tenant_id == tenant_id,
+                        Contact.id.in_(list({cid for cid in linked_contact_ids if cid})),
+                    )
+                )
+            )
+        ).scalars().all()
+        contacts_map = {c.id: c for c in contact_rows}
+    contact = contacts_map.get(deal.contact_id) if deal.contact_id else None
 
-    return _deal_to_dict(deal, contact=contact, stage=stage)
+    return _deal_to_dict(
+        deal,
+        contact=contact,
+        stage=stage,
+        deal_contacts=deal_contacts_map.get(deal.id),
+        contacts_map=contacts_map,
+    )
 
 
 @router.put("/deals/{deal_id}")
@@ -644,6 +934,13 @@ async def update_deal(
                     deal.lead_score = int(contact.lead_score)
                 if contact.lead_tier:
                     deal.lead_tier = str(contact.lead_tier).strip().upper()
+            await _sync_primary_deal_contact(
+                db=db,
+                tenant_id=tenant_id,
+                deal=deal,
+                primary_contact_id=data.contact_id,
+                actor_id=user.get("id"),
+            )
 
     if not deal.contact_id:
         raise HTTPException(status_code=400, detail="Deal must have a primary contact")
@@ -887,6 +1184,7 @@ async def update_deal(
 
     deal.updated_at = now
     await db.flush()
+    await _ensure_deal_has_primary_contact_link(db=db, tenant_id=tenant_id, deal=deal, actor_id=user.get("id"))
 
     # Sync Next Step task (discipline)
     if (deal.status or "open") == "open" and deal.next_step_at:
@@ -900,13 +1198,184 @@ async def update_deal(
             note=deal.next_step_note,
         )
 
+    deal_contacts_map = await _load_deal_contact_map(db, tenant_id, [deal.id])
+    linked_contact_ids = [deal.contact_id] if deal.contact_id else []
+    linked_contact_ids.extend([link.contact_id for link in deal_contacts_map.get(deal.id, []) if link.contact_id])
+    contacts_map: Dict[str, Contact] = {}
+    if linked_contact_ids:
+        contact_rows = (
+            await db.execute(
+                select(Contact).where(
+                    and_(
+                        Contact.tenant_id == tenant_id,
+                        Contact.id.in_(list({cid for cid in linked_contact_ids if cid})),
+                    )
+                )
+            )
+        ).scalars().all()
+        contacts_map = {c.id: c for c in contact_rows}
     if not contact and deal.contact_id:
-        contact = (await db.execute(select(Contact).where(and_(Contact.id == deal.contact_id, Contact.tenant_id == tenant_id)))).scalar_one_or_none()
+        contact = contacts_map.get(deal.contact_id)
     stage = None
     if deal.stage_id:
         stage = (await db.execute(select(PipelineStage).where(PipelineStage.id == deal.stage_id))).scalar_one_or_none()
 
-    return _deal_to_dict(deal, contact=contact, stage=stage)
+    return _deal_to_dict(
+        deal,
+        contact=contact,
+        stage=stage,
+        deal_contacts=deal_contacts_map.get(deal.id),
+        contacts_map=contacts_map,
+    )
+
+
+@router.get("/deals/{deal_id}/contacts")
+async def list_deal_contacts(
+    deal_id: str,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    tenant_id = user["tenant_id"]
+    deal = (await db.execute(select(Deal).where(and_(Deal.id == deal_id, Deal.tenant_id == tenant_id)))).scalar_one_or_none()
+    if not deal:
+        raise HTTPException(status_code=404, detail="Deal not found")
+    if _is_finance_user(user) and (deal.status or "").lower() != "won":
+        raise HTTPException(status_code=403, detail="Finance users can access Closed Won deals only")
+    return await _deal_contacts_payload(db=db, tenant_id=tenant_id, deal=deal)
+
+
+@router.post("/deals/{deal_id}/contacts")
+async def upsert_deal_contact(
+    deal_id: str,
+    data: DealContactUpsert,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    tenant_id = user["tenant_id"]
+    if _is_finance_user(user):
+        raise HTTPException(status_code=403, detail="Finance users can access Closed Won deals only")
+
+    deal = (await db.execute(select(Deal).where(and_(Deal.id == deal_id, Deal.tenant_id == tenant_id)))).scalar_one_or_none()
+    if not deal:
+        raise HTTPException(status_code=404, detail="Deal not found")
+    if bool(deal.deal_locked) and user.get("role") not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Deal is locked after Closed Won and cannot be edited")
+
+    contact = (
+        await db.execute(select(Contact).where(and_(Contact.id == data.contact_id, Contact.tenant_id == tenant_id)))
+    ).scalar_one_or_none()
+    if not contact:
+        raise HTTPException(status_code=400, detail="Contact not found")
+
+    role = (data.role or "").strip() or None
+    existing = (
+        await db.execute(
+            select(DealContact).where(
+                and_(
+                    DealContact.tenant_id == tenant_id,
+                    DealContact.deal_id == deal_id,
+                    DealContact.contact_id == data.contact_id,
+                )
+            )
+        )
+    ).scalar_one_or_none()
+    now = now_utc()
+    if existing:
+        existing.role = role
+        existing.updated_at = now
+    else:
+        db.add(
+            DealContact(
+                id=str(uuid.uuid4()),
+                tenant_id=tenant_id,
+                deal_id=deal_id,
+                contact_id=data.contact_id,
+                is_primary=False,
+                role=role,
+                created_by=user.get("id"),
+                created_at=now,
+                updated_at=now,
+            )
+        )
+
+    if bool(data.is_primary):
+        await _sync_primary_deal_contact(
+            db=db,
+            tenant_id=tenant_id,
+            deal=deal,
+            primary_contact_id=data.contact_id,
+            actor_id=user.get("id"),
+            role=role,
+        )
+    else:
+        await _ensure_deal_has_primary_contact_link(db=db, tenant_id=tenant_id, deal=deal, actor_id=user.get("id"))
+
+    deal.updated_at = now
+    await db.flush()
+    return await _deal_contacts_payload(db=db, tenant_id=tenant_id, deal=deal)
+
+
+@router.delete("/deals/{deal_id}/contacts/{contact_id}")
+async def remove_deal_contact(
+    deal_id: str,
+    contact_id: str,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    tenant_id = user["tenant_id"]
+    if _is_finance_user(user):
+        raise HTTPException(status_code=403, detail="Finance users can access Closed Won deals only")
+
+    deal = (await db.execute(select(Deal).where(and_(Deal.id == deal_id, Deal.tenant_id == tenant_id)))).scalar_one_or_none()
+    if not deal:
+        raise HTTPException(status_code=404, detail="Deal not found")
+    if bool(deal.deal_locked) and user.get("role") not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Deal is locked after Closed Won and cannot be edited")
+
+    links = (
+        await db.execute(
+            select(DealContact).where(
+                and_(
+                    DealContact.tenant_id == tenant_id,
+                    DealContact.deal_id == deal_id,
+                )
+            )
+        )
+    ).scalars().all()
+    target = next((link for link in links if link.contact_id == contact_id), None)
+    if not target:
+        raise HTTPException(status_code=404, detail="Deal contact link not found")
+
+    fallback_primary_id: Optional[str] = None
+    if bool(target.is_primary):
+        fallback = next((link for link in links if link.contact_id != contact_id), None)
+        if not fallback:
+            raise HTTPException(status_code=400, detail="Deal must keep at least one primary contact")
+        fallback_primary_id = fallback.contact_id
+
+    await db.execute(
+        delete(DealContact).where(
+            and_(
+                DealContact.tenant_id == tenant_id,
+                DealContact.deal_id == deal_id,
+                DealContact.contact_id == contact_id,
+            )
+        )
+    )
+
+    if fallback_primary_id:
+        await _sync_primary_deal_contact(
+            db=db,
+            tenant_id=tenant_id,
+            deal=deal,
+            primary_contact_id=fallback_primary_id,
+            actor_id=user.get("id"),
+        )
+    else:
+        await _ensure_deal_has_primary_contact_link(db=db, tenant_id=tenant_id, deal=deal, actor_id=user.get("id"))
+    deal.updated_at = now_utc()
+    await db.flush()
+    return await _deal_contacts_payload(db=db, tenant_id=tenant_id, deal=deal)
 
 
 @router.get("/deals/{deal_id}/handoff")

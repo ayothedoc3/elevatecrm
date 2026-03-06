@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import re
 from datetime import timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api_pg.deps import get_current_user
 from app.api_pg.utils import now_utc
 from app.core.database import get_db
-from app.pg_models.models import Contact, Deal, Lead, Pipeline, PipelineStage, TimelineEvent, User
+from app.pg_models.models import Affiliate, AffiliateCommission, AffiliateProgram, Contact, Deal, Lead, Pipeline, PipelineStage, TimelineEvent, User
 
 router = APIRouter(tags=["KPIs"])
 
@@ -27,6 +27,137 @@ def _parse_time_range_days(value: Optional[str]) -> int:
     return max(1, min(days, 3650))
 
 
+def _is_finance_role(user: Dict[str, Any]) -> bool:
+    return (user.get("role") or "").strip().lower() == "finance"
+
+
+async def _build_agent_dashboard_rows(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    start_dt,
+    days_window: int,
+) -> List[Dict[str, Any]]:
+    users = (
+        await db.execute(select(User).where(and_(User.tenant_id == tenant_id, User.is_active.is_(True))))
+    ).scalars().all()
+    if not users:
+        return []
+
+    user_ids = [u.id for u in users if u.id]
+    touch_event_types = ["call_log", "email_sent", "email_received", "meeting", "lead_touchpoint"]
+
+    activity_rows = (
+        await db.execute(
+            select(TimelineEvent.actor_id, func.count(TimelineEvent.id))
+            .where(
+                and_(
+                    TimelineEvent.tenant_id == tenant_id,
+                    TimelineEvent.actor_id.in_(user_ids),
+                    TimelineEvent.created_at >= start_dt,
+                    TimelineEvent.event_type.in_(touch_event_types),
+                )
+            )
+            .group_by(TimelineEvent.actor_id)
+        )
+    ).all()
+    activities_by_owner = {str(owner_id): int(count or 0) for owner_id, count in activity_rows if owner_id}
+
+    lead_rows = (
+        await db.execute(
+            select(Lead.owner_id, func.count(Lead.id))
+            .where(
+                and_(
+                    Lead.tenant_id == tenant_id,
+                    Lead.owner_id.in_(user_ids),
+                    Lead.last_touchpoint_at >= start_dt,
+                )
+            )
+            .group_by(Lead.owner_id)
+        )
+    ).all()
+    leads_by_owner = {str(owner_id): int(count or 0) for owner_id, count in lead_rows if owner_id}
+
+    deal_adv_rows = (
+        await db.execute(
+            select(TimelineEvent.actor_id, func.count(TimelineEvent.id))
+            .where(
+                and_(
+                    TimelineEvent.tenant_id == tenant_id,
+                    TimelineEvent.actor_id.in_(user_ids),
+                    TimelineEvent.event_type == "stage_changed",
+                    TimelineEvent.created_at >= start_dt,
+                )
+            )
+            .group_by(TimelineEvent.actor_id)
+        )
+    ).all()
+    deals_advanced_by_owner = {str(owner_id): int(count or 0) for owner_id, count in deal_adv_rows if owner_id}
+
+    deal_outcome_rows = (
+        await db.execute(
+            select(
+                Deal.owner_id,
+                func.count(Deal.id).filter(Deal.status == "won").label("won_count"),
+                func.count(Deal.id).filter(Deal.status.in_(["won", "lost"])).label("closed_count"),
+            )
+            .where(
+                and_(
+                    Deal.tenant_id == tenant_id,
+                    Deal.owner_id.in_(user_ids),
+                )
+            )
+            .group_by(Deal.owner_id)
+        )
+    ).all()
+    won_closed_by_owner: Dict[str, Dict[str, int]] = {
+        str(owner_id): {"won": int(won_count or 0), "closed": int(closed_count or 0)}
+        for owner_id, won_count, closed_count in deal_outcome_rows
+        if owner_id
+    }
+
+    cycle_rows = (
+        await db.execute(
+            select(
+                Deal.owner_id,
+                func.avg(func.extract("epoch", Deal.closed_won_at - Deal.created_at)),
+            )
+            .where(
+                and_(
+                    Deal.tenant_id == tenant_id,
+                    Deal.owner_id.in_(user_ids),
+                    Deal.status == "won",
+                    Deal.closed_won_at.is_not(None),
+                    Deal.created_at.is_not(None),
+                )
+            )
+            .group_by(Deal.owner_id)
+        )
+    ).all()
+    cycle_by_owner = {str(owner_id): float(avg_cycle_seconds or 0.0) for owner_id, avg_cycle_seconds in cycle_rows if owner_id}
+
+    rows: List[Dict[str, Any]] = []
+    safe_days = max(1, int(days_window or 1))
+    for u in users:
+        owner_id = str(u.id)
+        outcome = won_closed_by_owner.get(owner_id, {"won": 0, "closed": 0})
+        closed_count = int(outcome.get("closed", 0) or 0)
+        rows.append(
+            {
+                "user_id": owner_id,
+                "name": f"{u.first_name} {u.last_name}".strip() or u.email,
+                "activities_per_day": round(float(activities_by_owner.get(owner_id, 0)) / float(safe_days), 2),
+                "leads_worked": int(leads_by_owner.get(owner_id, 0)),
+                "deals_advanced": int(deals_advanced_by_owner.get(owner_id, 0)),
+                "win_rate": round((float(outcome.get("won", 0) or 0) / float(closed_count) * 100.0), 2) if closed_count > 0 else 0.0,
+                "average_sales_cycle_days": round(float(cycle_by_owner.get(owner_id, 0.0)) / 86400.0, 2)
+                if cycle_by_owner.get(owner_id) is not None
+                else 0.0,
+            }
+        )
+    return rows
+
+
 @router.get("/kpis/summary")
 async def get_kpi_summary(
     time_range: str = Query("30d"),
@@ -35,7 +166,7 @@ async def get_kpi_summary(
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
     tenant_id = user["tenant_id"]
-    is_finance = (user.get("role") or "").strip().lower() == "finance"
+    is_finance = _is_finance_role(user)
     days = _parse_time_range_days(time_range)
     start_dt = now_utc() - timedelta(days=days)
 
@@ -298,92 +429,14 @@ async def get_kpi_summary(
     revenue_by_client = {str(k or "Unspecified"): round(float(v or 0.0), 2) for k, v in won_rows_client}
 
     # Agent dashboard
-    users = []
+    agents: List[Dict[str, Any]] = []
     if not is_finance:
-        users = (await db.execute(select(User).where(and_(User.tenant_id == tenant_id, User.is_active.is_(True))))).scalars().all()
-    days_window = max(1, days)
-    touch_event_types = ["call_log", "email_sent", "email_received", "meeting", "lead_touchpoint"]
-    agents: Dict[str, Any] = {}
-    for u in users:
-        activities = int(
-            (
-                await db.execute(
-                    select(func.count(TimelineEvent.id)).where(
-                        and_(
-                            TimelineEvent.tenant_id == tenant_id,
-                            TimelineEvent.actor_id == u.id,
-                            TimelineEvent.created_at >= start_dt,
-                            TimelineEvent.event_type.in_(touch_event_types),
-                        )
-                    )
-                )
-            ).scalar_one()
-            or 0
+        agents = await _build_agent_dashboard_rows(
+            db=db,
+            tenant_id=tenant_id,
+            start_dt=start_dt,
+            days_window=max(1, days),
         )
-        leads_worked = int(
-            (
-                await db.execute(
-                    select(func.count(Lead.id)).where(
-                        and_(
-                            Lead.tenant_id == tenant_id,
-                            Lead.owner_id == u.id,
-                            Lead.last_touchpoint_at >= start_dt,
-                        )
-                    )
-                )
-            ).scalar_one()
-            or 0
-        )
-        deals_advanced = int(
-            (
-                await db.execute(
-                    select(func.count(TimelineEvent.id)).where(
-                        and_(
-                            TimelineEvent.tenant_id == tenant_id,
-                            TimelineEvent.actor_id == u.id,
-                            TimelineEvent.event_type == "stage_changed",
-                            TimelineEvent.created_at >= start_dt,
-                        )
-                    )
-                )
-            ).scalar_one()
-            or 0
-        )
-        won_count = int(
-            (
-                await db.execute(select(func.count(Deal.id)).where(and_(Deal.tenant_id == tenant_id, Deal.owner_id == u.id, Deal.status == "won")))
-            ).scalar_one()
-            or 0
-        )
-        closed_count = int(
-            (
-                await db.execute(select(func.count(Deal.id)).where(and_(Deal.tenant_id == tenant_id, Deal.owner_id == u.id, Deal.status.in_(["won", "lost"]))))
-            ).scalar_one()
-            or 0
-        )
-        avg_cycle_seconds = (
-            await db.execute(
-                select(func.avg(func.extract("epoch", Deal.closed_won_at - Deal.created_at))).where(
-                    and_(
-                        Deal.tenant_id == tenant_id,
-                        Deal.owner_id == u.id,
-                        Deal.status == "won",
-                        Deal.closed_won_at.is_not(None),
-                        Deal.created_at.is_not(None),
-                    )
-                )
-            )
-        ).scalar_one_or_none()
-
-        agents[u.id] = {
-            "user_id": u.id,
-            "name": f"{u.first_name} {u.last_name}".strip() or u.email,
-            "activities_per_day": round(float(activities) / float(days_window), 2),
-            "leads_worked": leads_worked,
-            "deals_advanced": deals_advanced,
-            "win_rate": round((float(won_count) / float(closed_count) * 100.0), 2) if closed_count > 0 else 0.0,
-            "average_sales_cycle_days": round((float(avg_cycle_seconds or 0.0) / 86400.0), 2) if avg_cycle_seconds else 0.0,
-        }
 
     return {
         "meta": {"time_range": time_range, "days": days},
@@ -426,6 +479,155 @@ async def get_kpi_summary(
             "revenue_by_client": revenue_by_client,
         },
         "agent_dashboard": {
-            "agents": list(agents.values()),
+            "agents": agents,
         },
+    }
+
+
+@router.get("/kpis/agent-dashboard")
+async def get_agent_dashboard(
+    time_range: str = Query("30d"),
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    if _is_finance_role(user):
+        raise HTTPException(status_code=403, detail="Finance users do not have access to agent productivity dashboards")
+
+    tenant_id = user["tenant_id"]
+    days = _parse_time_range_days(time_range)
+    start_dt = now_utc() - timedelta(days=days)
+    agents = await _build_agent_dashboard_rows(
+        db=db,
+        tenant_id=tenant_id,
+        start_dt=start_dt,
+        days_window=max(1, days),
+    )
+    return {"meta": {"time_range": time_range, "days": days}, "agents": agents}
+
+
+@router.get("/kpis/finance/commissions")
+async def get_finance_commission_report(
+    status: Optional[str] = Query(default=None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    role = (user.get("role") or "").strip().lower()
+    if role not in {"finance", "manager", "admin"}:
+        raise HTTPException(status_code=403, detail="Finance, manager, or admin access required")
+
+    tenant_id = user["tenant_id"]
+    filters = [AffiliateCommission.tenant_id == tenant_id]
+    if status:
+        filters.append(AffiliateCommission.status == status)
+
+    total = int(
+        (
+            await db.execute(
+                select(func.count(AffiliateCommission.id)).where(and_(*filters))
+            )
+        ).scalar_one()
+        or 0
+    )
+
+    rows = (
+        await db.execute(
+            select(
+                AffiliateCommission,
+                Affiliate.name,
+                Affiliate.email,
+                AffiliateProgram.name,
+                Deal.name,
+            )
+            .select_from(AffiliateCommission)
+            .outerjoin(
+                Affiliate,
+                and_(
+                    Affiliate.id == AffiliateCommission.affiliate_id,
+                    Affiliate.tenant_id == tenant_id,
+                ),
+            )
+            .outerjoin(
+                AffiliateProgram,
+                and_(
+                    AffiliateProgram.id == AffiliateCommission.program_id,
+                    AffiliateProgram.tenant_id == tenant_id,
+                ),
+            )
+            .outerjoin(
+                Deal,
+                and_(
+                    Deal.id == AffiliateCommission.deal_id,
+                    Deal.tenant_id == tenant_id,
+                ),
+            )
+            .where(and_(*filters))
+            .order_by(AffiliateCommission.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).all()
+
+    totals_by_status_rows = (
+        await db.execute(
+            select(
+                AffiliateCommission.status,
+                func.coalesce(func.sum(AffiliateCommission.amount), 0.0),
+                func.count(AffiliateCommission.id),
+            )
+            .where(AffiliateCommission.tenant_id == tenant_id)
+            .group_by(AffiliateCommission.status)
+        )
+    ).all()
+    totals_by_status = {
+        str(stat or "unknown"): {
+            "total_amount": round(float(total_amount or 0.0), 2),
+            "count": int(count or 0),
+        }
+        for stat, total_amount, count in totals_by_status_rows
+    }
+
+    total_amount = round(float(sum(item["total_amount"] for item in totals_by_status.values())), 2)
+    pending_amount = round(float(totals_by_status.get("pending", {}).get("total_amount", 0.0)), 2)
+    approved_amount = round(float(totals_by_status.get("approved", {}).get("total_amount", 0.0)), 2)
+    paid_amount = round(float(totals_by_status.get("paid", {}).get("total_amount", 0.0)), 2)
+
+    return {
+        "meta": {
+            "status": status,
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+        },
+        "summary": {
+            "total_amount": total_amount,
+            "pending_amount": pending_amount,
+            "approved_amount": approved_amount,
+            "paid_amount": paid_amount,
+            "totals_by_status": totals_by_status,
+        },
+        "commissions": [
+            {
+                "id": commission.id,
+                "affiliate_id": commission.affiliate_id,
+                "affiliate_name": affiliate_name,
+                "affiliate_email": affiliate_email,
+                "program_id": commission.program_id,
+                "program_name": program_name,
+                "deal_id": commission.deal_id,
+                "deal_name": deal_name,
+                "amount": round(float(commission.amount or 0.0), 2),
+                "currency": commission.currency,
+                "status": commission.status,
+                "notes": commission.notes,
+                "approved_at": commission.approved_at.isoformat() if commission.approved_at else None,
+                "approved_by": commission.approved_by,
+                "paid_at": commission.paid_at.isoformat() if commission.paid_at else None,
+                "paid_by": commission.paid_by,
+                "created_at": commission.created_at.isoformat() if commission.created_at else None,
+                "updated_at": commission.updated_at.isoformat() if commission.updated_at else None,
+            }
+            for commission, affiliate_name, affiliate_email, program_name, deal_name in rows
+        ],
     }

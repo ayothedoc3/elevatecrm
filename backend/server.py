@@ -6,18 +6,22 @@ This is the production-facing entrypoint. The legacy MongoDB server is kept in
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI
+from sqlalchemy import select
 from starlette.middleware.cors import CORSMiddleware
 
 from app.core.database import AsyncSessionLocal, engine, init_db
 from app.pg_models import models as _models  # noqa: F401 (register metadata)
+from app.pg_models.models import Tenant
 
+from app.api_pg.services import run_crm_automations
 from app.api_pg.seed import seed_demo_data
 
 
@@ -26,6 +30,39 @@ load_dotenv(ROOT_DIR / ".env")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+
+async def _run_crm_automation_cycle() -> None:
+    async with AsyncSessionLocal() as read_session:
+        tenant_ids = list((await read_session.execute(select(Tenant.id))).scalars().all())
+
+    for tenant_id in tenant_ids:
+        async with AsyncSessionLocal() as tenant_session:
+            try:
+                await run_crm_automations(
+                    tenant_session,
+                    tenant_id=tenant_id,
+                    actor_id=None,
+                    actor_name="Scheduler",
+                )
+                await tenant_session.commit()
+            except Exception:
+                await tenant_session.rollback()
+                logger.exception("Failed CRM automation cycle for tenant %s", tenant_id)
+
+
+async def _crm_automation_scheduler(stop_event: asyncio.Event, interval_seconds: int) -> None:
+    interval = max(60, int(interval_seconds or 300))
+    while not stop_event.is_set():
+        try:
+            await _run_crm_automation_cycle()
+        except Exception:
+            logger.exception("CRM automation scheduler cycle failed")
+
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            continue
 
 
 @asynccontextmanager
@@ -37,7 +74,21 @@ async def lifespan(app: FastAPI):
         await seed_demo_data(session)
         await session.commit()
 
+    scheduler_enabled = (os.getenv("CRM_AUTOMATION_SCHEDULER_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"})
+    scheduler_interval = int(os.getenv("CRM_AUTOMATION_INTERVAL_SECONDS", "300"))
+    scheduler_stop = asyncio.Event()
+    scheduler_task: asyncio.Task | None = None
+    if scheduler_enabled:
+        scheduler_task = asyncio.create_task(_crm_automation_scheduler(scheduler_stop, scheduler_interval))
+        logger.info("CRM automation scheduler started (interval=%ss)", max(60, scheduler_interval))
+
     yield
+
+    if scheduler_task:
+        scheduler_stop.set()
+        scheduler_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await scheduler_task
 
     await engine.dispose()
     logger.info("Shutdown complete.")

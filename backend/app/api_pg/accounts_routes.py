@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api_pg.deps import get_current_user
 from app.api_pg.services import resolve_account
-from app.api_pg.utils import dt_to_iso
+from app.api_pg.utils import dt_to_iso, ensure_valid_icp_tier
 from app.core.database import get_db
 from app.pg_models.models import Account
 
@@ -82,6 +82,11 @@ async def create_account(
     db: AsyncSession = Depends(get_db),
 ):
     tenant_id = user["tenant_id"]
+    try:
+        icp_tier = ensure_valid_icp_tier(data.icp_tier)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
     resolved = await resolve_account(
         db=db,
         tenant_id=tenant_id,
@@ -91,7 +96,7 @@ async def create_account(
         industry=data.industry,
         company_size=data.company_size,
         country=data.country,
-        icp_tier=data.icp_tier,
+        icp_tier=icp_tier,
     )
 
     res = await db.execute(select(Account).where(and_(Account.id == resolved.get("account_id"), Account.tenant_id == tenant_id)))

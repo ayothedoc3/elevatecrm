@@ -352,6 +352,26 @@ class Deal(Base):
     )
 
 
+class DealContact(Base):
+    __tablename__ = "deal_contacts"
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    deal_id = Column(String(36), ForeignKey("deals.id", ondelete="CASCADE"), nullable=False, index=True)
+    contact_id = Column(String(36), ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False, index=True)
+    is_primary = Column(Boolean, default=False, nullable=False, index=True)
+    role = Column(String(50), nullable=True)
+    created_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "deal_id", "contact_id", name="uq_deal_contacts_tenant_deal_contact"),
+        Index("ix_deal_contacts_tenant_deal", "tenant_id", "deal_id"),
+        Index("ix_deal_contacts_contact", "tenant_id", "contact_id"),
+    )
+
+
 class Task(Base):
     __tablename__ = "tasks"
 

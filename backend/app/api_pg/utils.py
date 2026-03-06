@@ -6,6 +6,8 @@ from typing import Any, Dict, Optional
 
 VALID_SALES_MOTION_TYPES = {"partnership_sales", "partner_sales"}
 VALID_LEAD_TIERS = {"A", "B", "C", "D"}
+VALID_ICP_TIERS = {"A", "B", "C", "D"}
+VALID_BUYING_ROLES = {"decision_maker", "champion", "influencer", "technical", "finance"}
 
 # Phase 1 discipline: minimum touchpoints before "unresponsive"
 MIN_TOUCHPOINTS_BEFORE_UNRESPONSIVE = 3
@@ -34,6 +36,63 @@ def parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
 
 def normalize_lower(value: Optional[str]) -> str:
     return " ".join((value or "").strip().split()).lower()
+
+
+def normalize_icp_tier(value: Optional[str]) -> Optional[str]:
+    raw = (value or "").strip().upper()
+    if not raw:
+        return None
+    if raw in VALID_ICP_TIERS:
+        return raw
+    return None
+
+
+def normalize_buying_role(value: Optional[str]) -> Optional[str]:
+    raw = (value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if not raw:
+        return None
+    aliases = {
+        "decisionmaker": "decision_maker",
+        "decision_maker": "decision_maker",
+        "decision-maker": "decision_maker",
+        "owner": "decision_maker",
+        "ceo": "decision_maker",
+        "founder": "decision_maker",
+        "cfo": "decision_maker",
+        "champion": "champion",
+        "influencer": "influencer",
+        "technical": "technical",
+        "tech": "technical",
+        "technical_buyer": "technical",
+        "finance": "finance",
+        "financial": "finance",
+    }
+    normalized = aliases.get(raw, raw)
+    if normalized in VALID_BUYING_ROLES:
+        return normalized
+    return None
+
+
+def ensure_valid_icp_tier(value: Optional[str]) -> Optional[str]:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    normalized = normalize_icp_tier(raw)
+    if normalized is None:
+        raise ValueError("Invalid icp_tier. Must be one of: A, B, C, D")
+    return normalized
+
+
+def ensure_valid_buying_role(value: Optional[str]) -> Optional[str]:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    normalized = normalize_buying_role(raw)
+    if normalized is None:
+        raise ValueError(
+            "Invalid buying_role. Must be one of: decision_maker, champion, influencer, technical, finance"
+        )
+    return normalized
 
 
 def calculate_tier(score: int) -> str:

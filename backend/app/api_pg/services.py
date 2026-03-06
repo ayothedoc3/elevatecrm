@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api_pg.utils import now_utc, normalize_lower, scoring_inputs_complete
+from app.api_pg.utils import ensure_valid_icp_tier, now_utc, normalize_lower, scoring_inputs_complete
 from app.pg_models.models import (
     Account,
     CalculationDefinition,
@@ -356,6 +356,13 @@ async def resolve_account(
     if not normalized_domain:
         normalized_domain = None
 
+    normalized_icp_tier: Optional[str] = None
+    if icp_tier is not None:
+        try:
+            normalized_icp_tier = ensure_valid_icp_tier(icp_tier)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
     account: Optional[Account] = None
     if normalized_domain:
         existing = await db.execute(
@@ -380,8 +387,8 @@ async def resolve_account(
             account.company_size = company_size.strip()[:100]
         if country and not account.country:
             account.country = country.strip()[:100]
-        if icp_tier and not account.icp_tier:
-            account.icp_tier = str(icp_tier).strip().upper()[:2]
+        if normalized_icp_tier and not account.icp_tier:
+            account.icp_tier = normalized_icp_tier
         account.updated_at = now_utc()
         return {"account_id": account.id, "account_name": account.name or name}
 
@@ -395,7 +402,7 @@ async def resolve_account(
         industry=(industry or "").strip()[:100] or None,
         company_size=(company_size or "").strip()[:100] or None,
         country=(country or "").strip()[:100] or None,
-        icp_tier=(str(icp_tier).strip().upper()[:2] if icp_tier else None),
+        icp_tier=normalized_icp_tier,
         is_active=True,
         created_by=actor_id,
         created_at=now_utc(),

@@ -29,13 +29,15 @@ from app.api_pg.utils import (
     calculate_tier,
     compute_universal_score,
     dt_to_iso,
+    ensure_valid_buying_role,
+    ensure_valid_icp_tier,
     is_non_empty,
     now_utc,
     parse_iso_datetime,
     scoring_inputs_complete,
 )
 from app.core.database import get_db
-from app.pg_models.models import Contact, Deal, Lead, PipelineStage, Task, User
+from app.pg_models.models import Contact, Deal, DealContact, Lead, PipelineStage, Task, User
 
 router = APIRouter(prefix="/leads", tags=["Leads"])
 
@@ -140,6 +142,10 @@ def _validate_qualified_lead_requirements(lead: Lead, scoring_data: Dict[str, An
             status_code=400,
             detail=f"Missing company fields for qualification: {', '.join(missing_company)}",
         )
+    try:
+        scoring["icp_tier"] = ensure_valid_icp_tier(str(scoring.get("icp_tier")))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     missing_contact: List[str] = []
     if not is_non_empty(lead.first_name):
@@ -157,6 +163,10 @@ def _validate_qualified_lead_requirements(lead: Lead, scoring_data: Dict[str, An
             status_code=400,
             detail=f"Missing contact fields for qualification: {', '.join(missing_contact)}",
         )
+    try:
+        scoring["buying_role"] = ensure_valid_buying_role(str(scoring.get("buying_role")))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 def _require_partner_sales_fields(data: Dict[str, Any]) -> None:
@@ -166,6 +176,42 @@ def _require_partner_sales_fields(data: Dict[str, Any]) -> None:
             status_code=400,
             detail=f"Missing required fields for partner_sales: {', '.join(missing)}",
         )
+
+
+def _normalize_scoring_enums(scoring_data: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = dict(scoring_data or {})
+
+    if "icp_tier" in normalized:
+        raw_icp = normalized.get("icp_tier")
+        if not is_non_empty(raw_icp):
+            normalized["icp_tier"] = None
+        else:
+            try:
+                normalized["icp_tier"] = ensure_valid_icp_tier(str(raw_icp))
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+
+    if "buying_role" in normalized:
+        raw_role = normalized.get("buying_role")
+        if not is_non_empty(raw_role):
+            normalized["buying_role"] = None
+        else:
+            try:
+                normalized["buying_role"] = ensure_valid_buying_role(str(raw_role))
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+
+    return normalized
+
+
+def _extract_valid_buying_role(scoring_data: Dict[str, Any]) -> Optional[str]:
+    raw = (scoring_data or {}).get("buying_role")
+    if not is_non_empty(raw):
+        return None
+    try:
+        return ensure_valid_buying_role(str(raw))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 class LeadCreate(BaseModel):
@@ -341,7 +387,7 @@ async def _ensure_contact_for_qualified_lead(
     if not account_name_input:
         return None
 
-    scoring = lead.scoring_data or {}
+    scoring = _normalize_scoring_enums(lead.scoring_data or {})
     resolved_account = await resolve_account(
         db=db,
         tenant_id=tenant_id,
@@ -354,6 +400,8 @@ async def _ensure_contact_for_qualified_lead(
         icp_tier=(scoring.get("icp_tier") or lead.tier or None),
     )
     now = now_utc()
+    buying_role = _extract_valid_buying_role(scoring)
+
     contact = Contact(
         id=str(uuid.uuid4()),
         tenant_id=tenant_id,
@@ -366,7 +414,7 @@ async def _ensure_contact_for_qualified_lead(
         account_id=resolved_account.get("account_id"),
         account_name=resolved_account.get("account_name"),
         job_title=(scoring.get("job_title") or None),
-        buying_role=(scoring.get("buying_role") or scoring.get("buying_role_strength") or None),
+        buying_role=buying_role,
         source=lead.source,
         lifecycle_stage="lead",
         lead_score=int(lead.score or 0),
@@ -653,6 +701,21 @@ async def import_leads_csv(
         "primarymotivation": "primary_motivation",
         "decisionrole": "decision_role",
         "decisionprocessclarity": "decision_process_clarity",
+        "icptier": "icp_tier",
+        "buyingrole": "buying_role",
+        "buyingrolestrength": "buying_role_strength",
+        "companysizefit": "company_size_fit",
+        "engagementscore": "engagement_score",
+        "emailopen": "email_open",
+        "linkclick": "link_click",
+        "demobooked": "demo_booked",
+        "industry": "industry",
+        "companysize": "company_size",
+        "jobtitle": "job_title",
+        "budgetrange": "budget_range",
+        "authorityidentified": "authority_identified",
+        "usecasedefined": "use_case_defined",
+        "timelineconfirmed": "timeline_confirmed",
     }
 
     header_map: Dict[str, Optional[str]] = {}
@@ -771,9 +834,31 @@ async def import_leads_csv(
             "primary_motivation",
             "decision_role",
             "decision_process_clarity",
+            "icp_tier",
+            "buying_role",
+            "buying_role_strength",
+            "company_size_fit",
+            "engagement_score",
+            "email_open",
+            "link_click",
+            "demo_booked",
+            "industry",
+            "company_size",
+            "country",
+            "job_title",
+            "budget_range",
+            "authority_identified",
+            "use_case_defined",
+            "timeline_confirmed",
         ]:
             if key in values:
                 scoring_data_updates[key] = values[key]
+        try:
+            scoring_data_updates = _normalize_scoring_enums(scoring_data_updates)
+        except HTTPException as exc:
+            skipped += 1
+            errors.append({"row": row_index, "error": exc.detail})
+            continue
 
         manual_score = values.get("score")
         manual_tier = (values.get("tier") or "").strip().upper() or None
@@ -866,6 +951,12 @@ async def import_leads_csv(
             if scoring_data_updates:
                 merged = dict(existing.scoring_data or {})
                 merged.update(scoring_data_updates)
+                try:
+                    merged = _normalize_scoring_enums(merged)
+                except HTTPException as exc:
+                    skipped += 1
+                    errors.append({"row": row_index, "error": exc.detail})
+                    continue
                 existing.scoring_data = merged
                 if scoring_inputs_complete(merged):
                     existing.score = compute_universal_score(merged, existing.source or source)
@@ -1440,6 +1531,7 @@ async def score_lead(
     scoring_data = dict(lead.scoring_data or {})
     if data.scoring_data is not None:
         scoring_data.update(data.scoring_data or {})
+        scoring_data = _normalize_scoring_enums(scoring_data)
 
     if data.scoring_data is not None:
         score = compute_universal_score(scoring_data, lead.source or "manual")
@@ -1506,6 +1598,7 @@ async def convert_lead_to_contact(
         )
 
     contact_id = str(uuid.uuid4())
+    normalized_scoring = _normalize_scoring_enums(lead.scoring_data or {})
     contact = Contact(
         id=contact_id,
         tenant_id=tenant_id,
@@ -1517,8 +1610,8 @@ async def convert_lead_to_contact(
         company_name=company_name,
         account_id=(resolved_account or {}).get("account_id"),
         account_name=(resolved_account or {}).get("account_name"),
-        job_title=((lead.scoring_data or {}).get("job_title") or None),
-        buying_role=((lead.scoring_data or {}).get("buying_role") or (lead.scoring_data or {}).get("buying_role_strength") or None),
+        job_title=(normalized_scoring.get("job_title") or None),
+        buying_role=_extract_valid_buying_role(normalized_scoring),
         source=lead.source,
         lifecycle_stage="lead",
         lead_score=int(lead.score or 0),
@@ -1640,6 +1733,7 @@ async def push_lead_to_sales(
                 icp_tier=(scoring.get("icp_tier") or lead.tier or None),
             )
 
+        normalized_scoring = _normalize_scoring_enums(lead.scoring_data or {})
         contact = Contact(
             id=str(uuid.uuid4()),
             tenant_id=tenant_id,
@@ -1651,8 +1745,8 @@ async def push_lead_to_sales(
             company_name=company_name,
             account_id=(resolved_account or {}).get("account_id"),
             account_name=(resolved_account or {}).get("account_name"),
-            job_title=((lead.scoring_data or {}).get("job_title") or None),
-            buying_role=((lead.scoring_data or {}).get("buying_role") or (lead.scoring_data or {}).get("buying_role_strength") or None),
+            job_title=(normalized_scoring.get("job_title") or None),
+            buying_role=_extract_valid_buying_role(normalized_scoring),
             source=lead.source,
             lifecycle_stage="lead",
             lead_score=int(lead.score or 0),
@@ -1766,6 +1860,20 @@ async def push_lead_to_sales(
         )
 
     db.add(deal)
+    await db.flush()
+    db.add(
+        DealContact(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            deal_id=deal.id,
+            contact_id=contact.id,
+            is_primary=True,
+            role=None,
+            created_by=user["id"],
+            created_at=now,
+            updated_at=now,
+        )
+    )
     await db.flush()
 
     await upsert_open_next_step_task_for_deal(

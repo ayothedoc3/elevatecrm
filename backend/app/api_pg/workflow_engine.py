@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 from datetime import timedelta
 from typing import Any, Dict, List, Optional
+from urllib import error as url_error
+from urllib import request as url_request
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +15,22 @@ from app.api_pg.messaging_service import MessagingProviderError, send_outbound_m
 from app.api_pg.services import create_timeline_event
 from app.api_pg.utils import now_utc
 from app.core.database import AsyncSessionLocal
-from app.pg_models.models import Contact, Conversation, Deal, Message, Task, Workflow, WorkflowRun
+from app.pg_models.models import (
+    Affiliate,
+    AffiliateCommission,
+    AffiliateNotification,
+    AffiliateProgram,
+    Contact,
+    Conversation,
+    Deal,
+    Message,
+    Pipeline,
+    PipelineStage,
+    Task,
+    User,
+    Workflow,
+    WorkflowRun,
+)
 
 _scheduled_tasks: set[asyncio.Task] = set()
 
@@ -31,6 +49,15 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _safe_float(value: Any, default: Optional[float] = 0.0) -> Optional[float]:
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except Exception:
+        return default
+
+
 def _as_text(value: Any) -> str:
     return "" if value is None else str(value)
 
@@ -44,10 +71,88 @@ def _render_template(text: Optional[str], values: Dict[str, Any]) -> str:
 
 def _action_config(action: Dict[str, Any]) -> Dict[str, Any]:
     config = dict(action.get("config") or {})
-    for key in ["title", "description", "due_days", "due_hours", "tag", "property", "value", "object_type", "subject", "body", "to"]:
+    for key, value in (action or {}).items():
+        if key in {"type", "config"}:
+            continue
         if key not in config and key in action:
-            config[key] = action.get(key)
+            config[key] = value
     return config
+
+
+def _is_truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _to_number(value: Any) -> Optional[float]:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except Exception:
+        return None
+
+
+def _evaluate_condition(config: Dict[str, Any], values: Dict[str, Any]) -> bool:
+    field = (config.get("field") or config.get("left") or "").strip()
+    operator = (config.get("operator") or "eq").strip().lower()
+    expected = config.get("value")
+    if expected is None and "right" in config:
+        expected = config.get("right")
+    if isinstance(expected, str):
+        expected = _render_template(expected, values)
+
+    actual = values.get(field) if field else None
+    if isinstance(actual, str):
+        actual = actual.strip()
+
+    if operator in {"exists", "is_set"}:
+        return actual is not None and str(actual).strip() != ""
+    if operator in {"not_exists", "is_not_set"}:
+        return actual is None or str(actual).strip() == ""
+    if operator in {"truthy"}:
+        return _is_truthy(actual)
+    if operator in {"falsy"}:
+        return not _is_truthy(actual)
+
+    if operator in {"in", "not_in"}:
+        expected_values = expected
+        if isinstance(expected_values, str):
+            expected_values = [part.strip() for part in expected_values.split(",") if part.strip()]
+        if not isinstance(expected_values, (list, tuple, set)):
+            expected_values = [expected_values]
+        contains = str(actual) in {str(v) for v in expected_values}
+        return contains if operator == "in" else not contains
+
+    if operator in {"gt", "gte", "lt", "lte"}:
+        actual_num = _to_number(actual)
+        expected_num = _to_number(expected)
+        if actual_num is None or expected_num is None:
+            return False
+        if operator == "gt":
+            return actual_num > expected_num
+        if operator == "gte":
+            return actual_num >= expected_num
+        if operator == "lt":
+            return actual_num < expected_num
+        return actual_num <= expected_num
+
+    actual_text = str(actual).strip().lower() if actual is not None else ""
+    expected_text = str(expected).strip().lower() if expected is not None else ""
+    if operator in {"contains"}:
+        return expected_text in actual_text
+    if operator in {"starts_with"}:
+        return actual_text.startswith(expected_text)
+    if operator in {"ends_with"}:
+        return actual_text.endswith(expected_text)
+    if operator in {"ne", "not_eq"}:
+        return actual_text != expected_text
+    return actual_text == expected_text
 
 
 def _trigger_matches(workflow: Workflow, trigger_data: Dict[str, Any]) -> bool:
@@ -319,6 +424,502 @@ async def _execute_add_tag_action(
         await db.flush()
 
 
+async def _execute_remove_tag_action(
+    *,
+    db: AsyncSession,
+    config: Dict[str, Any],
+    contact: Optional[Contact],
+    values: Dict[str, Any],
+) -> None:
+    if not contact:
+        return
+    tag = _render_template(config.get("tag"), values).strip()
+    if not tag:
+        return
+    tags = [item for item in list(contact.tags or []) if str(item).strip() != tag]
+    if len(tags) != len(list(contact.tags or [])):
+        contact.tags = tags
+        contact.updated_at = now_utc()
+        await db.flush()
+
+
+async def _resolve_valid_owner_id(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    owner_id: Optional[str],
+) -> Optional[str]:
+    candidate = (owner_id or "").strip() or None
+    if not candidate:
+        return None
+    owner = (
+        await db.execute(
+            select(User).where(
+                and_(
+                    User.id == candidate,
+                    User.tenant_id == tenant_id,
+                    User.is_active.is_(True),
+                )
+            )
+        )
+    ).scalar_one_or_none()
+    return owner.id if owner else None
+
+
+async def _execute_assign_owner_action(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    config: Dict[str, Any],
+    contact: Optional[Contact],
+    deal: Optional[Deal],
+    values: Dict[str, Any],
+) -> None:
+    raw_owner_id = _render_template(config.get("owner_id"), values).strip() if config.get("owner_id") else None
+    owner_id = await _resolve_valid_owner_id(db=db, tenant_id=tenant_id, owner_id=raw_owner_id)
+    if not owner_id:
+        return
+
+    object_type = (config.get("object_type") or "").strip().lower()
+    if not object_type:
+        object_type = "deal" if deal else "contact"
+
+    now = now_utc()
+    if object_type == "deal" and deal:
+        deal.owner_id = owner_id
+        deal.updated_at = now
+        return
+    if object_type in {"contact", "lead"} and contact:
+        contact.owner_id = owner_id
+        contact.updated_at = now
+
+
+async def _execute_move_deal_stage_action(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    config: Dict[str, Any],
+    deal: Optional[Deal],
+    values: Dict[str, Any],
+) -> None:
+    if not deal:
+        return
+    target_stage_id = _render_template(config.get("stage_id") or config.get("to_stage_id"), values).strip()
+    if not target_stage_id:
+        return
+
+    stage = (
+        await db.execute(
+            select(PipelineStage)
+            .join(Pipeline, Pipeline.id == PipelineStage.pipeline_id)
+            .where(
+                and_(
+                    PipelineStage.id == target_stage_id,
+                    Pipeline.tenant_id == tenant_id,
+                )
+            )
+        )
+    ).scalar_one_or_none()
+    if not stage:
+        return
+
+    now = now_utc()
+    old_stage_id = deal.stage_id
+    deal.stage_id = stage.id
+    status_override = (config.get("status") or "").strip().lower()
+    if status_override in {"open", "won", "lost"}:
+        deal.status = status_override
+    deal.updated_at = now
+
+    await create_timeline_event(
+        db=db,
+        tenant_id=tenant_id,
+        event_type="stage_changed",
+        title="Workflow moved deal stage",
+        deal_id=deal.id,
+        contact_id=deal.contact_id,
+        metadata={"from_stage_id": old_stage_id, "to_stage_id": stage.id, "workflow": True},
+    )
+
+
+async def _default_pipeline_and_stage(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    pipeline_id: Optional[str],
+    stage_id: Optional[str],
+) -> tuple[Optional[Pipeline], Optional[PipelineStage]]:
+    selected_pipeline: Optional[Pipeline] = None
+    selected_stage: Optional[PipelineStage] = None
+
+    if pipeline_id:
+        selected_pipeline = (
+            await db.execute(
+                select(Pipeline).where(and_(Pipeline.id == pipeline_id, Pipeline.tenant_id == tenant_id))
+            )
+        ).scalar_one_or_none()
+    if not selected_pipeline:
+        selected_pipeline = (
+            await db.execute(
+                select(Pipeline)
+                .where(and_(Pipeline.tenant_id == tenant_id, Pipeline.is_default.is_(True)))
+                .order_by(Pipeline.display_order.asc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+    if not selected_pipeline:
+        selected_pipeline = (
+            await db.execute(
+                select(Pipeline)
+                .where(Pipeline.tenant_id == tenant_id)
+                .order_by(Pipeline.display_order.asc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+
+    if selected_pipeline and stage_id:
+        selected_stage = (
+            await db.execute(
+                select(PipelineStage).where(
+                    and_(
+                        PipelineStage.id == stage_id,
+                        PipelineStage.pipeline_id == selected_pipeline.id,
+                    )
+                )
+            )
+        ).scalar_one_or_none()
+    if selected_pipeline and not selected_stage:
+        selected_stage = (
+            await db.execute(
+                select(PipelineStage)
+                .where(PipelineStage.pipeline_id == selected_pipeline.id)
+                .order_by(PipelineStage.display_order.asc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+
+    return selected_pipeline, selected_stage
+
+
+async def _execute_create_deal_action(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    config: Dict[str, Any],
+    contact: Optional[Contact],
+    deal: Optional[Deal],
+    values: Dict[str, Any],
+) -> Optional[Deal]:
+    if deal and bool(config.get("skip_if_deal_exists", True)):
+        return deal
+    if not contact:
+        return deal
+    if not contact.converted_from_lead_id:
+        return deal
+    if not contact.account_id:
+        return deal
+
+    requested_pipeline_id = _render_template(config.get("pipeline_id"), values).strip() if config.get("pipeline_id") else None
+    requested_stage_id = _render_template(config.get("stage_id"), values).strip() if config.get("stage_id") else None
+    pipeline, stage = await _default_pipeline_and_stage(
+        db=db,
+        tenant_id=tenant_id,
+        pipeline_id=requested_pipeline_id,
+        stage_id=requested_stage_id,
+    )
+    if not pipeline or not stage:
+        return deal
+
+    name = _render_template(config.get("name") or "{{company_name}} Opportunity", values).strip()
+    if not name:
+        name = f"{contact.company_name or contact.full_name or contact.id} Opportunity"
+    amount = max(0.0, _safe_float(_render_template(config.get("amount"), values) if config.get("amount") is not None else 0.0, 0.0))
+    close_days = max(1, _safe_int(config.get("estimated_close_in_days"), 30))
+    product_service_type = _render_template(config.get("product_service_type") or "Workflow-generated opportunity", values).strip()
+    now = now_utc()
+    new_deal = Deal(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        name=name,
+        amount=amount,
+        currency="USD",
+        status="open",
+        origin_lead_id=contact.converted_from_lead_id,
+        contact_id=contact.id,
+        account_id=contact.account_id,
+        account_name=contact.account_name or contact.company_name,
+        pipeline_id=pipeline.id,
+        stage_id=stage.id,
+        next_step_at=now + timedelta(days=max(1, _safe_int(config.get("next_step_in_days"), 1))),
+        next_step_note=_render_template(config.get("next_step_note") or "Workflow follow-up", values).strip(),
+        estimated_close_date=now + timedelta(days=close_days),
+        product_service_type=product_service_type,
+        lead_score=int(contact.lead_score or 0),
+        lead_tier=(contact.lead_tier or "D").strip().upper(),
+        sales_motion_type="partnership_sales",
+        owner_id=contact.owner_id,
+        last_override={},
+        handoff_status="pending",
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(new_deal)
+    await db.flush()
+    await create_timeline_event(
+        db=db,
+        tenant_id=tenant_id,
+        event_type="deal_created",
+        title=f"Workflow created deal: {new_deal.name}",
+        deal_id=new_deal.id,
+        contact_id=contact.id,
+        metadata={"workflow": True},
+    )
+    return new_deal
+
+
+async def _execute_request_document_action(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    config: Dict[str, Any],
+    contact: Optional[Contact],
+    deal: Optional[Deal],
+    values: Dict[str, Any],
+) -> None:
+    title = _render_template(config.get("title") or "Document request", values).strip() or "Document request"
+    description = _render_template(
+        config.get("description") or config.get("body") or "Please provide the requested document(s).",
+        values,
+    ).strip()
+    due_days = max(1, _safe_int(config.get("due_days"), 3))
+    owner_id = (config.get("owner_id") or "").strip() or (deal.owner_id if deal else None) or (contact.owner_id if contact else None)
+    related_type = "deal" if deal else ("contact" if contact else None)
+    related_id = deal.id if deal else (contact.id if contact else None)
+    now = now_utc()
+    task = Task(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        title=title,
+        description=description or None,
+        due_at=now + timedelta(days=due_days),
+        owner_id=owner_id,
+        created_by=None,
+        status="open",
+        kind="document_request",
+        related_type=related_type,
+        related_id=related_id,
+        completed_at=None,
+        completed_by=None,
+        meta={"workflow": True},
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(task)
+    await create_timeline_event(
+        db=db,
+        tenant_id=tenant_id,
+        event_type="document_requested",
+        title=title,
+        description=description or None,
+        deal_id=deal.id if deal else None,
+        contact_id=contact.id if contact else None,
+        metadata={"workflow": True, "task_id": task.id},
+    )
+
+
+def _render_json_payload(payload: Any, values: Dict[str, Any]) -> Any:
+    if isinstance(payload, dict):
+        return {k: _render_json_payload(v, values) for k, v in payload.items()}
+    if isinstance(payload, list):
+        return [_render_json_payload(item, values) for item in payload]
+    if isinstance(payload, str):
+        return _render_template(payload, values)
+    return payload
+
+
+async def _execute_fire_webhook_action(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    config: Dict[str, Any],
+    contact: Optional[Contact],
+    deal: Optional[Deal],
+    values: Dict[str, Any],
+) -> None:
+    url = _render_template(config.get("url") or config.get("webhook_url"), values).strip()
+    if not url:
+        return
+
+    method = (_render_template(config.get("method") or "POST", values).strip() or "POST").upper()
+    timeout_seconds = max(1, _safe_int(config.get("timeout_seconds"), 10))
+    headers = dict(config.get("headers") or {})
+    headers.setdefault("Content-Type", "application/json")
+    payload = config.get("payload", config.get("body", {}))
+    rendered_payload = _render_json_payload(payload, values)
+
+    if isinstance(rendered_payload, (dict, list)):
+        data_bytes = json.dumps(rendered_payload).encode("utf-8")
+    elif rendered_payload is None:
+        data_bytes = b""
+    else:
+        data_bytes = str(rendered_payload).encode("utf-8")
+
+    def _send_webhook():
+        req = url_request.Request(url=url, data=data_bytes if method != "GET" else None, method=method)
+        for header_key, header_value in headers.items():
+            req.add_header(str(header_key), str(header_value))
+        with url_request.urlopen(req, timeout=timeout_seconds) as response:
+            body = response.read(512).decode("utf-8", errors="replace")
+            return int(response.status), body
+
+    status_code = None
+    response_preview = None
+    try:
+        status_code, response_preview = await asyncio.to_thread(_send_webhook)
+    except (url_error.URLError, ValueError):
+        status_code = None
+        response_preview = None
+
+    await create_timeline_event(
+        db=db,
+        tenant_id=tenant_id,
+        event_type="webhook_fired",
+        title="Workflow fired webhook",
+        description=f"{method} {url}",
+        deal_id=deal.id if deal else None,
+        contact_id=contact.id if contact else None,
+        metadata={
+            "workflow": True,
+            "url": url,
+            "method": method,
+            "status_code": status_code,
+            "response_preview": response_preview,
+        },
+    )
+
+
+def _affiliate_id_from_context(config: Dict[str, Any], values: Dict[str, Any]) -> Optional[str]:
+    return (_render_template(config.get("affiliate_id"), values).strip() if config.get("affiliate_id") else None) or (
+        str(values.get("affiliate_id") or "").strip() or None
+    )
+
+
+def _program_id_from_context(config: Dict[str, Any], values: Dict[str, Any]) -> Optional[str]:
+    return (_render_template(config.get("program_id"), values).strip() if config.get("program_id") else None) or (
+        str(values.get("program_id") or "").strip() or None
+    )
+
+
+async def _execute_affiliate_action(
+    *,
+    db: AsyncSession,
+    tenant_id: str,
+    action_type: str,
+    config: Dict[str, Any],
+    contact: Optional[Contact],
+    deal: Optional[Deal],
+    values: Dict[str, Any],
+) -> None:
+    affiliate_id = _affiliate_id_from_context(config, values)
+    program_id = _program_id_from_context(config, values)
+    if not affiliate_id:
+        return
+
+    affiliate = (
+        await db.execute(
+            select(Affiliate).where(and_(Affiliate.id == affiliate_id, Affiliate.tenant_id == tenant_id))
+        )
+    ).scalar_one_or_none()
+    if not affiliate:
+        return
+
+    now = now_utc()
+    if action_type == "approve_affiliate":
+        affiliate.status = "approved"
+        affiliate.updated_at = now
+        return
+
+    if action_type == "update_affiliate_status":
+        next_status = _render_template(config.get("status") or "", values).strip().lower()
+        if next_status:
+            affiliate.status = next_status
+            affiliate.updated_at = now
+        return
+
+    if action_type == "notify_affiliate":
+        title = _render_template(config.get("title") or "Affiliate notification", values).strip() or "Affiliate notification"
+        message = _render_template(config.get("message") or config.get("body") or "", values).strip()
+        if not message:
+            return
+        notification = AffiliateNotification(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            affiliate_id=affiliate.id,
+            notification_type="workflow",
+            title=title,
+            message=message,
+            is_read=False,
+            meta={"workflow": True},
+            created_at=now,
+            read_at=None,
+        )
+        db.add(notification)
+        return
+
+    if action_type == "create_commission":
+        if not program_id:
+            return
+        program = (
+            await db.execute(
+                select(AffiliateProgram).where(
+                    and_(AffiliateProgram.id == program_id, AffiliateProgram.tenant_id == tenant_id)
+                )
+            )
+        ).scalar_one_or_none()
+        if not program:
+            return
+
+        amount = _safe_float(_render_template(config.get("amount"), values) if config.get("amount") is not None else None, None)
+        if amount is None:
+            if deal and float(deal.amount or 0) > 0:
+                if (program.commission_type or "").strip().lower() == "percentage":
+                    amount = float(deal.amount or 0.0) * (float(program.commission_value or 0.0) / 100.0)
+                else:
+                    amount = float(program.commission_value or 0.0)
+            else:
+                amount = 0.0
+        amount = max(0.0, float(amount or 0.0))
+
+        commission = AffiliateCommission(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            affiliate_id=affiliate.id,
+            program_id=program.id,
+            deal_id=deal.id if deal else None,
+            payment_id=None,
+            amount=amount,
+            currency=(config.get("currency") or "USD"),
+            status=(config.get("status") or "pending"),
+            notes=_render_template(config.get("notes"), values).strip() or None,
+            approved_at=None,
+            approved_by=None,
+            paid_at=None,
+            paid_by=None,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(commission)
+        await create_timeline_event(
+            db=db,
+            tenant_id=tenant_id,
+            event_type="commission_created",
+            title="Workflow created affiliate commission",
+            deal_id=deal.id if deal else None,
+            contact_id=contact.id if contact else None,
+            metadata={"workflow": True, "affiliate_id": affiliate.id, "program_id": program.id, "amount": amount},
+        )
+
+
 async def _execute_set_property_action(
     *,
     db: AsyncSession,
@@ -358,7 +959,7 @@ async def _execute_action(
     contact: Optional[Contact],
     deal: Optional[Deal],
     trigger_data: Dict[str, Any],
-) -> None:
+) -> Optional[Deal]:
     action_type = (action.get("type") or "").strip().lower()
     config = _action_config(action)
     values = _template_values(contact, deal, trigger_data)
@@ -373,7 +974,7 @@ async def _execute_action(
             deal=deal,
             values=values,
         )
-        return
+        return deal
 
     if action_type == "create_task":
         await _execute_create_task_action(
@@ -384,15 +985,61 @@ async def _execute_action(
             deal=deal,
             values=values,
         )
-        return
+        return deal
 
     if action_type == "add_tag":
         await _execute_add_tag_action(db=db, config=config, contact=contact, values=values)
-        return
+        return deal
+
+    if action_type == "remove_tag":
+        await _execute_remove_tag_action(db=db, config=config, contact=contact, values=values)
+        return deal
+
+    if action_type == "assign_owner":
+        await _execute_assign_owner_action(
+            db=db,
+            tenant_id=tenant_id,
+            config=config,
+            contact=contact,
+            deal=deal,
+            values=values,
+        )
+        return deal
+
+    if action_type == "move_deal_stage":
+        await _execute_move_deal_stage_action(
+            db=db,
+            tenant_id=tenant_id,
+            config=config,
+            deal=deal,
+            values=values,
+        )
+        return deal
+
+    if action_type == "create_deal":
+        return await _execute_create_deal_action(
+            db=db,
+            tenant_id=tenant_id,
+            config=config,
+            contact=contact,
+            deal=deal,
+            values=values,
+        )
+
+    if action_type == "request_document":
+        await _execute_request_document_action(
+            db=db,
+            tenant_id=tenant_id,
+            config=config,
+            contact=contact,
+            deal=deal,
+            values=values,
+        )
+        return deal
 
     if action_type == "set_property":
         await _execute_set_property_action(db=db, config=config, contact=contact, deal=deal, values=values)
-        return
+        return deal
 
     if action_type == "create_notification":
         title = _render_template(config.get("title") or "Workflow notification", values)
@@ -407,10 +1054,32 @@ async def _execute_action(
             contact_id=contact.id if contact else None,
             metadata={"workflow": True},
         )
-        return
+        return deal
 
-    # Affiliate-specific action types and unknown actions are currently ignored.
-    return
+    if action_type == "fire_webhook":
+        await _execute_fire_webhook_action(
+            db=db,
+            tenant_id=tenant_id,
+            config=config,
+            contact=contact,
+            deal=deal,
+            values=values,
+        )
+        return deal
+
+    if action_type in {"approve_affiliate", "create_commission", "notify_affiliate", "update_affiliate_status"}:
+        await _execute_affiliate_action(
+            db=db,
+            tenant_id=tenant_id,
+            action_type=action_type,
+            config=config,
+            contact=contact,
+            deal=deal,
+            values=values,
+        )
+        return deal
+
+    return deal
 
 
 async def _resume_after_delay(
@@ -484,6 +1153,7 @@ async def _execute_workflow_run(
         action = dict(actions[index] or {})
         action_type = (action.get("type") or "").strip().lower()
         delay_minutes = _safe_int(action.get("delay_minutes"), 0)
+        config = _action_config(action)
 
         if action_type == "delay":
             delay_minutes = max(1, delay_minutes)
@@ -505,6 +1175,19 @@ async def _execute_workflow_run(
             _track_task(task)
             return
 
+        if action_type == "if_condition":
+            values = _template_values(contact, deal, trigger_data)
+            condition_met = _evaluate_condition(config, values)
+            if not condition_met:
+                on_false = (config.get("on_false") or "skip").strip().lower()
+                if on_false == "stop":
+                    break
+                skip_actions = max(1, _safe_int(config.get("skip_actions"), 1))
+                index += 1 + skip_actions
+                continue
+            index += 1
+            continue
+
         if delay_minutes > 0:
             run.status = "waiting"
             run.error = None
@@ -524,7 +1207,7 @@ async def _execute_workflow_run(
             _track_task(task)
             return
 
-        await _execute_action(
+        deal = await _execute_action(
             db=db,
             tenant_id=workflow.tenant_id,
             action=action,
