@@ -1,6 +1,6 @@
 """elev8 matrix core enforcement fields
 
-Revision ID: 0005_elev8_matrix_core_enforcement
+Revision ID: 0005_elev8_core
 Revises: 0004_demos_spiced_slas
 Create Date: 2026-03-03
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
-revision = "0005_elev8_matrix_core_enforcement"
+revision = "0005_elev8_core"
 down_revision = "0004_demos_spiced_slas"
 branch_labels = None
 depends_on = None

@@ -1,7 +1,7 @@
 """deal contacts junction + enforcement gap support
 
-Revision ID: 0006_deal_contacts_and_enforcement_gaps
-Revises: 0005_elev8_matrix_core_enforcement
+Revision ID: 0006_deal_contacts_gaps
+Revises: 0005_elev8_core
 Create Date: 2026-03-06
 """
 
@@ -15,8 +15,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = "0006_deal_contacts_and_enforcement_gaps"
-down_revision = "0005_elev8_matrix_core_enforcement"
+revision = "0006_deal_contacts_gaps"
+down_revision = "0005_elev8_core"
 branch_labels = None
 depends_on = None
 
